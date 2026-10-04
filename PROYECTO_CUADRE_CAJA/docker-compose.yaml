@@ -1,0 +1,14 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: sistema-cuadre-caja-backend
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      DB_NAME: cuadre_caja
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD}
