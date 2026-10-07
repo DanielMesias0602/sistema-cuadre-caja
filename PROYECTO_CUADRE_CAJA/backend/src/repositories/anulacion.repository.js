@@ -6,8 +6,10 @@ export const createAnulacion = async ({
   fecha,
   motivo,
   observacion = null
-}) => {
-  const result = await query(
+}, client = null) => {
+  const executor = client ?? { query };
+
+  const result = await executor.query(
     `INSERT INTO anulacion
       (
         id_comprobante,

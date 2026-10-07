@@ -81,6 +81,8 @@ export const findOperacionesReport = async (filters) => {
        o.fecha::text AS fecha,
        o.id_cierre,
        cc.turno,
+       o.id_usuario,
+       CONCAT(u.nombres, ' ', u.apellidos) AS usuario,
        c.id_comprobante,
        c.tipo_comprobante,
        c.serie,
@@ -111,6 +113,8 @@ export const findOperacionesReport = async (filters) => {
      FROM operacion o
      INNER JOIN comprobante c
        ON c.id_comprobante = o.id_comprobante
+     INNER JOIN usuario u
+       ON u.id_usuario = o.id_usuario
      LEFT JOIN cierre_caja cc
        ON cc.id_cierre = o.id_cierre
      LEFT JOIN pago p
@@ -129,6 +133,9 @@ export const findOperacionesReport = async (filters) => {
        o.fecha,
        o.id_cierre,
        cc.turno,
+       o.id_usuario,
+       u.nombres,
+       u.apellidos,
        c.id_comprobante,
        c.tipo_comprobante,
        c.serie,

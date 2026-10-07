@@ -90,3 +90,64 @@ export const findPagosByOperacion = async (idOperacion) => {
 
   return result.rows;
 };
+
+export const updatePago = async (idPago, {
+  id_medio_pago,
+  monto,
+  referencia_bancaria,
+  observacion,
+  estado
+}, client = null) => {
+  const executor = client ?? { query };
+
+  const fields = [];
+  const values = [];
+  let paramIndex = 1;
+
+  if (id_medio_pago !== undefined) {
+    fields.push(`id_medio_pago = $${paramIndex++}`);
+    values.push(id_medio_pago);
+  }
+
+  if (monto !== undefined) {
+    fields.push(`monto = $${paramIndex++}`);
+    values.push(monto);
+  }
+
+  if (referencia_bancaria !== undefined) {
+    fields.push(`referencia_bancaria = $${paramIndex++}`);
+    values.push(referencia_bancaria);
+  }
+
+  if (observacion !== undefined) {
+    fields.push(`observacion = $${paramIndex++}`);
+    values.push(observacion);
+  }
+
+  if (estado !== undefined) {
+    fields.push(`estado = $${paramIndex++}`);
+    values.push(estado);
+  }
+
+  fields.push(`fecha_modificacion = CURRENT_TIMESTAMP`);
+  values.push(idPago);
+
+  const queryText = `
+    UPDATE pago
+    SET ${fields.join(', ')}
+    WHERE id_pago = $${paramIndex}
+    RETURNING
+      id_pago,
+      id_operacion,
+      id_medio_pago,
+      monto,
+      referencia_bancaria,
+      observacion,
+      estado,
+      fecha_registro,
+      fecha_modificacion
+  `;
+
+  const result = await executor.query(queryText, values);
+  return result.rows[0] ?? null;
+};

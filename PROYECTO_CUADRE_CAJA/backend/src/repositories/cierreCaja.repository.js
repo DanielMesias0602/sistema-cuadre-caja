@@ -13,8 +13,10 @@ export const createCierreCaja = async ({
   diferencia,
   estado,
   fecha_fin
-}) => {
-  const result = await query(
+}, client = null) => {
+  const executor = client ?? { query };
+
+  const result = await executor.query(
     `INSERT INTO cierre_caja
       (
         id_usuario_responsable,

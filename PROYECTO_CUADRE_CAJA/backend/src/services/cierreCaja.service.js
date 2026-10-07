@@ -4,6 +4,10 @@ import {
   findCierresCaja
 } from '../repositories/cierreCaja.repository.js';
 
+import {
+  withTransaction
+} from '../repositories/base.repository.js';
+
 export const registrarCierreCaja = async ({
   fecha,
   turno,
@@ -69,19 +73,40 @@ export const registrarCierreCaja = async ({
   const diferencia =
     efectivoFisico - efectivoDespuesSalidas;
 
-  return createCierreCaja({
-    id_usuario_responsable,
-    fecha,
-    turno,
-    total_ingresos: ingresos,
-    total_no_efectivo: noEfectivo,
-    efectivo_esperado: efectivoEsperado,
-    total_salidas: salidas,
-    efectivo_despues_salidas: efectivoDespuesSalidas,
-    efectivo_fisico: efectivoFisico,
-    diferencia,
-    estado,
-    fecha_fin
+  return withTransaction(async (client) => {
+    const cierre = await createCierreCaja({
+      id_usuario_responsable,
+      fecha,
+      turno,
+      total_ingresos: ingresos,
+      total_no_efectivo: noEfectivo,
+      efectivo_esperado: efectivoEsperado,
+      total_salidas: salidas,
+      efectivo_despues_salidas: efectivoDespuesSalidas,
+      efectivo_fisico: efectivoFisico,
+      diferencia,
+      estado,
+      fecha_fin
+    }, client);
+
+    let timeCondition = '';
+    if (turno === 'MAÑANA') {
+      timeCondition = `AND (fecha_registro AT TIME ZONE 'America/Lima')::time <= '14:00:00'::time`;
+    } else if (turno === 'TARDE') {
+      timeCondition = `AND (fecha_registro AT TIME ZONE 'America/Lima')::time > '14:00:00'::time AND (fecha_registro AT TIME ZONE 'America/Lima')::time <= '20:00:00'::time`;
+    }
+
+    await client.query(
+      `UPDATE operacion
+       SET id_cierre = $1,
+           fecha_modificacion = CURRENT_TIMESTAMP
+       WHERE fecha = $2
+         AND id_cierre IS NULL
+         ${timeCondition}`,
+      [cierre.id_cierre, fecha]
+    );
+
+    return cierre;
   });
 };
 

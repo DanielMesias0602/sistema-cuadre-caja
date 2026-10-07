@@ -226,7 +226,10 @@ export const registrarNotaCredito = async ({
   fecha,
   monto,
   motivo,
-  observacion = null
+  observacion = null,
+  genera_salida_efectivo = false,
+  id_tipo_salida = null,
+  id_cierre = null
 }) => {
   if (!id_comprobante_original) {
     throw new Error(
@@ -296,19 +299,14 @@ export const registrarNotaCredito = async ({
     throw error;
   }
 
-  if (!comprobante.id_operacion) {
+  const cierreDestino = id_cierre || comprobante.id_cierre;
+  const comprobanteMonto = Number(comprobante.monto);
+  const diferencia = comprobanteMonto - montoNumerico;
+  const backend_genera_salida = diferencia > 0;
+
+  if (backend_genera_salida && !cierreDestino) {
     const error = new Error(
-      'El comprobante no tiene una operación registrada'
-    );
-
-    error.statusCode = 409;
-
-    throw error;
-  }
-
-  if (!comprobante.id_cierre) {
-    const error = new Error(
-      'La operación del comprobante no tiene un cierre de caja asociado'
+      'Para registrar salida de efectivo por Nota de Crédito se requiere un cierre de caja asociado'
     );
 
     error.statusCode = 409;
@@ -350,22 +348,24 @@ export const registrarNotaCredito = async ({
     const notaCredito =
       notaResult.rows[0];
 
-    const salida =
-      await crearSalidaNotaCredito({
+    let salida = null;
+    if (backend_genera_salida) {
+      salida = await crearSalidaNotaCredito({
         client,
-        id_cierre: comprobante.id_cierre,
+        id_cierre: cierreDestino,
         id_usuario,
-        id_comprobante:
-          id_comprobante_original,
+        id_comprobante: id_comprobante_original,
         fecha,
-        monto: montoNumerico,
-        motivo: `Nota de crédito por diferencia - ${motivo.trim()}`
+        monto: diferencia,
+        motivo: `Nota de crédito por diferencia - ${motivo.trim()}`,
+        id_tipo_salida
       });
+    }
 
     return {
       nota_credito: notaCredito,
-      salida_caja: salida.salida,
-      cierre: salida.cierre
+      salida_caja: salida ? salida.salida : null,
+      cierre: salida ? salida.cierre : null
     };
   });
 };

@@ -19,6 +19,7 @@ import conciliacionRoutes from './routes/conciliacion.routes.js';
 import detalleConciliacionRoutes
   from './routes/detalleConciliacion.routes.js';
 import reporteRoutes from './routes/reporte.routes.js';
+import ocrRoutes from './routes/ocr.routes.js';
 
 import {
   notFoundHandler,
@@ -39,6 +40,7 @@ app.use('/api/medios-pago', medioPagoRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/evidencias', evidenciaRoutes);
 app.use('/api/anulaciones', anulacionRoutes);
+app.use('/api/ocr', ocrRoutes);
 
 app.use(
   '/api/verificaciones-pago',

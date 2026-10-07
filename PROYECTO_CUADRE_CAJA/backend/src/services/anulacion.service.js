@@ -4,7 +4,7 @@ import {
   findAnulacionByComprobante
 } from '../repositories/anulacion.repository.js';
 
-import { query } from '../repositories/base.repository.js';
+import { query, withTransaction } from '../repositories/base.repository.js';
 
 const comprobarComprobante = async (idComprobante) => {
   const result = await query(
@@ -14,7 +14,8 @@ const comprobarComprobante = async (idComprobante) => {
        serie,
        numero,
        fecha,
-       monto
+       monto,
+       (SELECT id_operacion FROM operacion WHERE id_comprobante = $1 LIMIT 1) AS id_operacion
      FROM comprobante
      WHERE id_comprobante = $1`,
     [idComprobante]
@@ -60,21 +61,33 @@ export const registrarAnulacion = async ({
     await comprobarAnulacionExistente(id_comprobante);
 
   if (anulacionExistente) {
-  const error = new Error(
-    'El comprobante ya tiene una anulación registrada'
-  );
+    const error = new Error(
+      'El comprobante ya tiene una anulación registrada'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
 
-  error.statusCode = 409;
+  return withTransaction(async (client) => {
+    const anulacion = await createAnulacion({
+      id_comprobante,
+      id_usuario,
+      fecha,
+      motivo: motivo.trim(),
+      observacion
+    }, client);
 
-  throw error;
-}
+    if (comprobante.id_operacion) {
+      await client.query(
+        `UPDATE operacion
+         SET estado = 'ANULADA',
+             fecha_modificacion = CURRENT_TIMESTAMP
+         WHERE id_operacion = $1`,
+        [comprobante.id_operacion]
+      );
+    }
 
-  return createAnulacion({
-    id_comprobante,
-    id_usuario,
-    fecha,
-    motivo: motivo.trim(),
-    observacion
+    return anulacion;
   });
 };
 

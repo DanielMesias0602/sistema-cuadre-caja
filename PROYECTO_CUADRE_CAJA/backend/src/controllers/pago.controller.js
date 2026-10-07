@@ -1,7 +1,8 @@
 import {
   registerPago,
   getPagoById,
-  getPagosByOperacion
+  getPagosByOperacion,
+  modifyPago
 } from '../services/pago.service.js';
 
 import {
@@ -15,6 +16,21 @@ export const create = async (req, res, next) => {
     res.status(201).json({
       status: 'ok',
       message: 'Pago registrado correctamente',
+      data: pago
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const update = async (req, res, next) => {
+  try {
+    const idPago = Number(req.params.id);
+    const pago = await modifyPago(idPago, req.body);
+
+    res.json({
+      status: 'ok',
+      message: 'Pago actualizado correctamente',
       data: pago
     });
   } catch (error) {
@@ -71,7 +87,7 @@ export const getResumenByOperacion = async (req, res, next) => {
     const pagos = await getPagosByOperacion(idOperacion);
 
     const totalPagado = pagos
-      .filter((pago) => pago.estado)
+      .filter((pago) => pago.estado !== 'ANULADO')
       .reduce((total, pago) => total + Number(pago.monto), 0);
 
     const montoOperacion = Number(operacion.monto);
