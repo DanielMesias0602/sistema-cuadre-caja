@@ -3,6 +3,7 @@ import { query } from './base.repository.js';
 export const createOperacion = async ({
   id_comprobante,
   id_usuario,
+  id_cierre = null,
   fecha,
   monto,
   estado,
@@ -12,13 +13,14 @@ export const createOperacion = async ({
     `INSERT INTO operacion
       (
         id_usuario,
+        id_cierre,
         id_comprobante,
         fecha,
         monto,
         estado,
         observacion
       )
-     VALUES ($1, $2, $3, $4, $5, $6)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING
        id_operacion,
        id_usuario,
@@ -33,6 +35,7 @@ export const createOperacion = async ({
        id_usuario_modificacion`,
     [
       id_usuario,
+      id_cierre,
       id_comprobante,
       fecha,
       monto,

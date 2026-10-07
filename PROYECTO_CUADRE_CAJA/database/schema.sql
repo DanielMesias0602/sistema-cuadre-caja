@@ -11,14 +11,6 @@
 -- Estado:
 --   VERSIÓN OFICIAL - VALIDADA PARA EJECUCIÓN EN POSTGRESQL
 --
--- IMPORTANTE:
---   Este script define únicamente la estructura de la BD.
---   Las reglas que requieren varias filas, por ejemplo:
---
---       SUM(PAGO.monto) = OPERACION.monto
---
---   serán controladas por el Service/backend dentro
---   de una transacción.
 -- ============================================================
 
 BEGIN;

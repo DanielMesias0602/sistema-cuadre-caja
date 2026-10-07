@@ -7,8 +7,10 @@ export const createPago = async ({
   referencia_bancaria = null,
   observacion = null,
   estado = 'REGISTRADO'
-}) => {
-  const result = await query(
+}, client = null) => {
+  const executor = client ?? { query };
+
+  const result = await executor.query(
     `INSERT INTO pago
       (
         id_operacion,

@@ -7,6 +7,13 @@ export const requireRole = (...allowedRoleIds) => {
       });
     }
 
+    if (!Number.isInteger(req.user.id_rol)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Rol de usuario no válido'
+      });
+    }
+
     if (!allowedRoleIds.includes(req.user.id_rol)) {
       return res.status(403).json({
         status: 'error',

@@ -19,15 +19,16 @@ export const registerEvidencia = async (data) => {
   } = data;
 
   if (
-    !id_operacion ||
-    !id_usuario ||
-    !tipo_evidencia ||
-    !storage_key ||
-    !fecha_evidencia
-  ) {
+  !id_operacion ||
+  !id_usuario ||
+  !tipo_evidencia ||
+  !storage_key ||
+  !fecha_evidencia
+) {
+
     const error = new Error(
-      'id_operacion, id_usuario, tipo_evidencia, storage_key y fecha_evidencia son obligatorios'
-    );
+  'id_operacion, id_usuario, tipo_evidencia, storage_key y fecha_evidencia son obligatorios'
+);
 
     error.statusCode = 400;
     throw error;
