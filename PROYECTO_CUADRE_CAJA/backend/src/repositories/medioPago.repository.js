@@ -5,6 +5,7 @@ export const findAllMediosPago = async () => {
     `SELECT
        id_medio_pago,
        nombre,
+       es_efectivo,
        estado
      FROM medio_pago
      WHERE estado = TRUE
@@ -19,6 +20,7 @@ export const findMedioPagoById = async (idMedioPago) => {
     `SELECT
        id_medio_pago,
        nombre,
+       es_efectivo,
        estado
      FROM medio_pago
      WHERE id_medio_pago = $1`,

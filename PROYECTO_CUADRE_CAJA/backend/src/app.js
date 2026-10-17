@@ -20,16 +20,20 @@ import detalleConciliacionRoutes
   from './routes/detalleConciliacion.routes.js';
 import reporteRoutes from './routes/reporte.routes.js';
 import ocrRoutes from './routes/ocr.routes.js';
+import usuarioRoutes from './routes/usuario.routes.js';
+import rolRoutes from './routes/rol.routes.js';
 
 import {
   notFoundHandler,
   errorHandler
 } from './middlewares/error.middleware.js';
+import { requestLogger, errorLogger } from './middlewares/logger.middleware.js';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(requestLogger);
 
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
@@ -51,6 +55,7 @@ app.use(
   '/api/cierres-caja',
   cierreCajaRoutes
 );
+
 app.use(
   '/api/tipos-salida',
   tipoSalidaRoutes
@@ -77,8 +82,11 @@ app.use(
 );
 
 app.use('/api/reportes', reporteRoutes);
+app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/roles', rolRoutes);
 
 app.use(notFoundHandler);
+app.use(errorLogger);
 app.use(errorHandler);
 
 export default app;

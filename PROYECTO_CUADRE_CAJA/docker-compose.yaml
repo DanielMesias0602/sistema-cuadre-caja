@@ -12,3 +12,30 @@ services:
       DB_NAME: cuadre_caja
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      OCI_USER_OCID: ${OCI_USER_OCID}
+      OCI_TENANCY_OCID: ${OCI_TENANCY_OCID}
+      OCI_FINGERPRINT: ${OCI_FINGERPRINT}
+      OCI_REGION: ${OCI_REGION}
+      OCI_NAMESPACE: ${OCI_NAMESPACE}
+      OCI_BUCKET_NAME: ${OCI_BUCKET_NAME}
+      OCI_PRIVATE_KEY_PATH: ${OCI_PRIVATE_KEY_PATH}
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: sistema-cuadre-caja-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

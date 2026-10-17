@@ -4,6 +4,7 @@ const storage = multer.diskStorage({
   destination: './tmp',
   filename: (req, file, cb) => {
     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname}`;
+    console.log('[Upload] Archivo recibido:', file.originalname, 'Tamaño:', file.size, 'Tipo:', file.mimetype);
     cb(null, uniqueName);
   }
 });

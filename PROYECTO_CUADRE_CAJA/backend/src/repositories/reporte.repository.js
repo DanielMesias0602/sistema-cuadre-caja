@@ -448,74 +448,119 @@ export const findConciliacionReport = async (filters) => {
 };
 
 export const findDashboardReport = async (filters) => {
-  const dateFilter = buildDateFilters(filters, 'cc');
-  const operationFilter = buildDateFilters(filters, 'o');
+  const fechaDesde = filters.fecha_desde || null;
+  const fechaHasta = filters.fecha_hasta || null;
+  const params = [fechaDesde, fechaHasta];
 
+  // ---------------------------------------------------------
+  // 1. RESÚMEN
+  // ---------------------------------------------------------
   const resumen = await query(
-    `SELECT
-       COUNT(*)::INTEGER AS cantidad_cierres,
-       COALESCE(SUM(cc.total_ingresos), 0) AS total_ingresos,
-       COALESCE(SUM(cc.total_no_efectivo), 0) AS total_no_efectivo,
-       COALESCE(SUM(cc.efectivo_esperado), 0) AS efectivo_esperado,
-       COALESCE(SUM(cc.total_salidas), 0) AS total_salidas,
-       COALESCE(SUM(cc.efectivo_despues_salidas), 0) AS efectivo_despues_salidas,
-       COALESCE(SUM(cc.efectivo_fisico), 0) AS efectivo_fisico,
-       COALESCE(SUM(cc.diferencia), 0) AS diferencia_acumulada,
-       COUNT(*) FILTER (WHERE cc.diferencia <> 0)::INTEGER AS cierres_con_diferencia
-     FROM cierre_caja cc
-     ${dateFilter.sql}`,
-    dateFilter.params
+    `WITH operaciones_filtradas AS (
+       SELECT o.id_operacion, o.monto
+       FROM operacion o
+       WHERE o.estado != 'ANULADA'
+         AND ($1::date IS NULL OR o.fecha >= $1::date)
+         AND ($2::date IS NULL OR o.fecha <= $2::date)
+     ),
+     pagos_no_efectivo AS (
+       SELECT COALESCE(SUM(p.monto), 0) AS total
+       FROM pago p
+       INNER JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+       INNER JOIN operaciones_filtradas of ON of.id_operacion = p.id_operacion
+       WHERE mp.es_efectivo = FALSE
+     )
+     SELECT
+       (SELECT COUNT(*)::INTEGER FROM cierre_caja cc
+         WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
+           AND ($2::date IS NULL OR cc.fecha <= $2::date)
+       ) AS cantidad_cierres,
+       (SELECT COALESCE(SUM(monto), 0) FROM operaciones_filtradas) AS total_ingresos,
+       (SELECT total FROM pagos_no_efectivo) AS total_no_efectivo,
+       (SELECT COALESCE(SUM(monto), 0) FROM operaciones_filtradas)
+         - (SELECT total FROM pagos_no_efectivo) AS efectivo_esperado,
+       (SELECT COALESCE(SUM(cc.total_salidas), 0) FROM cierre_caja cc
+         WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
+           AND ($2::date IS NULL OR cc.fecha <= $2::date)
+       ) AS total_salidas,
+       (SELECT COALESCE(SUM(cc.efectivo_despues_salidas), 0) FROM cierre_caja cc
+         WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
+           AND ($2::date IS NULL OR cc.fecha <= $2::date)
+       ) AS efectivo_despues_salidas,
+       (SELECT COALESCE(SUM(cc.efectivo_fisico), 0) FROM cierre_caja cc
+         WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
+           AND ($2::date IS NULL OR cc.fecha <= $2::date)
+       ) AS efectivo_fisico,
+       (SELECT COALESCE(SUM(cc.diferencia), 0) FROM cierre_caja cc
+         WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
+           AND ($2::date IS NULL OR cc.fecha <= $2::date)
+       ) AS diferencia_acumulada,
+       (SELECT COUNT(*)::INTEGER FROM cierre_caja cc
+         WHERE cc.diferencia <> 0
+           AND ($1::date IS NULL OR cc.fecha >= $1::date)
+           AND ($2::date IS NULL OR cc.fecha <= $2::date)
+       ) AS cierres_con_diferencia`,
+    params
   );
 
+  // ---------------------------------------------------------
+  // 2. OPERACIONES
+  // ---------------------------------------------------------
   const operaciones = await query(
     `SELECT
        COUNT(*)::INTEGER AS total_operaciones,
-       COUNT(*) FILTER (WHERE EXISTS (
-         SELECT 1 FROM pago p2 WHERE p2.id_operacion = o.id_operacion
-       ))::INTEGER AS operaciones_con_pago,
-       COUNT(*) FILTER (WHERE EXISTS (
-         SELECT 1 FROM evidencia e2 WHERE e2.id_operacion = o.id_operacion
-       ))::INTEGER AS operaciones_con_evidencia,
-       COUNT(*) FILTER (WHERE EXISTS (
-         SELECT 1
-         FROM pago p3
-         INNER JOIN verificacion_pago vp3 ON vp3.id_pago = p3.id_pago
-         WHERE p3.id_operacion = o.id_operacion
-       ))::INTEGER AS operaciones_con_verificacion,
        COUNT(*) FILTER (WHERE (
-         SELECT COALESCE(SUM(p4.monto), 0)
-         FROM pago p4
-         WHERE p4.id_operacion = o.id_operacion
+         SELECT COUNT(*) FROM pago p WHERE p.id_operacion = o.id_operacion
+       ) > 0)::INTEGER AS operaciones_con_pago,
+       COUNT(*) FILTER (WHERE (
+         SELECT COUNT(*) FROM evidencia e WHERE e.id_operacion = o.id_operacion
+       ) > 0)::INTEGER AS operaciones_con_evidencia,
+       COUNT(*) FILTER (WHERE (
+         SELECT COUNT(*) FROM verificacion_pago vp
+         INNER JOIN pago p ON p.id_pago = vp.id_pago
+         WHERE p.id_operacion = o.id_operacion
+       ) > 0)::INTEGER AS operaciones_con_verificacion,
+       COUNT(*) FILTER (WHERE (
+         SELECT COALESCE(SUM(p.monto), 0) FROM pago p
+         WHERE p.id_operacion = o.id_operacion
        ) = o.monto)::INTEGER AS operaciones_con_pagos_completos,
-       COUNT(*) FILTER (WHERE o.fecha_modificacion IS NOT NULL)::INTEGER AS operaciones_modificadas
+       COUNT(*) FILTER (WHERE o.fecha_modificacion IS NOT NULL)::INTEGER
+         AS operaciones_modificadas
      FROM operacion o
-     ${operationFilter.sql}`,
-    operationFilter.params
+     WHERE o.estado != 'ANULADA'
+       AND ($1::date IS NULL OR o.fecha >= $1::date)
+       AND ($2::date IS NULL OR o.fecha <= $2::date)`,
+    params
   );
 
+  // ---------------------------------------------------------
+  // 3. PAGOS
+  // ---------------------------------------------------------
   const pagos = await query(
     `SELECT
-       COUNT(p.id_pago)::INTEGER AS total_pagos,
-       COUNT(p.id_pago) FILTER (WHERE p.fecha_modificacion IS NOT NULL)::INTEGER AS pagos_modificados,
-       COUNT(vp.id_verificacion)::INTEGER AS total_verificaciones
+       COUNT(*)::INTEGER AS total_pagos,
+       COUNT(*) FILTER (WHERE p.fecha_modificacion IS NOT NULL)::INTEGER
+         AS pagos_modificados,
+       (SELECT COUNT(*)::INTEGER FROM verificacion_pago) AS total_verificaciones
      FROM pago p
-     INNER JOIN operacion o
-       ON o.id_operacion = p.id_operacion
-     LEFT JOIN verificacion_pago vp
-       ON vp.id_pago = p.id_pago
-     ${operationFilter.sql}`,
-    operationFilter.params
+     INNER JOIN operacion o ON o.id_operacion = p.id_operacion
+     WHERE o.estado != 'ANULADA'
+       AND ($1::date IS NULL OR o.fecha >= $1::date)
+       AND ($2::date IS NULL OR o.fecha <= $2::date)`,
+    params
   );
 
-
-
+  // ---------------------------------------------------------
+  // 4. RESULTADO FINAL
+  // ---------------------------------------------------------
   return {
     resumen: resumen.rows[0],
     operaciones: operaciones.rows[0],
     pagos: pagos.rows[0],
     indicadores_tiempo_cierre: {
       disponible: false,
-      motivo: 'El modelo físico registra fecha y fecha_fin, pero no una hora de inicio del cierre.'
+      motivo:
+        'El modelo físico registra fecha y fecha_fin, pero no una hora de inicio del cierre.'
     }
   };
 };

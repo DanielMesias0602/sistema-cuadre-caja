@@ -68,3 +68,77 @@ export const findUserById = async (idUsuario) => {
 
   return result.rows[0] ?? null;
 };
+
+export const createUser = async ({
+  id_rol,
+  nombres,
+  apellidos,
+  usuario,
+  password_hash,
+  condicion_personal,
+  estado = true,
+}) => {
+  const result = await query(
+    `INSERT INTO usuario
+       (id_rol, nombres, apellidos, usuario, password_hash, condicion_personal, estado)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING
+       id_usuario, id_rol, nombres, apellidos, usuario,
+       condicion_personal, estado, fecha_creacion`,
+    [id_rol, nombres, apellidos, usuario, password_hash, condicion_personal, estado]
+  );
+  return result.rows[0];
+};
+
+export const updateUser = async (idUsuario, {
+  id_rol,
+  nombres,
+  apellidos,
+  condicion_personal,
+}) => {
+  const result = await query(
+    `UPDATE usuario
+       SET id_rol = $1,
+           nombres = $2,
+           apellidos = $3,
+           condicion_personal = $4
+     WHERE id_usuario = $5
+     RETURNING
+       id_usuario, id_rol, nombres, apellidos, usuario,
+       condicion_personal, estado, fecha_creacion`,
+    [id_rol, nombres, apellidos, condicion_personal, idUsuario]
+  );
+  return result.rows[0] ?? null;
+};
+
+export const updateEstado = async (idUsuario, estado) => {
+  const result = await query(
+    `UPDATE usuario
+       SET estado = $1
+     WHERE id_usuario = $2
+     RETURNING
+       id_usuario, id_rol, nombres, apellidos, usuario,
+       condicion_personal, estado, fecha_creacion`,
+    [estado, idUsuario]
+  );
+  return result.rows[0] ?? null;
+};
+
+export const updatePassword = async (idUsuario, passwordHash) => {
+  const result = await query(
+    `UPDATE usuario
+       SET password_hash = $1
+     WHERE id_usuario = $2
+     RETURNING id_usuario, usuario`,
+    [passwordHash, idUsuario]
+  );
+  return result.rows[0] ?? null;
+};
+
+export const existsByUsername = async (username) => {
+  const result = await query(
+    `SELECT 1 FROM usuario WHERE usuario = $1 LIMIT 1`,
+    [username]
+  );
+  return result.rows.length > 0;
+};

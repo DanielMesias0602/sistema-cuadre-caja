@@ -32,11 +32,16 @@ const limpiarValor = (valor) => {
 
   const limpio = String(valor).trim();
 
-  return limpio || null;
+  // El parser Python devuelve el string "None" cuando no encuentra el campo.
+  if (!limpio || limpio === 'None' || limpio === 'null') {
+    return null;
+  }
+
+  return limpio;
 };
 
 const parsearMonto = (valor) => {
-  if (!valor) {
+  if (valor === null || valor === undefined) {
     return null;
   }
 
@@ -51,11 +56,191 @@ const parsearMonto = (valor) => {
 };
 
 const extraerCampo = (texto, patron) => {
+  if (!texto) {
+    return null;
+  }
+
   const match = texto.match(patron);
 
   return match
     ? limpiarValor(match[1])
     : null;
+};
+
+/*
+ * Extrae una sección del output del OCR.
+ *
+ * El Python devuelve secciones con esta forma:
+ *
+ *   === NOMBRE DE LA SECCION ===
+ *   contenido
+ *   === SIGUIENTE SECCION ===
+ *
+ * Esta función devuelve el contenido entre la sección
+ * pedida y la siguiente (o el final del texto).
+ *
+ * Es clave para que el "Total:" de la sección TOTALES
+ * no sea pisado por el "Total:" de cada producto en
+ * la sección DETALLE DE PRODUCTOS.
+ *
+ * Ejemplo del problema que resuelve:
+ *
+ *   === DETALLE DE PRODUCTOS ===
+ *   Producto 1
+ *   Total: S/ 150.00      <- NO queremos este
+ *
+ *   === TOTALES ===
+ *   Total: S/ 155.00      <- SÍ queremos este
+ *
+ * Sin esta función, el primer match ganaría y devolvería
+ * 150 en vez de 155.
+ */
+const extraerSeccion = (texto, nombre) => {
+  if (!texto) {
+    return '';
+  }
+
+  const regex = new RegExp(
+    `===\\s*${nombre}\\s*===([\\s\\S]*?)(?====\\s*[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\\s]*\\s*===|$)`,
+    'i'
+  );
+
+  const match = texto.match(regex);
+
+  return match ? match[1].trim() : '';
+};
+
+/*
+ * Normaliza texto con mojibake de UTF-8.
+ *
+ * Ejemplo:
+ * "NÃºmero"        -> "Número"
+ * "DescripciÃ³n"   -> "Descripción"
+ * "AutenticaciÃ³n" -> "Autenticación"
+ *
+ * El output del contenedor Docker a veces llega con
+ * caracteres UTF-8 mal decodificados. Normalizar antes
+ * de aplicar regex evita tener que duplicar los patrones
+ * en cada campo.
+ */
+const normalizar = (texto) => {
+  if (!texto) {
+    return '';
+  }
+
+  try {
+    return String(texto)
+      .normalize('NFC')
+      .replace(/Ã¡/g, 'á')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ã­/g, 'í')
+      .replace(/Ã³/g, 'ó')
+      .replace(/Ãº/g, 'ú')
+      .replace(/Ã±/g, 'ñ')
+      .replace(/Ã‘/g, 'Ñ');
+  } catch (_) {
+    return String(texto);
+  }
+};
+
+const normalizarHora = (horaTexto) => {
+  if (!horaTexto) {
+    return null;
+  }
+  
+  // Formato "HH:MM:SS p.m." o "HH:MM p.m."
+  const match12h = String(horaTexto).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i);
+  
+  if (match12h) {
+    let hora = parseInt(match12h[1], 10);
+    const min = match12h[2];
+    const seg = match12h[3] || '00';
+    const periodo = match12h[4].toLowerCase();
+    
+    if (periodo.includes('p') && hora < 12) {
+      hora += 12;
+    }
+    
+    if (periodo.includes('a') && hora === 12) {
+      hora = 0;
+    }
+    
+    return `${String(hora).padStart(2, '0')}:${min}:${seg}`;
+  }
+  
+  // Formato ya 24h "HH:MM:SS"
+  const match24h = String(horaTexto).match(/(\d{2}:\d{2}(?::\d{2})?)/);
+  
+  if (match24h) {
+    return match24h[1];
+  }
+  
+  return null;
+};
+
+/*
+ * ============================================================
+ * LIMPIEZA INTELIGENTE DE DESCRIPCIÓN
+ * ============================================================
+ * 
+ * Esta función limpia SOLO el texto de la descripción del producto,
+ * atrapando las variaciones de la marca de agua (goda, Pagodo, etc.)
+ * sin romper la estructura del ticket.
+ */
+const limpiarDescripcion = (desc) => {
+  if (!desc) {
+    return null;
+  }
+  
+  let limpio = String(desc);
+  
+  // Elimina las variaciones del logo Pagoda y palabras sueltas
+  limpio = limpio.replace(/\b(Pagoda|agoda|oda|goda|Pagodo|Pacod|Dagoda|Pag|pago|Pago|PC|DC|PE|pca|dc)\b/gi, '');
+  
+  // Elimina letras sueltas manteniendo unidades de medida
+  const unidades = new Set([
+    'kg', 'mt', 'cm', 'ml', 'lt', 'un', 'pc', 'pz', 'caj', 'und', 'gr', 'm2'
+  ]);
+  
+  limpio = limpio.replace(/\b([a-z]{1,2})\b/gi, (match) => {
+    if (unidades.has(match.toLowerCase())) {
+      return match;
+    }
+    return ''; 
+  });
+
+  // Quita símbolos huérfanos y espacios dobles
+  limpio = limpio.replace(/[\.\-]\s*$/g, '');
+  limpio = limpio.replace(/\s+/g, ' ').trim();
+  
+  return limpio || null;
+};
+
+/*
+ * ============================================================
+ * SEPARADOR DE PRODUCTOS MEZCLADOS
+ * ============================================================
+ * 
+ * Si Python entregó dos dimensiones en un mismo producto,
+ * esto lo divide para que el resto se le asigne al siguiente.
+ */
+const dividirDescripcionMezclada = (desc) => {
+  if (!desc) return { principal: null, sobrante: null };
+
+  const dimensiones = desc.match(/\d+\s*X\s*\d+/gi);
+  
+  if (dimensiones && dimensiones.length > 1) {
+    const splitIndex = desc.indexOf(dimensiones[1]);
+    
+    if (splitIndex > 0) {
+      const principal = desc.substring(0, splitIndex).trim();
+      const sobrante = desc.substring(splitIndex).trim();
+      
+      return { principal, sobrante };
+    }
+  }
+  
+  return { principal: desc, sobrante: null };
 };
 
 /*
@@ -79,17 +264,6 @@ const runOcrContainer = async ({
   }
 
   const absoluteFilePath = path.resolve(filePath);
-
-  /*
-   * Es importante conservar la extensión original.
-   *
-   * PaddleOCR valida la extensión del archivo recibido.
-   *
-   * Ejemplo:
-   * imagen.jpg -> /input/evidencia.jpg
-   * imagen.png -> /input/evidencia.png
-   * documento.pdf -> /input/evidencia.pdf
-   */
   const extension = path.extname(absoluteFilePath).toLowerCase();
 
   if (!extension) {
@@ -101,36 +275,27 @@ const runOcrContainer = async ({
     throw error;
   }
 
-  const dockerInputPath =
-    `/input/evidencia${extension}`;
+  const dockerInputPath = `/input/evidencia${extension}`;
 
   const args = [
     'run',
     '--rm',
-
-    /*
-     * Evidencia que será procesada.
-     */
+    '-e',
+    'PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True',
     '-v',
     `${absoluteFilePath}:${dockerInputPath}:ro`,
-
-    /*
-     * Volumen persistente de modelos PaddleOCR.
-     *
-     * Evita descargar nuevamente los modelos
-     * cada vez que se ejecuta un OCR.
-     */
     '-v',
     'ocr-cuadre-caja-modelos:/root/.paddlex',
-
     dockerImage,
-
     'python',
     script,
     dockerInputPath
   ];
 
   try {
+    console.log('[OCR] Ejecutando Docker:', OCR_DOCKER_PATH);
+    console.log('[OCR] Args:', args.join(' '));
+
     const { stdout, stderr } = await execFileAsync(
       OCR_DOCKER_PATH,
       args,
@@ -139,12 +304,14 @@ const runOcrContainer = async ({
       }
     );
 
+    console.log('[OCR] Docker respondió. stdout length:', stdout?.length);
+
     return {
       stdout,
       stderr
     };
   } catch (error) {
-    const mensaje =
+    const mensaje = 
       error.stderr ||
       error.stdout ||
       error.message ||
@@ -183,112 +350,323 @@ const isTransferencia = (tipoEvidencia) => {
 
 /*
  * ============================================================
+ * PARSER DE ITEMS (DETALLE DE PRODUCTOS)
+ * ============================================================
+ */
+
+const parsearItems = (seccionProductos) => {
+  if (!seccionProductos) {
+    return [];
+  }
+
+  const normalizado = normalizar(seccionProductos);
+
+  const bloques = normalizado
+    .split(/Producto\s+\d+\s*/i)
+    .map(b => b.trim())
+    .filter(b => b.length > 0);
+
+  const items = [];
+  let sobranteAnterior = null;
+
+  for (const bloque of bloques) {
+    let descRaw = extraerCampo(
+      bloque,
+      /Descripci[oó]n:\s*(.+)/i
+    );
+
+    // Si el producto anterior dejó un sobrante (ej. "27X45 CAVERNET"), 
+    // se lo agregamos al principio de este producto.
+    if (sobranteAnterior) {
+      if (descRaw) {
+        descRaw = `${sobranteAnterior} ${descRaw}`;
+      } else {
+        descRaw = sobranteAnterior;
+      }
+      sobranteAnterior = null;
+    }
+
+    let principal = descRaw;
+    
+    // Si hay dos dimensiones mezcladas, dividimos y guardamos el sobrante
+    if (descRaw) {
+      const dividido = dividirDescripcionMezclada(descRaw);
+      principal = dividido.principal;
+      sobranteAnterior = dividido.sobrante;
+    }
+
+    const cantidadTexto = extraerCampo(
+      bloque,
+      /Cantidad:\s*([\d.,]+)/i
+    );
+
+    const precioTexto = extraerCampo(
+      bloque,
+      /Precio\s+unitario:\s*S\/\s*([\d.,]+)/i
+    );
+
+    const totalTexto = extraerCampo(
+      bloque,
+      /Total:\s*S\/\s*([\d.,]+)/i
+    );
+
+    if (principal || totalTexto) {
+      items.push({
+        descripcion: limpiarDescripcion(principal),
+        cantidad: parsearMonto(cantidadTexto),
+        precio_unitario: parsearMonto(precioTexto),
+        total: parsearMonto(totalTexto)
+      });
+    }
+  }
+
+  return items;
+};
+
+/*
+ * ============================================================
  * PARSER DE BOLETA / FACTURA
  * ============================================================
  */
 
 const parsearComprobante = (salidaOcr) => {
-  const texto = String(salidaOcr || '');
+  /*
+   * ----------------------------------------------------------
+   * LIMPIEZA GLOBAL
+   * ----------------------------------------------------------
+   * Quitamos TODOS los puntajes [0.99] del texto original
+   * para que no interfieran con los regex.
+   */
+  const textoOriginal = String(salidaOcr || '').replace(/\[\d+\.\d+\]/g, '');
+  const texto = normalizar(textoOriginal);
+
+  // Texto limpio (quita saltos de línea) para búsquedas de totales
+  const textoLimpio = texto
+    .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  const seccionDatos = extraerSeccion(
+    texto, 
+    'DATOS DEL COMPROBANTE'
+  );
+
+  const seccionProductos = extraerSeccion(
+    texto, 
+    'DETALLE DE PRODUCTOS'
+  );
+
+  const seccionTotales = extraerSeccion(
+    texto, 
+    'TOTALES'
+  );
+
+  const fuenteDatos = seccionDatos || texto;
+  const fuenteTotales = seccionTotales || texto;
 
   const tipo_comprobante = extraerCampo(
-    texto,
+    fuenteDatos, 
     /Tipo:\s*(.+)/i
   );
 
-  const serie = extraerCampo(
-    texto,
+  /*
+   * ----------------------------------------------------------
+   * SERIE Y NÚMERO
+   * ----------------------------------------------------------
+   */
+  let serie = extraerCampo(
+    fuenteDatos, 
     /Serie:\s*(.+)/i
   );
 
-  const numero = extraerCampo(
-    texto,
-    /Número:\s*(.+)/i
+  let numero = extraerCampo(
+    fuenteDatos, 
+    /N[uúÃ]{1,3}mero:\s*(.+)/i
   );
+  
+  if (!serie || !numero) {
+    const matchSerieNumero = texto.match(/([A-Z0-9]{2,4})-(\d{6,})/i);
+    
+    if (matchSerieNumero) {
+      if (!serie) {
+        serie = matchSerieNumero[1];
+      }
+      if (!numero) {
+        numero = matchSerieNumero[2];
+      }
+    }
+  }
 
-  const fecha = extraerCampo(
-    texto,
+  /*
+   * ----------------------------------------------------------
+   * FECHA
+   * ----------------------------------------------------------
+   */
+  let fecha = extraerCampo(
+    fuenteDatos, 
     /Fecha:\s*(\d{2}\/\d{2}\/\d{4})/i
   );
 
-  const hora = extraerCampo(
-    texto,
-    /Hora:\s*(\d{2}:\d{2}:\d{2})/i
+  if (!fecha) {
+    fecha = extraerCampo(
+      texto, 
+      /(?:FECHA|EMISI[OÓ]N)[\s\S]{0,60}?(\d{2}\/\d{2}\/\d{4})/i
+    );
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * HORA Y VENDEDOR
+   * ----------------------------------------------------------
+   */
+  const horaTexto = extraerCampo(
+    fuenteDatos, 
+    /Hora:\s*(\d{2}:\d{2}(?::\d{2})?)/i
   );
+
+  const hora = normalizarHora(horaTexto);
 
   const vendedor = extraerCampo(
-    texto,
-    /Vendedor:\s*(.+)/i
+    fuenteDatos, 
+    /Vendedor(?:\(A\))?:\s*(.+)/i
+  );
+  
+  /*
+   * ----------------------------------------------------------
+   * CLIENTE
+   * ----------------------------------------------------------
+   */
+  let cliente = extraerCampo(
+    texto, 
+    /CLIENTE\s*:?\s*([^\n]+)/i
   );
 
-  const igvTexto = extraerCampo(
-    texto,
-    /IGV:\s*S\/\s*([\d.,]+)/i
+  if (!cliente) {
+    cliente = extraerCampo(
+      texto, 
+      /NOMBRE\s*:?\s*([^\n]+)/i
+    );
+  }
+
+  if (cliente) {
+    cliente = cliente.replace(/^[^a-zA-Z0-9]+/, '').trim();
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * TOTALES (IGV, OP GRAVADA, TOTAL, EFECTIVO)
+   * ----------------------------------------------------------
+   * Buscamos primero como lo dicta el Python. 
+   * Si falla, hacemos "Plan B".
+   */
+  let igvTexto = extraerCampo(
+    textoLimpio, 
+    /I\.?G\.?V\.?\s*S\/.*?([\d.,]+)/i
   );
 
+  let opGravadaTexto = extraerCampo(
+    textoLimpio, 
+    /OP\.?\s*GRAVADA\s*S\/.*?([\d.,]+)/i
+  );
+  
   const efectivoTexto = extraerCampo(
-    texto,
+    fuenteTotales, 
     /Efectivo:\s*S\/\s*([\d.,]+)/i
   );
-
-  const totalTexto = extraerCampo(
-    texto,
+  
+  let totalTexto = extraerCampo(
+    fuenteTotales, 
     /Total:\s*S\/\s*([\d.,]+)/i
   );
+  
+  // Plan B para el Total: Si Python falló, buscamos en el texto general.
+  if (!totalTexto || totalTexto === 'None') {
+    const matchPlanB = 
+      textoLimpio.match(/TOTAL S\/\s*:?\s*([\d.,]+)/i) || 
+      textoLimpio.match(/([\d.,]+)\s*TOTAL S\//i);
+      
+    if (matchPlanB) {
+      totalTexto = matchPlanB[1];
+    } else if (efectivoTexto) {
+      totalTexto = efectivoTexto;
+    }
+  }
 
   const moneda = extraerCampo(
-    texto,
+    fuenteTotales, 
     /Moneda:\s*([A-Z]+)/i
-  );
+  ) || 'PEN';
+
+  /*
+   * ----------------------------------------------------------
+   * ITEMS
+   * ----------------------------------------------------------
+   */
+  const items = parsearItems(seccionProductos);
+
+  /*
+   * ----------------------------------------------------------
+   * MEDIO DE PAGO
+   * ----------------------------------------------------------
+   * Si el ticket tiene un monto en EFECTIVO (mayor a 0), 
+   * se asume EFECTIVO, ignorando la palabra "tarjeta" 
+   * que pueda aparecer en los productos.
+   */
+  let medio_pago = null;
+  const textoLower = texto.toLowerCase();
+
+  if (textoLower.includes('bbva')) {
+    medio_pago = 'BBVA';
+  } else if (textoLower.includes('bcp')) {
+    medio_pago = 'BCP';
+  } else if (textoLower.includes('yape')) {
+    medio_pago = 'YAPE';
+  } else if (textoLower.includes('interbank')) {
+    medio_pago = 'INTERBANK';
+  } else if (textoLower.includes('scotiabank')) {
+    medio_pago = 'SCOTIABANK';
+  } else if (efectivoTexto && efectivoTexto !== 'None' && parsearMonto(efectivoTexto) > 0) {
+    medio_pago = 'EFECTIVO';
+  } else if (/FORMA DE PAGO\s*:?\s*TARJETA/i.test(texto)) {
+    medio_pago = 'TARJETA';
+  } else if (textoLower.includes('contado')) {
+    medio_pago = 'CONTADO';
+  }
 
   return {
-    tipo_comprobante,
-    serie,
-    numero,
-    fecha,
-    hora,
-
-    /*
-     * Para la operación utilizamos el total
-     * identificado por el OCR.
-     */
+    tipo_comprobante: limpiarValor(tipo_comprobante),
+    serie: limpiarValor(serie),
+    numero: limpiarValor(numero),
+    fecha: limpiarValor(fecha),
+    hora: hora,
     monto: parsearMonto(totalTexto),
-
-    moneda,
-
-    /*
-     * No se infiere "CONTADO" como efectivo.
-     * Solo se identifica EFECTIVO cuando el OCR
-     * encontró el campo correspondiente.
-     */
-    medio_pago: efectivoTexto
-      ? 'EFECTIVO'
-      : null,
-
+    moneda: moneda,
+    medio_pago: medio_pago,
     referencia_bancaria: null,
     titular: null,
     receptor: null,
-
-    vendedor,
-
+    vendedor: limpiarValor(vendedor),
+    cliente: limpiarValor(cliente),
     igv: parsearMonto(igvTexto),
-
-    efectivo: parsearMonto(
-      efectivoTexto
-    )
+    op_gravada: parsearMonto(opGravadaTexto),
+    efectivo: parsearMonto(efectivoTexto),
+    items
   };
 };
 
-const parsearTransferencia = (salidaOcr) => {
-  const texto = String(salidaOcr || '');
+/*
+ * ============================================================
+ * PARSER DE TRANSFERENCIA
+ * ============================================================
+ */
 
-  const datos = {
-    tipo_evidencia: 'TRANSFERENCIA'
-  };
+const parsearTransferencia = (salidaOcr) => {
+  const texto = normalizar(String(salidaOcr || '').replace(/\[\d+\.\d+\]/g, ''));
+  const datos = { tipo_evidencia: 'TRANSFERENCIA' };
 
   const campos = [
     {
       clave: 'aplicacion_banco',
-      patron: /Aplicación\s*\/\s*banco:\s*(.+)/i
+      patron: /Aplicaci[oó]n\s*\/\s*banco:\s*(.+)/i
     },
     {
       clave: 'estado_transferencia',
@@ -296,11 +674,11 @@ const parsearTransferencia = (salidaOcr) => {
     },
     {
       clave: 'fecha_operacion',
-      patron: /Fecha de operación:\s*(\d{2}\/\d{2}\/\d{4})/i
+      patron: /Fecha de operaci[oó]n:\s*(\d{2}\/\d{2}\/\d{4})/i
     },
     {
       clave: 'hora_operacion',
-      patron: /Hora de operación:\s*(\d{2}:\d{2})/i
+      patron: /Hora de operaci[oó]n:\s*(\d{2}:\d{2})/i
     },
     {
       clave: 'destinatario',
@@ -311,20 +689,20 @@ const parsearTransferencia = (salidaOcr) => {
       patron: /Cuenta destino:\s*(.+)/i
     },
     {
-  clave: 'tipo_cuenta_origen',
-  patron: /^Tipo de cuenta origen:\s*(.+)$/im
-},
-{
-  clave: 'cuenta_origen',
-  patron: /^Cuenta origen:\s*(.+)$/im
-},
+      clave: 'tipo_cuenta_origen',
+      patron: /^Tipo de cuenta origen:\s*(.+)$/im
+    },
+    {
+      clave: 'cuenta_origen',
+      patron: /^Cuenta origen:\s*(.+)$/im
+    },
     {
       clave: 'mensaje',
       patron: /Mensaje:\s*(.+)/i
     },
     {
       clave: 'descripcion',
-      patron: /Descripción:\s*(.+)/i
+      patron: /Descripci[oó]n:\s*(.+)/i
     },
     {
       clave: 'sucursal_agencia',
@@ -347,15 +725,6 @@ const parsearTransferencia = (salidaOcr) => {
     }
   }
 
-  /*
-   * Monto
-   *
-   * El build 1.11 puede devolver:
-   * Monto: S/ 922.00
-   *
-   * Si no aparece en la sección estructurada,
-   * buscamos el monto directamente en el OCR.
-   */
   const montoEstructurado = extraerCampo(
     texto,
     /Monto:\s*S\/\s*([\d.,]+)/i
@@ -377,20 +746,13 @@ const parsearTransferencia = (salidaOcr) => {
     }
   }
 
-  /*
-   * Moneda
-   *
-   * No inventamos la moneda.
-   * Solo la agregamos cuando el OCR la identifica.
-   */
   const moneda = extraerCampo(
     texto,
     /Moneda:\s*(.+)/i
   );
 
   if (moneda !== null) {
-    const monedaNormalizada =
-      moneda.toUpperCase();
+    const monedaNormalizada = moneda.toUpperCase();
 
     if (
       monedaNormalizada.includes('SOL') ||
@@ -402,45 +764,49 @@ const parsearTransferencia = (salidaOcr) => {
     }
   }
 
-  /*
-   * Referencia bancaria
-   *
-   * El build puede devolver:
-   * Referencia normalizada: ...
-   * o
-   * Referencia bancaria: ...
-   */
-  const referenciaNormalizada =
-    extraerCampo(
-      texto,
-      /Referencia normalizada:\s*(.+)/i
-    );
+  const numeroInvertido = extraerCampo(
+    texto,
+    /(\d{6,})\s*\n\s*(?:\[\d+\.\d+\]\s*)?N[uúÃ]{1,3}mero de operaci[oó]n/i
+  );
 
-  const referenciaBancaria =
-    extraerCampo(
-      texto,
-      /Referencia bancaria:\s*(.+)/i
-    );
+  if (numeroInvertido !== null) {
+    datos.referencia_bancaria = numeroInvertido;
+    datos.numero_operacion = numeroInvertido;
+  }
 
-  const numeroOperacion =
-    extraerCampo(
-      texto,
-      /Número de operación:\s*(.+)/i
-    );
+  const referenciaNormalizada = extraerCampo(
+    texto,
+    /Referencia normalizada:\s*(.+)/i
+  );
+
+  const referenciaBancaria = extraerCampo(
+    texto,
+    /Referencia bancaria:\s*(.+)/i
+  );
+
+  const numeroOperacion = extraerCampo(
+    texto,
+    /N[uúÃ]{1,3}mero de operaci[oó]n:\s*(.+)/i
+  );
 
   if (referenciaNormalizada !== null) {
-    datos.referencia_bancaria =
-      referenciaNormalizada;
+    datos.referencia_bancaria = referenciaNormalizada;
   } else if (referenciaBancaria !== null) {
-    datos.referencia_bancaria =
-      referenciaBancaria;
+    datos.referencia_bancaria = referenciaBancaria;
   } else if (numeroOperacion !== null) {
-    datos.referencia_bancaria =
-      numeroOperacion;
+    datos.referencia_bancaria = numeroOperacion;
+  }
+
+  if (datos.referencia_bancaria === undefined) {
+    datos.referencia_bancaria = null;
+  }
+  if (datos.numero_operacion === undefined) {
+    datos.numero_operacion = null;
   }
 
   return datos;
 };
+
 /*
  * ============================================================
  * SERVICIO PRINCIPAL OCR
@@ -452,11 +818,9 @@ export const extractEvidenceData = async ({
   mimeType,
   tipoEvidencia
 }) => {
-  /*
-   * ----------------------------------------------------------
-   * VALIDACIÓN DE ENTRADA
-   * ----------------------------------------------------------
-   */
+  console.log('[OCR] Solicitud recibida. tipoEvidencia:', tipoEvidencia);
+  console.log('[OCR] filePath:', filePath);
+  console.log('[OCR] mimeType:', mimeType);
 
   if (!filePath || !mimeType || !tipoEvidencia) {
     const error = new Error(
@@ -466,18 +830,6 @@ export const extractEvidenceData = async ({
     error.statusCode = 400;
     throw error;
   }
-
-  /*
-   * ----------------------------------------------------------
-   * TRANSFERENCIAS
-   * ----------------------------------------------------------
-   *
-   * Build oficial:
-   * ocr-cuadre-caja:1.11
-   *
-   * Script:
-   * app/main_transferencia.py
-   */
 
   if (isTransferencia(tipoEvidencia)) {
     const resultado = await runOcrContainer({
@@ -494,37 +846,14 @@ export const extractEvidenceData = async ({
 
       texto_completo: resultado.stdout,
 
-      /*
-       * La estructura detallada de transferencia
-       * se integrará con el parser específico
-       * del build 1.11.
-       */
-      datos_extraidos:
-  parsearTransferencia(resultado.stdout),
+      datos_extraidos: parsearTransferencia(resultado.stdout),
 
       salida_ocr: resultado.stdout,
 
-      /*
-       * Regla obligatoria del proyecto:
-       * el OCR nunca confirma automáticamente
-       * información crítica.
-       */
       requiere_revision: true,
       requiere_confirmacion: true
     };
   }
-
-  /*
-   * ----------------------------------------------------------
-   * BOLETA / FACTURA
-   * ----------------------------------------------------------
-   *
-   * Build oficial:
-   * ocr-cuadre-caja:1.7
-   *
-   * Script:
-   * app/main.py
-   */
 
   const resultado = await runOcrContainer({
     dockerImage: OCR_IMAGE_COMPROBANTE,
@@ -532,8 +861,7 @@ export const extractEvidenceData = async ({
     script: 'app/main.py'
   });
 
-  const datosExtraidos =
-    parsearComprobante(resultado.stdout);
+  const datosExtraidos = parsearComprobante(resultado.stdout);
 
   return {
     motor: 'PaddleOCR',
@@ -547,10 +875,6 @@ export const extractEvidenceData = async ({
 
     salida_ocr: resultado.stdout,
 
-    /*
-     * Regla obligatoria del proyecto:
-     * revisión humana + confirmación humana.
-     */
     requiere_revision: true,
     requiere_confirmacion: true
   };

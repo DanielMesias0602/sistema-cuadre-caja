@@ -1,0 +1,71 @@
+<!DOCTYPE html><html class="h-full" lang="es" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Sistema de Gestión y Cuadre de Caja - FINITO</title><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              orange: '#ea580c',
+              'orange-hover': '#c2410c',
+              dark: '#0f172a',
+              navy: '#121729',
+              coral: '#f87171'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-styling">
+    /* Custom shadow and subtle backdrop styling */
+    .login-card-shadow {
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.12), 0 10px 20px -5px rgba(0, 0, 0, 0.06);
+    }
+    .custom-input:focus-within {
+      border-color: #ea580c;
+      box-shadow: 0 0 0 1px #ea580c;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased bg-[#f3f4f6]">
+<!-- BEGIN: MainContainer -->
+<main class="min-h-[100dvh] md:h-[100dvh] w-full flex flex-col-reverse md:flex-row overflow-x-hidden md:overflow-hidden bg-[#f3f4f6]" data-purpose="login-layout">
+<!-- BEGIN: LeftFormColumn -->
+<!-- Columna izquierda: fondo claro con tarjeta de autenticación flotante -->
+<section class="flex-1 w-full min-h-full flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 lg:p-12 bg-gradient-to-b from-gray-100 via-gray-100 to-gray-200 overflow-y-auto relative" data-purpose="auth-section">
+<!-- Tarjeta Flotante de Login -->
+<div class="w-full max-w-[94%] sm:max-w-lg md:max-w-xl lg:max-w-2xl bg-white rounded-2xl p-7 sm:p-10 md:p-10 lg:p-12 login-card-shadow border border-gray-100 relative z-10 my-auto shadow-2xl"><div class="mb-6 sm:mb-7 flex items-center justify-between pb-4 border-b border-gray-100" data-purpose="form-header-logo"><img alt="FINITO Acabados para Todos" class="h-14 sm:h-16 md:h-16 lg:h-18 w-auto object-contain inline-block" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7YEApeyTvnvYR-yJLAHZZQhQicXBZy3NBxmKjZ48RSYKdnKyLi0cXDEcwRKWSUsV1-N0BJ9eHjEXEoTbnjK2IU1uF-9WC11cLLmJERMq-ZFpzKqaEvIt2XwrxKyetG9MnoYx71PcM5gmOLip60Iy-olXpZKp2wNjE_Te4bJa82PjtAm1yzmpHFVY4Y9gUygi3-zBpeASTAyA2it_MOqfdMZmxCkIiPuKLXeLMYt71CMCyOUIT4glo5g"></div><div class="mb-5 sm:mb-6 text-center sm:text-left"><h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#0d1b2a] tracking-tight">Bienvenido</h1><p class="text-sm sm:text-base text-gray-500 mt-1.5 font-normal">Ingrese sus credenciales de acceso operativo</p></div><form class="space-y-4 sm:space-y-5" data-purpose="login-form" onsubmit="event.preventDefault();"><div data-purpose="input-group-user"><label class="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide mb-2" for="username">Usuario <span class="text-red-500 font-bold">*</span></label><div class="relative flex items-center rounded-xl border border-gray-300 bg-white px-4 py-3 sm:py-3.5 transition custom-input"><span class="text-gray-400 mr-3 flex-shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><input class="w-full border-none p-0 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0" id="username" name="username" placeholder="Ej. usuario.caja" required="" type="text"></div></div><div data-purpose="input-group-password"><label class="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide mb-2" for="password">Contraseña <span class="text-red-500 font-bold">*</span></label><div class="relative flex items-center rounded-xl border border-gray-300 bg-white px-4 py-3 sm:py-3.5 transition custom-input"><span class="text-gray-400 mr-3 flex-shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><input class="w-full border-none p-0 text-base text-gray-800 placeholder-gray-400 tracking-wider focus:outline-none focus:ring-0" id="password" name="password" placeholder="•••••••••••" required="" type="password"><button aria-label="Mostrar contraseña" class="text-gray-400 hover:text-gray-600 focus:outline-none ml-2" onclick="const p = document.getElementById('password'); p.type = p.type === 'password' ? 'text' : 'password';" type="button"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div></div><div data-purpose="input-group-role"><label class="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide mb-2" for="operational-role">Rol Operativo <span class="text-red-500 font-bold">*</span></label><div class="relative flex items-center rounded-xl border border-gray-300 bg-white px-4 py-3 sm:py-3.5 transition custom-input"><span class="text-gray-400 mr-3 flex-shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><select class="w-full border-none p-0 text-base text-gray-700 focus:outline-none focus:ring-0 bg-transparent cursor-pointer" id="operational-role" name="role" required=""><option disabled="" selected="" value="">Seleccione rol asignado</option><option value="cajero">Cajero / Receptor de Pagos</option><option value="supervisor">Supervisor de Caja</option><option value="administrador">Administrador del Sistema</option></select></div></div><div class="pt-3" data-purpose="submit-container"><button class="w-full inline-flex items-center justify-center gap-2.5 px-6 py-3.5 sm:py-4 bg-brand-orange hover:bg-brand-orange-hover text-white text-base sm:text-lg font-bold rounded-xl transition duration-150 shadow-md shadow-orange-500/25 active:scale-[0.99]" type="submit"><span class="">Ingresar al Sistema</span><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div></form></div><div class="mt-3 sm:mt-4 text-center md:hidden text-[11px] text-gray-500 leading-tight space-y-1 relative z-10"><p class="font-medium text-gray-700">Distribuidora de Cerámica y Acabados S.A.C. • RUC 20601248963</p><p class="text-gray-500 text-[10px]">Chincha, Ica • Diseñado por: <span class="font-medium text-gray-700">Ing. Daniel Mesias De La Cruz</span></p></div>
+</section>
+<!-- END: LeftFormColumn -->
+<!-- BEGIN: RightBrandColumn -->
+<!-- Columna derecha: fondo azul marino oscuro con títulos institucionales y tarjeta central -->
+<section class="hidden md:flex flex-1 w-full bg-gradient-to-br from-[#0a2342] via-[#0d3163] to-[#114084] flex-col justify-center items-center p-6 md:p-8 lg:p-12 xl:p-14 text-white text-center relative overflow-hidden space-y-6" data-purpose="corporate-display-section"><div class="absolute inset-0 pointer-events-none opacity-20 overflow-hidden"><svg class="w-full h-full" fill="none" preserveAspectRatio="xMidYMid slice" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg"><circle cx="200" cy="200" r="260" stroke="white" stroke-width="1.5"></circle><circle cx="200" cy="200" r="380" stroke="white" stroke-width="1.5"></circle><circle cx="200" cy="200" r="520" stroke="white" stroke-width="1.5"></circle><circle cx="200" cy="200" r="680" stroke="white" stroke-width="1"></circle></svg></div>
+<!-- Espacio superior y cabecera de título principal -->
+<div class="max-w-2xl w-full mx-auto pt-4 md:pt-6 lg:pt-14 px-2 md:px-4"><h2 class="leading-tight tracking-tight font-extrabold mb-2 md:mb-3 text-white relative z-10 text-2xl md:text-3xl lg:text-5xl">Sistema de Gestión y <br><span class="text-[#ea580c]">Cuadre de Caja</span></h2></div>
+<!-- Tarjeta blanca institucional central con logo FINITO y RUC -->
+<div class="max-w-md lg:max-w-lg w-full mx-auto my-3 md:my-4 lg:my-6 relative" data-purpose="corporate-card"><div class="bg-white rounded-2xl p-5 md:p-6 lg:p-10 shadow-2xl flex flex-col items-center justify-center border border-slate-700/20"><div class="w-full flex items-center justify-center px-2 py-2 md:py-3 lg:py-4"><img alt="FINITO - Distribuidora de Cerámica y Acabados" class="h-24 sm:h-32 md:h-36 lg:h-52 w-auto max-w-full object-contain transition-transform duration-200 py-1" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdzHY-YFlLpBa99NAppwubQSCKXxu-5_BGIVRWmJat5GdT_YdFoiF1FJVJVh8QYW-azzVgEmwhLLpqBw_4p-t472Zr07qU08w-Fd-yPXS12vfAo_9V5wOZEPHLtEnax9WWylM68Ye9JHTWLHXaKu__ljOqOKugsExN2mT-nwNrzAkYmlzcjZP57P7tsvk1Y--QUrtmFCHDGwVqS6C-6kUg-KG_ZjJJOOV89wDH4eN7y3WnpRO9IGYS6A"></div><div class="w-full pt-4 mt-2 lg:pt-6 lg:mt-4 border-t border-gray-100 flex items-center justify-between text-left"><div class="flex flex-col"><span class="text-xs text-gray-800 font-semibold leading-tight">Distribuidora de Cerámica y Acabados S.A.C.</span><span class="text-[11px] text-gray-500">Chincha, Ica • Perú</span></div><div class="text-right"><span class="text-[10px] lg:text-[11px] font-bold text-brand-orange block uppercase tracking-wider">RUC</span><span class="text-xs lg:text-sm font-extrabold text-brand-orange tracking-tight">20601248963</span></div></div></div></div>
+<!-- Pie de página con ubicación -->
+<footer class="pt-3 md:pt-4 pb-2 text-xs text-gray-300 flex flex-col items-end justify-center gap-2 tracking-wide relative w-full max-w-md lg:max-w-lg px-2" data-purpose="corporate-footer"><p class="w-full text-center text-xs text-gray-300 font-medium mb-1">Distribuidora de Cerámica y Acabados S.A.C. • Chincha, Ica, Perú</p><div class="flex flex-col items-end justify-center gap-1.5 w-full"><div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/10 shadow-md text-[11px] text-slate-200 ml-auto"><span class="font-normal">Diseñado y desarrollado por: <span class="font-semibold text-white">Ing. Daniel Mesias De La Cruz</span></span></div></div></footer>
+</section>
+<!-- END: RightBrandColumn -->
+</main>
+<!-- END: MainContainer -->
+
+
+
+
+
+
+
+
+
+
+</body></html>

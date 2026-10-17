@@ -1,0 +1,700 @@
+<!DOCTYPE html><html class="min-h-screen overflow-x-hidden overflow-y-auto" lang="es"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_dashboard" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>
+  @layer base {
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      height: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+    }
+    main > :first-child { margin-top: 0 !important; }
+    main > :last-child { margin-bottom: 0 !important; }
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .touch-scroll-safe {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config={"darkMode":"class","theme":{"extend":{"colors":{"on-secondary-fixed":"#131b2e","surface-container-low":"#eff4ff","primary-container":"#cc4900","slate-surface-hover":"#F1F5F9","on-tertiary":"#ffffff","surface-tint":"#a73a00","on-secondary-fixed-variant":"#3f465c","tertiary":"#0051d5","background":"#f8f9ff","feedback-info":"#2563EB","on-primary":"#ffffff","surface-container-highest":"#d3e4fe","on-surface":"#0b1c30","error-container":"#ffdad6","slate-surface-dark":"#1E293B","surface-container":"#e5eeff","primary-fixed":"#ffdbce","finito-orange-light":"#F97316","on-background":"#0b1c30","feedback-danger":"#DC2626","surface-variant":"#d3e4fe","outline":"#8e7166","secondary-container":"#dae2fd","finito-orange-dark":"#D9480F","on-primary-fixed-variant":"#7f2b00","surface-dim":"#cbdbf5","border-slate":"#E2E8F0","on-secondary":"#ffffff","on-primary-container":"#fffbff","on-primary-fixed":"#370e00","on-surface-variant":"#5a4138","on-error":"#ffffff","inverse-primary":"#ffb599","surface":"#f8f9ff","surface-container-lowest":"#ffffff","outline-variant":"#e2bfb2","secondary":"#565e74","inverse-surface":"#213145","secondary-fixed-dim":"#bec6e0","inverse-on-surface":"#eaf1ff","primary":"#a33900","primary-fixed-dim":"#ffb599","error":"#ba1a1a","tertiary-container":"#316bf3","surface-bright":"#f8f9ff","on-error-container":"#93000a","secondary-fixed":"#dae2fd","feedback-balanced":"#16A34A","tertiary-fixed-dim":"#b4c5ff","surface-container-high":"#dce9ff","on-secondary-container":"#5c647a","slate-surface-subtle":"#F8FAFC","feedback-warning":"#D97706","tertiary-fixed":"#dbe1ff","on-tertiary-fixed":"#00174b","on-tertiary-fixed-variant":"#003ea8","on-tertiary-container":"#fefcff"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"gutter-mobile":"0.75rem","space-lg":"1.5rem","space-md":"1rem","space-xl":"2.5rem","margin-mobile":"1rem","space-xs":"0.25rem","margin":"2rem","gutter":"1.25rem","space-sm":"0.5rem"},"fontFamily":{"headline-sm":["Plus Jakarta Sans"],"headline-lg":["Plus Jakarta Sans"],"label-md":["Inter"],"label-sm":["Inter"],"body-sm":["Inter"],"headline-xl":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-numeric-lg":["Inter"],"body-lg":["Inter"],"body-md":["Inter"],"label-numeric-md":["Inter"],"headline-xl-mobile":["Plus Jakarta Sans"]},"fontSize":{"headline-sm":["16px",{"lineHeight":"24px","fontWeight":"600"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"700"}],"label-md":["13px",{"lineHeight":"18px","fontWeight":"500"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"800"}],"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"label-numeric-lg":["22px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"label-numeric-md":["14px",{"lineHeight":"20px","fontWeight":"600"}],"headline-xl-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"800"}]}}}};</script></head><body class="bg-background font-body-md text-on-surface antialiased min-h-screen h-auto overflow-x-hidden overflow-y-auto"><aside class="fixed left-0 top-0 h-screen w-64 bg-surface-container-low z-50 hidden lg:flex flex-col shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-space-md flex items-center justify-between bg-surface-container-lowest shrink-0"><div class="flex items-center gap-space-sm"><img alt="logo_empresa.png" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1WXAvxR3j0E7_Bg2cS_TyOIuO9pAyrlHKm5hRznJnVil9DmOKTR9IBpKrkX1MWmG4REzioYQYflresQG2ycbdH82cqUgzyip0H9LEn1d3jpYpjabnoxG-9iQ2U1ikpXPtxPTgSo4JgAVPTS95ege4hIoOCTE2i1qzMfnPkweIJ0VvbBfws7KLKcWbuBeRQlJvSJMqU08C6PeZ9SeDbjrDEs5UyWnXLlMv4g2u7evHADEuRt1b583jQH6Uw"><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-on-surface leading-tight tracking-tight">FINITO</span><span class="font-label-sm text-label-sm text-secondary leading-none uppercase">Distribuidora Chincha</span></div></div></div><nav class="flex-1 px-space-sm py-space-md overflow-y-auto space-y-space-md touch-scroll-safe" data-active-classes="bg-primary-container text-on-primary-container font-headline-sm rounded-lg"><div class="space-y-space-xs"><p class="px-space-sm font-label-sm text-label-sm text-secondary uppercase tracking-wider">Principal</p><div class="space-y-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="dashboard" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span>Dashboard</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="operaciones" href="#"><span class="material-symbols-outlined text-[20px]">receipt_long</span>Operaciones</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="pagos" href="#"><span class="material-symbols-outlined text-[20px]">payments</span>Pagos</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="evidencias" href="#"><span class="material-symbols-outlined text-[20px]">attach_file</span>Evidencias</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="verificacion-de-pagos" href="#"><span class="material-symbols-outlined text-[20px]">verified</span>Verificación de pagos</a></div></div><div class="space-y-space-xs"><p class="px-space-sm font-label-sm text-label-sm text-secondary uppercase tracking-wider">Caja</p><div class="space-y-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="cierres-de-caja" href="#"><span class="material-symbols-outlined text-[20px]">point_of_sale</span>Cierres de caja</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="salidas-de-caja" href="#"><span class="material-symbols-outlined text-[20px]">outbox</span>Salidas de caja</a></div></div><div class="space-y-space-xs"><p class="px-space-sm font-label-sm text-label-sm text-secondary uppercase tracking-wider">Ajustes</p><div class="space-y-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="anulaciones" href="#"><span class="material-symbols-outlined text-[20px]">cancel</span>Anulaciones</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="notas-de-credito" href="#"><span class="material-symbols-outlined text-[20px]">assignment_return</span>Notas de crédito</a></div></div><div class="space-y-space-xs"><p class="px-space-sm font-label-sm text-label-sm text-secondary uppercase tracking-wider">Control</p><div class="space-y-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="conciliacion" href="#"><span class="material-symbols-outlined text-[20px]">balance</span>Conciliación</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="diferencias" href="#"><span class="material-symbols-outlined text-[20px]">rule</span>Diferencias</a></div></div><div class="space-y-space-xs"><p class="px-space-sm font-label-sm text-label-sm text-secondary uppercase tracking-wider">Reportes</p><div class="space-y-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="reportes" href="#"><span class="material-symbols-outlined text-[20px]">analytics</span>Reportes</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="indicadores" href="#"><span class="material-symbols-outlined text-[20px]">monitoring</span>Indicadores</a></div></div><div class="space-y-space-xs"><p class="px-space-sm font-label-sm text-label-sm text-secondary uppercase tracking-wider">Administración</p><div class="space-y-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="usuarios" href="#"><span class="material-symbols-outlined text-[20px]">group</span>Usuarios</a><a class="flex items-center gap-space-sm px-space-sm py-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="roles-y-permisos" href="#"><span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>Roles y permisos</a></div></div></nav><div class="mx-space-sm mb-space-sm p-space-sm bg-surface-container-lowest rounded-xl shrink-0 border border-surface-container shadow-sm"><div class="flex items-center justify-between"><div class="flex flex-col"><span class="font-label-sm text-label-sm text-secondary">Sede Activa</span><span class="font-body-sm text-body-sm text-on-surface font-semibold">Sucursal Chincha Alta</span></div><span class="material-symbols-outlined text-feedback-balanced text-[18px]">check_circle</span></div></div></aside><div class="lg:pl-64 min-h-screen flex flex-col"><header class="fixed top-0 left-0 lg:left-64 right-0 h-16 bg-surface-container-lowest z-40 shadow-[0_1px_8px_rgba(0,0,0,0.04)] flex items-center justify-between px-space-md lg:px-space-lg"><div class="flex items-center gap-space-md"><button class="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg bg-surface-container-low text-on-surface hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined">menu</span></button><img alt="logo_empresa.png" class="h-8 w-auto object-contain lg:hidden" src="https://lh3.googleusercontent.com/aida/AEtjO1WXAvxR3j0E7_Bg2cS_TyOIuO9pAyrlHKm5hRznJnVil9DmOKTR9IBpKrkX1MWmG4REzioYQYflresQG2ycbdH82cqUgzyip0H9LEn1d3jpYpjabnoxG-9iQ2U1ikpXPtxPTgSo4JgAVPTS95ege4hIoOCTE2i1qzMfnPkweIJ0VvbBfws7KLKcWbuBeRQlJvSJMqU08C6PeZ9SeDbjrDEs5UyWnXLlMv4g2u7evHADEuRt1b583jQH6Uw"><div class="flex items-center gap-space-xs font-label-md text-label-md"><span class="text-secondary hidden sm:inline">Operaciones</span><span class="material-symbols-outlined text-[16px] text-secondary hidden sm:inline">chevron_right</span><span class="text-on-surface font-semibold">Consulta y Registro</span></div></div><div class="flex items-center gap-space-sm sm:gap-space-md"><div class="hidden sm:flex items-center gap-space-xs px-space-sm py-space-xs rounded-lg bg-surface-container-low"><span class="font-label-sm text-label-sm text-secondary uppercase">SOLES (PEN)</span><span class="font-label-numeric-md text-label-numeric-md text-feedback-balanced tabular-nums">S/ 0.00</span></div><div class="relative flex items-center justify-center"><button class="flex items-center justify-center w-9 h-9 rounded-lg text-secondary hover:bg-surface-container-low hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span></button><span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-feedback-danger ring-2 ring-surface-container-lowest"></span></div><div class="flex items-center gap-space-sm pl-space-xs"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><div class="hidden md:flex flex-col text-left"><span class="font-label-md text-label-md text-on-surface leading-tight">Daniel Mesias</span><span class="font-label-sm text-label-sm text-secondary leading-tight">Admin</span></div></div></div></header><main class="relative pt-20 bg-background w-full px-space-md lg:px-space-lg min-h-screen h-auto flex-1 touch-scroll-safe"><div class="flex flex-col w-full pb-space-xl">
+<!-- CABECERA DE MÓDULO & CONTEXTO OPERATIVO -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-md mb-space-lg">
+<div>
+<div class="flex items-center gap-space-xs mb-1">
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">Pagos</span>
+<span class="material-symbols-outlined text-[14px] text-secondary">chevron_right</span>
+<span class="font-label-sm text-label-sm font-semibold text-primary">Consulta y control</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Pagos</h1>
+<p class="font-body-md text-body-md text-secondary mt-0.5">Consulta los pagos registrados y sus medios de pago asociados en el flujo de caja actual.</p>
+</div>
+<div class="flex flex-wrap items-center gap-space-sm sm:gap-space-md">
+<!-- Badge de Turno y Estado de Caja -->
+<div class="flex items-center gap-space-sm px-space-md py-space-xs rounded-xl bg-surface-container-lowest shadow-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-feedback-balanced"></span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">Turno Tarde • 07/10/2026</span>
+<span class="font-body-sm text-body-sm text-secondary">Caja abierta</span>
+</div>
+</div>
+<!-- Botón Exportar -->
+<button class="inline-flex items-center gap-space-xs px-space-md py-2.5 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-slate-surface-hover transition-colors shadow-sm font-label-md text-label-md font-semibold" type="button">
+<span class="material-symbols-outlined text-[18px] text-secondary">download</span>
+        Exportar
+      </button>
+</div>
+</div>
+<!-- TARJETAS DE RESUMEN FINANCIERO (4 KPIs) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md mb-space-lg">
+<!-- KPI 1: Registros -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 right-0 h-1 bg-tertiary"></div>
+<div class="flex items-start justify-between">
+<div>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Pagos Registrados</span>
+<div class="font-headline-xl text-headline-xl text-on-surface mt-1 font-bold">156</div>
+<span class="font-body-sm text-body-sm text-secondary mt-0.5 block">Registros del periodo actual</span>
+</div>
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[22px]">receipt_long</span>
+</div>
+</div>
+</div>
+<!-- KPI 2: Importe Total -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 right-0 h-1 bg-primary"></div>
+<div class="flex items-start justify-between">
+<div>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Monto Total de Pagos</span>
+<div class="font-headline-xl text-headline-xl text-primary font-bold tabular-nums mt-1">S/ 48,250.00</div>
+<span class="font-body-sm text-body-sm text-secondary mt-0.5 block">Importe acumulado recibido</span>
+</div>
+<div class="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[22px]">payments</span>
+</div>
+</div>
+</div>
+<!-- KPI 3: Canales Utilizados -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 right-0 h-1 bg-on-secondary-fixed"></div>
+<div class="flex items-start justify-between">
+<div>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Medios de Pago</span>
+<div class="font-headline-xl text-headline-xl text-on-surface mt-1 font-bold">7</div>
+<span class="font-body-sm text-body-sm text-secondary mt-0.5 block">Medios registrados en caja</span>
+</div>
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-on-secondary-fixed">
+<span class="material-symbols-outlined text-[22px]">account_balance_wallet</span>
+</div>
+</div>
+</div>
+<!-- KPI 4: Pendientes de Cotejo -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 right-0 h-1 bg-feedback-warning"></div>
+<div class="flex items-start justify-between">
+<div>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider font-semibold">Pendientes de Cotejo</span>
+<div class="font-headline-xl text-headline-xl text-feedback-warning mt-1 font-bold">5</div>
+<span class="font-body-sm text-body-sm text-feedback-warning mt-0.5 block font-medium">Pagos pendientes de verificación</span>
+</div>
+<div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-feedback-warning">
+<span class="material-symbols-outlined text-[22px]">pending_actions</span>
+</div>
+</div>
+</div>
+</div>
+<!-- BARRA DE FILTROS Y CONTROL -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm mb-space-lg">
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-sm mb-space-md pb-space-sm bg-surface-container-low/40 p-space-sm rounded-lg">
+<div class="flex items-center gap-space-xs text-on-surface font-semibold font-label-md text-label-md">
+<span class="material-symbols-outlined text-primary text-[20px]">filter_alt</span>
+        Filtros de Búsqueda Avanzada
+      </div>
+<!-- Simulador de estado de UI para maquetación -->
+<div class="flex items-center gap-1.5 self-start lg:self-auto text-xs">
+<span class="font-label-sm text-label-sm text-secondary mr-1">Simular Vista:</span>
+<button class="px-2.5 py-1 rounded bg-slate-surface-dark text-on-primary font-medium transition-colors" id="btn-state-table" onclick="setMockState('table')" type="button">Vista Tabla</button>
+<button class="px-2.5 py-1 rounded bg-surface-container-high text-on-surface-variant font-medium hover:bg-slate-surface-hover transition-colors" id="btn-state-empty" onclick="setMockState('empty')" type="button">Sin Resultados</button>
+<button class="px-2.5 py-1 rounded bg-surface-container-high text-on-surface-variant font-medium hover:bg-slate-surface-hover transition-colors" id="btn-state-loading" onclick="setMockState('loading')" type="button">Cargando</button>
+</div>
+</div>
+<form class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-space-sm" onsubmit="event.preventDefault();">
+<!-- Búsqueda rápida -->
+<div class="xl:col-span-2">
+<label class="block font-label-sm text-label-sm text-secondary uppercase mb-1">Búsqueda rápida</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-secondary text-[18px]">search</span>
+<input class="w-full h-10 pl-9 pr-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md placeholder:text-secondary focus:outline-none focus:bg-surface-container-lowest" placeholder="Buscar comprobante, #OP o ref..." type="text" value="">
+</div>
+</div>
+<!-- Fecha -->
+<div>
+<label class="block font-label-sm text-label-sm text-secondary uppercase mb-1">Fecha</label>
+<input class="w-full h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest" type="date" value="2026-10-07">
+</div>
+<!-- Turno -->
+<div>
+<label class="block font-label-sm text-label-sm text-secondary uppercase mb-1">Turno</label>
+<select class="w-full h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest">
+<option selected="" value="tarde">Turno Tarde</option>
+<option value="manana">Turno Mañana</option>
+<option value="todos">Todos los turnos</option>
+</select>
+</div>
+<!-- Medio de Pago -->
+<div>
+<label class="block font-label-sm text-label-sm text-secondary uppercase mb-1">Medio de pago</label>
+<select class="w-full h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest">
+<option value="">Todos los medios</option>
+<option value="efectivo">Efectivo</option>
+<option value="yape_bcp">Yape BCP</option>
+<option value="yape_bbva">Yape BBVA</option>
+<option value="transf_bcp">Transferencia BCP</option>
+<option value="transf_bbva">Transferencia BBVA</option>
+<option value="tarjeta">Tarjeta (Niubiz)</option>
+<option value="vale">Vales</option>
+</select>
+</div>
+<!-- Estado Verificación -->
+<div>
+<label class="block font-label-sm text-label-sm text-secondary uppercase mb-1">Verificación</label>
+<select class="w-full h-10 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest">
+<option value="">Todos los estados</option>
+<option value="verificado">Verificado</option>
+<option value="pendiente">Pendiente</option>
+<option value="observado">Observado</option>
+</select>
+</div>
+</form>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<button class="text-secondary hover:text-on-surface font-label-md text-label-md flex items-center gap-1 transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">restart_alt</span>
+        Limpiar filtros
+      </button>
+<button class="inline-flex items-center gap-space-xs px-space-md py-2 bg-slate-surface-dark hover:bg-slate-700 text-on-primary rounded-lg font-label-md text-label-md transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">search</span>
+        Buscar pagos
+      </button>
+</div>
+</div>
+<!-- FRANJA DE DISTRIBUCIÓN POR MEDIOS DE PAGO -->
+<div class="mb-space-lg">
+<div class="flex items-center justify-between mb-space-xs">
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">pie_chart</span> Distribución por Medio de Pago</h2>
+<span class="font-body-sm text-body-sm text-secondary">Actualizado hace 2 min</span>
+</div>
+<!-- Scroll horizontal suave para badges de bancos -->
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-space-sm touch-scroll-safe">
+<!-- Efectivo -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-feedback-balanced">Efectivo</span>
+<span class="w-2 h-2 rounded-full bg-feedback-balanced"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 12,480.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">64 pagos</span>
+</div>
+<!-- Yape BCP -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-purple-700">Yape BCP</span>
+<span class="w-2 h-2 rounded-full bg-purple-600"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 8,420.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">38 pagos</span>
+</div>
+<!-- Transferencia BCP -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-blue-700">Transf BCP</span>
+<span class="w-2 h-2 rounded-full bg-blue-600"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 18,250.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">22 pagos</span>
+</div>
+<!-- Yape BBVA -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-indigo-700">Yape BBVA</span>
+<span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 2,140.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">12 pagos</span>
+</div>
+<!-- Transferencia BBVA -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-sky-700">Transf BBVA</span>
+<span class="w-2 h-2 rounded-full bg-sky-600"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 3,120.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">8 pagos</span>
+</div>
+<!-- Tarjeta Niubiz -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-amber-700">Niubiz POS</span>
+<span class="w-2 h-2 rounded-full bg-amber-600"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 3,450.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">10 pagos</span>
+</div>
+<!-- Vales -->
+<div class="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm font-semibold text-secondary">Vales/Mixto</span>
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+</div>
+<span class="font-label-numeric-md text-label-numeric-md text-on-surface tabular-nums">S/ 390.00</span>
+<span class="font-body-sm text-body-sm text-secondary text-[11px] mt-0.5">2 pagos</span>
+</div>
+</div>
+</div>
+<!-- CONTENEDOR PRINCIPAL: TABLA + DETALLE LATERAL -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+<!-- COLUMNA IZQUIERDA: LISTADO TABULAR DE PAGOS (lg:col-span-7 o 8) -->
+<div class="lg:col-span-7 xl:col-span-8 flex flex-col bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+<div class="p-space-md flex items-center justify-between bg-surface-container-lowest">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Registro de Transacciones de Pago</h3>
+<p class="font-body-sm text-body-sm text-secondary">Operaciones detalladas con su medio individual de liquidación</p>
+</div>
+<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container-high text-on-secondary-container">156 Resultados</span>
+</div>
+<!-- VISTA ESTADO: CARGANDO -->
+<div class="hidden p-space-xl flex-col items-center justify-center text-center" id="mock-loading">
+<div class="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-space-sm"></div>
+<span class="font-headline-sm text-headline-sm text-on-surface">Cargando pagos...</span>
+<p class="font-body-sm text-body-sm text-secondary mt-1">Consultando transacciones registradas en caja...</p>
+</div>
+<!-- VISTA ESTADO: SIN RESULTADOS -->
+<div class="hidden p-space-xl flex-col items-center justify-center text-center" id="mock-empty">
+<div class="w-14 h-14 rounded-full bg-surface-container-low flex items-center justify-center text-secondary mb-space-sm">
+<span class="material-symbols-outlined text-[32px]">manage_search</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">No se encontraron pagos</h4>
+<p class="font-body-sm text-body-sm text-secondary mt-1 max-w-sm">No hay registros que coincidan con los filtros seleccionados para este turno.</p>
+<button class="mt-space-md px-space-md py-2 rounded-lg bg-primary text-on-primary font-label-md text-label-md" onclick="setMockState('table')" type="button">Restablecer filtros</button>
+</div>
+<!-- VISTA PRINCIPAL: TABLA -->
+<div class="flex flex-col" id="mock-table">
+<div class="overflow-x-auto touch-scroll-safe">
+<table class="w-full text-left text-on-surface">
+<thead>
+<tr class="bg-surface-container-low/70 font-label-sm text-label-sm text-secondary uppercase">
+<th class="py-3 px-space-md whitespace-nowrap">Fecha / Hora</th>
+<th class="py-3 px-space-md whitespace-nowrap">Comprobante</th>
+<th class="py-3 px-space-md whitespace-nowrap">Operación</th>
+<th class="py-3 px-space-md whitespace-nowrap">Medio de Pago</th>
+<th class="py-3 px-space-md whitespace-nowrap text-right">Monto</th>
+<th class="py-3 px-space-md whitespace-nowrap text-center">Verificación</th>
+<th class="py-3 px-space-md whitespace-nowrap">Usuario</th>
+<th class="py-3 px-space-md whitespace-nowrap text-center">Acción</th>
+</tr>
+</thead>
+<tbody class="divide-y-0 font-body-md text-body-md">
+<!-- FILA 1 -->
+<tr class="hover:bg-slate-surface-hover/80 transition-colors cursor-pointer group" onclick="selectPaymentRow(1)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">15:42 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-low text-on-secondary-fixed font-mono font-semibold">BE02-00024034</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-semibold text-secondary">#OP-0128</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-feedback-balanced"></span>
+<span class="font-medium text-on-surface">Efectivo (caja)</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 30.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-feedback-balanced">
+                    VERIFICADO
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Gretel <span class="text-[10px] text-secondary/70">(Cajera)</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<button class="p-1 rounded text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</td>
+</tr>
+<!-- FILA 2 (SELECCIONADA: PAGO 1/2 OP-0127) -->
+<tr class="bg-primary-fixed/20 hover:bg-primary-fixed/30 transition-colors cursor-pointer" onclick="selectPaymentRow(2)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">15:10 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-primary font-mono font-bold">FE02-00002548</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-bold text-primary flex items-center gap-1">
+                  #OP-0127
+                  <span class="material-symbols-outlined text-[14px]">call_split</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-purple-600"></span>
+<span class="font-medium text-on-surface">Yape BCP</span>
+<span class="text-[10px] px-1 rounded bg-surface-container-high text-secondary">Pago 1/2</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 472.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-feedback-warning">
+                    PENDIENTE
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Andrea M. <span class="text-[10px] text-secondary/70">(Admin)</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
+</td>
+</tr>
+<!-- FILA 3 (PAGO 2/2 DE MISMA OP-0127) -->
+<tr class="bg-surface-container-low/30 hover:bg-slate-surface-hover/80 transition-colors cursor-pointer" onclick="selectPaymentRow(3)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">15:10 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-low text-on-secondary-fixed font-mono font-semibold">FE02-00002548</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-semibold text-secondary flex items-center gap-1">
+                  #OP-0127
+                  <span class="material-symbols-outlined text-[14px]">call_split</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-blue-600"></span>
+<span class="font-medium text-on-surface">Transf BCP</span>
+<span class="text-[10px] px-1 rounded bg-surface-container-high text-secondary">Pago 2/2</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 1,000.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-feedback-warning">
+                    PENDIENTE
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Andrea M. <span class="text-[10px] text-secondary/70">(Admin)</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<button class="p-1 rounded text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</td>
+</tr>
+<!-- FILA 4 -->
+<tr class="hover:bg-slate-surface-hover/80 transition-colors cursor-pointer" onclick="selectPaymentRow(4)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">14:35 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-low text-on-secondary-fixed font-mono font-semibold">BE02-00024035</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-semibold text-secondary">#OP-0126</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-blue-600"></span>
+<span class="font-medium text-on-surface">Transf BCP</span>
+<span class="text-[10px] text-secondary font-mono">(Ref: 1406215)</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 922.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-feedback-balanced">
+                    VERIFICADO
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Gretel <span class="text-[10px] text-secondary/70">(Cajera)</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<button class="p-1 rounded text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</td>
+</tr>
+<!-- FILA 5 (OP-0125 PARTE 1) -->
+<tr class="hover:bg-slate-surface-hover/80 transition-colors cursor-pointer" onclick="selectPaymentRow(5)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">13:15 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-low text-on-secondary-fixed font-mono font-semibold">BE02-00024030</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-semibold text-secondary flex items-center gap-1">
+                  #OP-0125
+                  <span class="material-symbols-outlined text-[14px]">call_split</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-feedback-balanced"></span>
+<span class="font-medium text-on-surface">Efectivo</span>
+<span class="text-[10px] px-1 rounded bg-surface-container-high text-secondary">Pago 1/2</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 400.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-feedback-balanced">
+                    VERIFICADO
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Jefferson P.
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<button class="p-1 rounded text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</td>
+</tr>
+<!-- FILA 6 (OP-0125 PARTE 2) -->
+<tr class="hover:bg-slate-surface-hover/80 transition-colors cursor-pointer" onclick="selectPaymentRow(6)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">13:15 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-low text-on-secondary-fixed font-mono font-semibold">BE02-00024030</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-semibold text-secondary flex items-center gap-1">
+                  #OP-0125
+                  <span class="material-symbols-outlined text-[14px]">call_split</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+<span class="font-medium text-on-surface">Yape BBVA</span>
+<span class="text-[10px] px-1 rounded bg-surface-container-high text-secondary">Pago 2/2</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 396.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-50 text-feedback-balanced">
+                    VERIFICADO
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Jefferson P.
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<button class="p-1 rounded text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</td>
+</tr>
+<!-- FILA 7 (OBSERVADO) -->
+<tr class="hover:bg-slate-surface-hover/80 transition-colors cursor-pointer" onclick="selectPaymentRow(7)">
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+<div class="font-medium text-on-surface">07/10/2026</div>
+<div class="text-[11px] text-secondary">11:20 hrs</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap font-medium text-xs">
+<span class="px-2 py-0.5 rounded bg-surface-container-low text-on-secondary-fixed font-mono font-semibold">BE02-00024028</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs font-semibold text-secondary">#OP-0124</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-feedback-balanced"></span>
+<span class="font-medium text-on-surface">Efectivo</span>
+</div>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-right font-label-numeric-md text-label-numeric-md tabular-nums font-bold text-on-surface">
+                  S/ 350.00
+                </td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-feedback-danger">
+                    OBSERVADO
+                  </span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-xs text-secondary">
+                  Gretel <span class="text-[10px] text-secondary/70">(Cajera)</span>
+</td>
+<td class="py-3 px-space-md whitespace-nowrap text-center">
+<button class="p-1 rounded text-secondary hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- PIE DE PAGINACIÓN -->
+<div class="p-space-md bg-surface-container-low/40 flex flex-col sm:flex-row items-center justify-between gap-space-sm text-xs text-secondary">
+<span class="">Mostrando <span class="font-semibold text-on-surface">1–7</span> de <span class="font-semibold text-on-surface">156</span> pagos</span>
+<div class="flex items-center gap-1">
+<button class="px-2.5 py-1 rounded bg-surface-container-high text-secondary/50 cursor-not-allowed" disabled="" type="button">Anterior</button>
+<button class="w-7 h-7 rounded bg-primary text-on-primary font-semibold" type="button">1</button>
+<button class="w-7 h-7 rounded hover:bg-surface-container-high text-on-surface transition-colors" type="button">2</button>
+<button class="w-7 h-7 rounded hover:bg-surface-container-high text-on-surface transition-colors" type="button">3</button>
+<span class="px-1 text-secondary">...</span>
+<button class="w-7 h-7 rounded hover:bg-surface-container-high text-on-surface transition-colors" type="button">16</button>
+<button class="px-2.5 py-1 rounded bg-surface-container-lowest hover:bg-surface-container-high text-on-surface font-semibold shadow-sm transition-colors" type="button">Siguiente</button>
+</div>
+</div>
+</div>
+</div>
+<!-- COLUMNA DERECHA: PANEL LATERAL DE DETALLE DEL PAGO (lg:col-span-5 o 4) -->
+<div class="lg:col-span-5 xl:col-span-4 flex flex-col space-y-space-md">
+<!-- CONTENEDOR DEL DETALLE PRINCIPAL -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm p-space-md flex flex-col relative overflow-hidden">
+<div class="absolute top-0 left-0 right-0 h-1.5 bg-primary"></div>
+<!-- HEADER DETALLE -->
+<div class="flex items-start justify-between pb-space-sm bg-surface-container-low/50 -mx-space-md px-space-md pt-2 mb-space-md">
+<div>
+<div class="flex items-center gap-1 text-[11px] font-semibold uppercase text-secondary">
+<span class="material-symbols-outlined text-[16px] text-primary">credit_card</span>
+              Detalle del Pago
+            </div>
+<div class="font-headline-md text-headline-md text-on-surface font-bold mt-0.5">#PAGO-0312</div>
+</div>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-feedback-warning">
+<span class="w-1.5 h-1.5 rounded-full bg-feedback-warning animate-pulse"></span>
+            PENDIENTE DE COTEJO
+          </span>
+</div>
+<!-- SECCIÓN A: INFORMACIÓN DEL PAGO -->
+<div class="bg-surface-container-low p-space-md rounded-xl mb-space-md">
+<div class="text-xs text-secondary font-medium uppercase tracking-wider">Monto Recibido</div>
+<div class="font-headline-xl text-headline-xl text-primary font-bold tabular-nums">S/ 472.00</div>
+<div class="grid grid-cols-2 gap-2 mt-2 pt-2 text-xs">
+<div>
+<span class="text-secondary block">Fecha y Hora:</span>
+<span class="font-semibold text-on-surface">07/10/2026 15:10</span>
+</div>
+<div>
+<span class="text-secondary block">Registrado por:</span>
+<span class="font-semibold text-on-surface">Andrea M. (Admin)</span>
+</div>
+</div>
+</div>
+<!-- SECCIÓN B: OPERACIÓN Y COMPROBANTE RELACIONADOS -->
+<div class="mb-space-md space-y-space-xs"><div class="flex items-center justify-between"><div class="flex items-center gap-1.5"><span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">Operación Asociada</span><span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-high text-secondary font-medium">1 Operación → 2 Pagos</span></div><div class="flex items-center gap-1"><span class="font-label-sm text-label-sm font-mono font-bold text-primary">#OP-0127</span><span class="text-[11px] font-mono text-secondary">(FVR2-00092108)</span></div></div><div class="p-space-sm rounded-lg bg-surface-container-low/50 space-y-2 text-xs"><div class="flex items-center justify-between"><span class="text-secondary">Comprobante emitido:</span><span class="font-semibold font-mono text-on-surface">FE02-00002548</span></div><div class="flex items-center justify-between"><span class="text-secondary">Tipo Comprobante:</span><span class="font-medium text-on-surface">Factura Electrónica</span></div><div class="flex items-center justify-between pt-1 border-t border-surface-container/60"><span class="text-secondary font-semibold">Monto total de la operación:</span><span class="font-bold text-on-surface tabular-nums">S/ 1,472.00</span></div><div class="mt-2 pt-2 border-t border-surface-container/60"><div class="flex items-center justify-between mb-1.5"><span class="font-label-sm text-label-sm text-secondary uppercase block font-semibold">Desglose de Pago (Operación Dividida):</span><span class="text-[10px] text-secondary">2 medios registrados</span></div><div class="space-y-1.5"><div class="flex items-center justify-between p-2 rounded-lg bg-primary-fixed/20 border border-primary/20 shadow-sm"><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-600"></span><span class="font-semibold text-primary">Pago 1: Yape BCP (Este pago)</span></div><span class="font-bold text-primary tabular-nums">S/ 472.00</span></div><div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-lowest shadow-sm text-secondary"><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-600"></span><span class="text-on-surface font-medium">Pago 2: Transferencia BCP</span></div><span class="font-semibold text-on-surface tabular-nums">S/ 1,000.00</span></div></div><div class="mt-2 p-1.5 rounded bg-surface-container-lowest flex items-center justify-between text-[11px] font-semibold text-feedback-balanced"><span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">check_circle</span> Total de pagos: S/ 1,472.00</span><span class="px-1.5 py-0.5 rounded bg-green-50 text-feedback-balanced text-[10px]">100% cubierto</span></div></div></div></div>
+<!-- SECCIÓN C: MEDIO DE PAGO & CANAL -->
+<div class="mb-space-md p-space-sm rounded-lg bg-surface-container-low/50 space-y-2 text-xs">
+<span class="font-label-sm text-label-sm text-secondary uppercase block font-semibold">Detalles del Canal Financiero</span>
+<div class="grid grid-cols-2 gap-2">
+<div>
+<span class="text-secondary block">Canal:</span>
+<span class="font-semibold text-purple-800">Yape BCP</span>
+</div>
+<div>
+<span class="text-secondary block">Tipo de Medio:</span>
+<span class="font-semibold text-on-surface">Billetera / Virtual</span>
+</div>
+<div class="col-span-2">
+<span class="text-secondary block">Referencia Declarada:</span>
+<span class="font-mono font-medium text-on-surface bg-surface-container-lowest px-2 py-0.5 rounded inline-block mt-0.5">Operación 982144</span>
+</div>
+</div>
+</div>
+<!-- SECCIÓN D: EVIDENCIA RELACIONADA & OCR -->
+<div class="mb-space-md p-space-sm rounded-lg bg-surface-container-low space-y-space-xs"><div class="flex items-center justify-between"><span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">Evidencia Digital Adjunta</span><span class="text-[11px] text-secondary font-mono">EVID_YAPE_0127.jpg</span></div><div class="flex items-center gap-3 bg-surface-container-lowest p-2 rounded-lg"><div class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center shrink-0 overflow-hidden"><img class="w-full h-full object-cover" data-alt="Close up photograph of a smartphone showing a valid Yape digital payment voucher with orange and purple confirmation screen, sharp clarity, warehouse desk background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1O9yPO4GhK45v8EWoiS6hZ0BLt9l8TPOKVf2q5PQs1WVu3f9pXq4mZ9EgxxDbic14-MGS1_wM3yM3LVwfnUssRhJ1hajPuQu4tgl2yYopOH37FMqaXObyYl046fUgpLRxXs0NGAU_trXoZLhU4Hk4GKTdDRKoXv3hsiEHVpSkItFsaMGGXSI0KzLOciFPLsjht9hIj21_OtRU8ZCtJlOqvrBcwmd9EVzhwV-8FBDP"></div><div class="flex flex-col text-xs flex-1"><div class="flex items-center justify-between"><span class="font-semibold text-on-surface">Captura digital de pago</span><span class="text-[10px] text-secondary font-mono">JPG</span></div><span class="text-[11px] text-secondary mt-0.5">Lectura OCR: S/ 472.00 al BCP</span><span class="text-[10px] text-feedback-warning font-medium mt-0.5 flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">info</span> Revisión humana requerida</span></div></div><button class="w-full py-1.5 px-space-sm rounded-lg bg-surface-container-lowest hover:bg-slate-surface-hover text-on-surface font-label-md text-label-md transition-colors flex items-center justify-center gap-1 shadow-sm" type="button"><span class="material-symbols-outlined text-[16px] text-secondary">open_in_new</span> Ver comprobante adjunto</button></div>
+<!-- SECCIÓN E: ESTADO DE VERIFICACIÓN & ACCIÓN ADMINISTRATIVA -->
+<div class="mb-space-md p-space-sm rounded-xl bg-amber-50/70 space-y-2"><div class="flex items-start gap-2"><span class="material-symbols-outlined text-feedback-warning text-[18px] shrink-0 mt-0.5">pending_actions</span><div class="text-xs flex-1"><div class="flex items-center justify-between mb-0.5"><span class="font-semibold text-on-surface">Estado de verificación:</span><span class="text-[11px] font-bold text-feedback-warning uppercase">Pendiente de cotejo</span></div><span class="text-secondary text-[11px] leading-relaxed block">El pago figura registrado en caja y vinculado a la operación #OP-0127, pero requiere cotejo con el extracto bancario.</span></div></div><button class="w-full py-2.5 px-space-md rounded-lg bg-primary hover:bg-primary-container text-on-primary font-headline-sm text-headline-sm transition-colors shadow-sm flex items-center justify-center gap-2 mt-1" type="button"><span class="material-symbols-outlined text-[18px]">verified</span> Cotejar y Verificar Pago</button></div>
+<!-- SECCIÓN F: TRAZABILIDAD DEL PAGO (TIMELINE) -->
+<div class="pt-space-xs mb-space-md"><span class="font-label-sm text-label-sm text-secondary uppercase block font-semibold mb-2">Trazabilidad Temporal del Registro</span><div class="relative pl-4 space-y-3 text-xs before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-surface-container-high"><div class="relative flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-feedback-balanced shrink-0 mt-0.5 -ml-[19px]"></span><div class=""><span class="font-semibold text-on-surface">1. Pago registrado:</span> 15:10 hrs por Andrea M. (Admin)</div></div><div class="relative flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-feedback-balanced shrink-0 mt-0.5 -ml-[19px]"></span><div class=""><span class="font-semibold text-on-surface">2. Evidencia asociada:</span> 15:11 hrs (EVID_YAPE_0127.jpg)</div></div><div class="relative flex items-start gap-2"><span class="w-2.5 h-2.5 rounded-full bg-feedback-warning shrink-0 mt-0.5 -ml-[19px] animate-pulse"></span><div class=""><span class="font-semibold text-feedback-warning">3. Verificación:</span> Pendiente de cotejo contra cuenta bancaria</div></div></div></div>
+<!-- ACCIONES COMPLEMENTARIAS AL FINAL DEL DETALLE -->
+<div class="grid grid-cols-2 gap-2 pt-space-xs">
+<button class="py-2 px-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container-high text-on-surface font-label-md text-label-md transition-colors flex items-center justify-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">history</span>
+            Historial
+          </button>
+<button class="py-2 px-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container-high text-on-surface font-label-md text-label-md transition-colors flex items-center justify-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">print</span>
+            Imprimir
+          </button>
+</div>
+</div>
+<!-- TARJETA INFORMATIVA COMPLEMENTARIA DE POLÍTICA DE ARQUEO -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex items-start gap-3">
+<div class="w-9 h-9 rounded-lg bg-surface-container-low flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[20px]">security</span>
+</div>
+<div class="text-xs">
+<span class="font-semibold text-on-surface block">Regla Operativa de Turno</span>
+<span class="text-secondary text-[11px] leading-relaxed">Todos los pagos digitales deben contar con voucher fotográfico legible antes del cierre de turno para evitar inconsistencias en el arqueo físico.</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Control interactivo para la simulación de estados (Mockup)
+  function setMockState(state) {
+    const tableEl = document.getElementById('mock-table');
+    const emptyEl = document.getElementById('mock-empty');
+    const loadingEl = document.getElementById('mock-loading');
+
+    const btnTable = document.getElementById('btn-state-table');
+    const btnEmpty = document.getElementById('btn-state-empty');
+    const btnLoading = document.getElementById('btn-state-loading');
+
+    // Reset buttons
+    [btnTable, btnEmpty, btnLoading].forEach(btn => {
+      btn.className = 'px-2.5 py-1 rounded bg-surface-container-high text-on-surface-variant font-medium hover:bg-slate-surface-hover transition-colors';
+    });
+
+    // Hide views
+    tableEl.classList.add('hidden');
+    emptyEl.classList.add('hidden');
+    loadingEl.classList.add('hidden');
+
+    if (state === 'table') {
+      tableEl.classList.remove('hidden');
+      btnTable.className = 'px-2.5 py-1 rounded bg-slate-surface-dark text-on-primary font-medium transition-colors';
+    } else if (state === 'empty') {
+      emptyEl.classList.remove('hidden');
+      btnEmpty.className = 'px-2.5 py-1 rounded bg-slate-surface-dark text-on-primary font-medium transition-colors';
+    } else if (state === 'loading') {
+      loadingEl.classList.remove('hidden');
+      btnLoading.className = 'px-2.5 py-1 rounded bg-slate-surface-dark text-on-primary font-medium transition-colors';
+    }
+  }
+
+  // Interacción suave al seleccionar fila de la tabla
+  function selectPaymentRow(index) {
+    // Permite al usuario notar la interacción en el prototipo
+    console.log('Pago seleccionado fila:', index);
+  }
+</script></main></div>
+
+
+</body></html>
