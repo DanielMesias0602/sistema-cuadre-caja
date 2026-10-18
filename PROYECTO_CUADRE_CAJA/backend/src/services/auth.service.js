@@ -28,7 +28,10 @@ export const authenticateUser = async (username, password) => {
       id_usuario: user.id_usuario,
       id_rol: user.id_rol,
       rol: user.rol_nombre,
-      usuario: user.usuario
+      usuario: user.usuario,
+      nombres: user.nombres,               // <-- NUEVO
+      apellidos: user.apellidos,           // <-- NUEVO
+      condicion_personal: user.condicion_personal // <-- NUEVO
     },
     process.env.JWT_SECRET,
     {
@@ -43,6 +46,8 @@ export const authenticateUser = async (username, password) => {
       id_rol: user.id_rol,
       rol: user.rol_nombre,
       usuario: user.usuario,
+      nombres: user.nombres,               
+      apellidos: user.apellidos,           
       condicion_personal: user.condicion_personal
     }
   };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
+import { Plus, ArrowLeft, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
 import PagoCard from './components/PagoCard';
 import api from '../../../lib/api';
 
@@ -33,7 +33,6 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
     if (onPagosChange) onPagosChange(pagos);
   }, [pagos, onPagosChange]);
 
-  // HANDLER CLAVE: el padre (Paso2Pagos) es el único que modifica pagos
   const handlePagoChange = (index, updatedPago) => {
     setPagos(prev => prev.map((p, i) => i === index ? updatedPago : p));
   };
@@ -43,22 +42,17 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
   };
 
   const handleEliminarPago = (index) => {
-    if (pagos.length <= 1) return; // no permitir eliminar el último
+    if (pagos.length <= 1) return; 
     setPagos(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Totales SIEMPRE DERIVADOS (NO useState)
-  const totalPagado = pagos.reduce(
-    (sum, p) => sum + (Number(p.monto) || 0),
-    0
-  );
+  // Totales
+  const totalPagado = pagos.reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
   const montoComprobante = Number(comprobante?.monto) || 0;
   const pendiente = montoComprobante - totalPagado;
   const excede = totalPagado > montoComprobante;
 
-  const todosCompletos = pagos.every(
-    p => p.id_medio_pago && Number(p.monto) > 0
-  );
+  const todosCompletos = pagos.every(p => p.id_medio_pago && Number(p.monto) > 0);
 
   const handleContinuar = () => {
     if (!todosCompletos || excede) {
@@ -74,13 +68,12 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
         Paso 2: Pagos
       </h2>
       <p className="text-slate-500 text-center">
-        Registra los pagos que cubren el monto del comprobante
+        Registra los pagos recibidos. Puedes dividir el pago en varios medios.
       </p>
 
-      {/* Mensaje general de error (solo si intentoAvanzar) */}
+      {/* Alerta si hay error en los campos o exceso */}
       {intentoAvanzar && (!todosCompletos || excede) && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-900
-                        p-4 rounded-lg shadow-sm">
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-900 p-4 rounded-lg shadow-sm">
           <div className="flex items-center gap-3">
             <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
             <div>
@@ -90,7 +83,7 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
                   : 'Complete el medio de pago y el monto en todos los pagos'}
               </p>
               <p className="text-sm text-red-800 mt-1">
-                Corregí los datos marcados en rojo antes de continuar.
+                Corrige los datos marcados en rojo antes de continuar.
               </p>
             </div>
           </div>
@@ -147,14 +140,10 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
       <button
         type="button"
         onClick={handleAgregarPago}
-        className="w-full py-3 border border-dashed border-gray-300
-                   rounded-lg text-gray-700 hover:text-gray-900
-                   hover:border-gray-400 hover:bg-gray-50
-                   transition-colors flex items-center justify-center gap-2
-                   font-medium"
+        className="w-full py-3 border border-dashed border-gray-300 rounded-lg text-gray-700 hover:text-gray-900 hover:border-gray-400 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 font-medium"
       >
         <Plus className="w-4 h-4" />
-        Agregar pago
+        Agregar otro pago
       </button>
 
       {/* Card de totales */}
@@ -169,15 +158,27 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
             <p className="text-lg font-bold">S/ {totalPagado.toFixed(2)}</p>
           </div>
         </div>
-        <div className={`rounded-lg p-3 text-center font-bold ${
-          excede ? 'bg-red-50 text-red-700 border border-red-200' :
-          pendiente > 0 ? 'bg-red-50 text-red-700' :
-          'bg-green-50 text-green-700'
-        }`}>
-          {excede && `EXCESO: S/ ${(totalPagado - montoComprobante).toFixed(2)}`}
-          {!excede && pendiente > 0 && `FALTA POR CUBRIR: S/ ${pendiente.toFixed(2)}`}
-          {!excede && pendiente === 0 && '✓ CUBIERTO AL 100%'}
-        </div>
+        
+        {/* Indicador de estado del pago */}
+        {totalPagado === 0 ? (
+          <div className="rounded-lg p-3 text-center font-medium bg-slate-50 text-slate-500 border border-slate-200">
+            Ingresa el monto del pago para continuar
+          </div>
+        ) : excede ? (
+          <div className="rounded-lg p-3 text-center font-bold bg-red-50 text-red-700 border border-red-200">
+            EXCESO: S/ {(totalPagado - montoComprobante).toFixed(2)} (No permitido)
+          </div>
+        ) : pendiente > 0 ? (
+          <div className="rounded-lg p-3 text-center font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            PAGO PARCIAL: Faltan S/ {pendiente.toFixed(2)} (Quedará PENDIENTE)
+          </div>
+        ) : (
+          <div className="rounded-lg p-3 text-center font-bold bg-green-50 text-green-700 border border-green-200 flex items-center justify-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            CUBIERTO AL 100% (Quedará PAGADA)
+          </div>
+        )}
       </div>
 
       {/* Navegación */}

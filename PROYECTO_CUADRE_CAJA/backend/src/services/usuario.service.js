@@ -133,3 +133,9 @@ export const resetearPassword = async (idUsuario, nuevaPassword) => {
   const password_hash = await bcrypt.hash(nuevaPassword, BCRYPT_ROUNDS);
   return updatePassword(idUsuario, password_hash);
 };
+
+import { deleteUser } from '../repositories/usuario.repository.js'; // Asegúrate de importarlo arriba
+
+export const eliminarUsuario = async (idUsuario) => {
+  return deleteUser(idUsuario);
+};

@@ -72,3 +72,33 @@ export const deleteObject = async (objectName) => {
     deleted: true
   };
 };
+
+export const generatePreauthenticatedRequest = async (objectName, expirationHours = 24) => {
+  const client = createObjectStorageClient();
+  
+  // Calcular la fecha de expiración (por defecto 24 horas)
+  const timeExpires = new Date();
+  timeExpires.setHours(timeExpires.getHours() + expirationHours);
+
+  try {
+    const result = await client.createPreauthenticatedRequest({
+      namespaceName: OCI_NAMESPACE,
+      bucketName: OCI_BUCKET_NAME,
+      createPreauthenticatedRequestDetails: {
+        name: `PAR-${objectName}-${Date.now()}`,
+        objectName: objectName,
+        accessType: 'ObjectRead',
+        timeExpires: timeExpires.toISOString()
+      }
+    });
+
+    // OCI nos devuelve la ruta parcial, ej: /p/.../n/.../b/.../o/...
+    const accessUri = result.preauthenticatedRequest.accessUri;
+    
+    // Construimos la URL completa usando la región
+    return `https://objectstorage.${OCI_REGION}.oraclecloud.com${accessUri}`;
+  } catch (error) {
+    console.error('Error generando URL firmada para OCI:', error);
+    return null;
+  }
+};

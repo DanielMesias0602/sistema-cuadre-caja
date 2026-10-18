@@ -8,40 +8,14 @@ export const createOperacion = async ({
   monto,
   estado,
   observacion = null
-}) => {
-  const result = await query(
-    `INSERT INTO operacion
-      (
-        id_usuario,
-        id_cierre,
-        id_comprobante,
-        fecha,
-        monto,
-        estado,
-        observacion
-      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING
-       id_operacion,
-       id_usuario,
-       id_cierre,
-       id_comprobante,
-       TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha,
-       monto,
-       estado,
-       observacion,
-       fecha_registro,
-       fecha_modificacion,
-       id_usuario_modificacion`,
-    [
-      id_usuario,
-      id_cierre,
-      id_comprobante,
-      fecha,
-      monto,
-      estado,
-      observacion
-    ]
+}, client = null) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
+    `INSERT INTO operacion 
+       (id_usuario, id_cierre, id_comprobante, fecha, monto, estado, observacion) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7) 
+     RETURNING id_operacion, id_usuario, id_cierre, id_comprobante, TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, monto, estado, observacion, fecha_registro`,
+    [id_usuario, id_cierre, id_comprobante, fecha, monto, estado, observacion]
   );
 
   return result.rows[0];
@@ -87,12 +61,45 @@ export const findAllOperaciones = async () => {
        u.apellidos,
        c.tipo_comprobante,
        c.serie,
-       c.numero
+       c.numero,
+       c.cliente,
+       c.vendedor,
+       c.hora,
+       c.moneda,
+       c.igv,
+       c.op_gravada,
+       c.items,
+       COALESCE(
+         jsonb_agg(
+           DISTINCT jsonb_build_object(
+             'id_pago', p.id_pago,
+             'medio_pago', mp.nombre,
+             'monto', p.monto,
+             'referencia', p.referencia_bancaria,
+             'evidencia_url', (
+               SELECT e2.storage_key 
+               FROM evidencia e2 
+               WHERE e2.id_operacion = o.id_operacion 
+               AND e2.tipo_evidencia = 'EMPRESA' 
+               LIMIT 1
+             )
+           )
+         ) FILTER (WHERE p.id_pago IS NOT NULL),
+         '[]'::jsonb
+       ) AS pagos
      FROM operacion o
      INNER JOIN usuario u
        ON u.id_usuario = o.id_usuario
      INNER JOIN comprobante c
        ON c.id_comprobante = o.id_comprobante
+     LEFT JOIN pago p
+       ON p.id_operacion = o.id_operacion
+     LEFT JOIN medio_pago mp
+       ON mp.id_medio_pago = p.id_medio_pago
+     GROUP BY 
+       o.id_operacion, u.nombres, u.apellidos, 
+       c.id_comprobante, c.tipo_comprobante, c.serie, c.numero, 
+       c.cliente, c.vendedor, c.hora, c.moneda, c.igv, c.op_gravada, c.items
      ORDER BY o.id_operacion DESC`
   );
 

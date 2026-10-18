@@ -1,4 +1,4 @@
-import { Download, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function DashboardHeader({ user }) {
@@ -29,17 +29,10 @@ export function DashboardHeader({ user }) {
       <div className="flex items-center gap-3 self-start md:self-auto">
         <button
           type="button"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs sm:text-sm transition shadow-xs cursor-pointer"
-        >
-          <Download className="w-4 h-4 text-slate-500" />
-          <span>Exportar</span>
-        </button>
-        <button
-          type="button"
           onClick={() => navigate('/operaciones/nueva')}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-white font-bold text-xs sm:text-sm transition shadow-md active:scale-95 cursor-pointer"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-white font-bold text-sm transition shadow-md active:scale-95 cursor-pointer"
         >
-          <Plus className="w-4.5 h-4.5" />
+          <Plus className="w-5 h-5" />
           <span>Nueva operación</span>
         </button>
       </div>

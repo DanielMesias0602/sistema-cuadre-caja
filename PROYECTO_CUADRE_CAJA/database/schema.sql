@@ -91,9 +91,8 @@ CREATE TABLE usuario (
 
 
 -- ============================================================
--- 2. COMPROBANTE
+-- 2. COMPROBANTE (Actualizado con campos de OCR)
 -- ============================================================
-
 CREATE TABLE comprobante (
     id_comprobante INTEGER GENERATED ALWAYS AS IDENTITY,
     tipo_comprobante VARCHAR(30) NOT NULL,
@@ -101,15 +100,19 @@ CREATE TABLE comprobante (
     numero VARCHAR(20) NOT NULL,
     fecha DATE NOT NULL,
     monto NUMERIC(12,2) NOT NULL,
+    
+    -- Nuevos campos de persistencia OCR
+    cliente VARCHAR(255),
+    vendedor VARCHAR(100),
+    hora TIME,
+    moneda VARCHAR(10) DEFAULT 'PEN',
+    igv NUMERIC(12,2),
+    op_gravada NUMERIC(12,2),
+    items JSONB,
 
-    CONSTRAINT pk_comprobante
-        PRIMARY KEY (id_comprobante),
-
-    CONSTRAINT uq_comprobante_tipo_serie_numero
-        UNIQUE (tipo_comprobante, serie, numero),
-
-    CONSTRAINT ck_comprobante_monto_positivo
-        CHECK (monto > 0)
+    CONSTRAINT pk_comprobante PRIMARY KEY (id_comprobante),
+    CONSTRAINT uq_comprobante_tipo_serie_numero UNIQUE (tipo_comprobante, serie, numero),
+    CONSTRAINT ck_comprobante_monto_positivo CHECK (monto > 0)
 );
 
 
@@ -258,6 +261,10 @@ CREATE TABLE evidencia (
     fecha_evidencia DATE NOT NULL,
     observacion VARCHAR(500),
     fecha_registro TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- NUEVOS CAMPOS PARA AUDITORÍA DEL OCR
+    texto_ocr TEXT,
+    datos_ocr JSONB,
 
     CONSTRAINT pk_evidencia
         PRIMARY KEY (id_evidencia),

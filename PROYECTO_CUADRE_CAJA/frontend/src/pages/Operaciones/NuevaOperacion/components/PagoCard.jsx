@@ -1,164 +1,284 @@
-import { Trash2, AlertCircle } from 'lucide-react';
-import PagoEvidenciaUploader from './PagoEvidenciaUploader';
+import { useState } from 'react';
+import { 
+  Trash2, UploadCloud, Image as ImageIcon, X, Loader2, CheckCircle, 
+  Info, Banknote, Calendar, Hash, User, Building2, CreditCard, Check, AlertCircle 
+} from 'lucide-react';
+import ocrService from '../../../../services/ocr.service';
 
-export function PagoCard({
-  index,
-  pago,
-  medios,
-  pagos,
-  comprobante,
-  onPagoChange,
-  onEliminar,
-  puedeEliminar,
-}) {
-  // Derivar el medio seleccionado desde el padre (NO useState)
-  const medioSeleccionado = medios.find(
-    m => Number(m.id_medio_pago) === Number(pago.id_medio_pago)
-  ) || null;
+export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar, puedeEliminar }) {
+  const [loadingOCR, setLoadingOCR] = useState(false);
+  const [preview, setPreview] = useState(pago.evidencia?.imagenBase64 || null);
+  const [error, setError] = useState(null);
 
-  const esEfectivo = medioSeleccionado?.es_efectivo === true;
+  const handleChange = (field, value) => {
+    onPagoChange({ ...pago, [field]: value });
+  };
 
-  // Calcular si este pago específico causa exceso
-  const montoComprobante = Number(comprobante?.monto) || 0;
-  const totalSinEste = pagos
-    .filter(p => p.id !== pago.id)
-    .reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
-  const totalConEste = totalSinEste + (Number(pago.monto) || 0);
-  const excesoEste = totalConEste > montoComprobante
-    ? totalConEste - montoComprobante
-    : 0;
-
-  // HANDLERS — todos notifican al padre vía onPagoChange
   const handleMedioChange = (e) => {
-    const id = e.target.value === '' ? null : Number(e.target.value);
-    const medioObj = medios.find(m => Number(m.id_medio_pago) === id) || null;
-    onPagoChange({
-      ...pago,
-      id_medio_pago: id,
-      nombre_medio: medioObj?.nombre || '',
-      es_efectivo: medioObj?.es_efectivo || false,
-      // limpiar evidencia y referencia si el nuevo medio es efectivo
-      ...(medioObj?.es_efectivo ? { evidencia: null, referencia: '' } : {}),
+    const idMedio = Number(e.target.value);
+    const medioSeleccionado = medios.find(m => m.id_medio_pago === idMedio);
+    onPagoChange({ 
+      ...pago, 
+      id_medio_pago: idMedio,
+      nombre_medio: medioSeleccionado ? medioSeleccionado.nombre : '',
+      es_efectivo: medioSeleccionado ? medioSeleccionado.es_efectivo : false
     });
   };
 
-  const handleMontoChange = (e) => {
-    onPagoChange({ ...pago, monto: e.target.value });
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result);
+    reader.readAsDataURL(file);
+
+    setLoadingOCR(true);
+    setError(null);
+
+    try {
+      const response = await ocrService.procesar(file, 'TRANSFERENCIA');
+      const rawData = response.data?.data || response.data;
+      const datosExtraidos = rawData?.datos_extraidos || rawData;
+
+      onPagoChange({
+        ...pago,
+        evidencia: {
+          ...pago.evidencia,
+          imagenBase64: reader.result,
+          datosOCR: datosExtraidos,
+          confirmada: false,
+          origen: 'CLIENTE',
+          tipo: 'CLIENTE'
+        }
+      });
+    } catch (err) {
+      console.error('Error OCR:', err);
+      setError('No se pudo leer la imagen. Intenta de nuevo.');
+    } finally {
+      setLoadingOCR(false);
+    }
   };
 
-  const handleReferenciaChange = (e) => {
-    onPagoChange({ ...pago, referencia: e.target.value });
+  const confirmarEvidencia = () => {
+    const montoDetectado = pago.evidencia?.datosOCR?.monto;
+    const referenciaDetectada = pago.evidencia?.datosOCR?.referencia_bancaria || pago.evidencia?.datosOCR?.numero_operacion;
+
+    onPagoChange({
+      ...pago,
+      evidencia: { ...pago.evidencia, confirmada: true },
+      monto: pago.monto || (montoDetectado ? montoDetectado : ''),
+      referencia: pago.referencia || (referenciaDetectada ? referenciaDetectada : '')
+    });
   };
 
-  const handleObservacionChange = (e) => {
-    onPagoChange({ ...pago, observacion: e.target.value });
+  const descartarEvidencia = () => {
+    onPagoChange({ ...pago, evidencia: null });
+    setPreview(null);
+    setError(null);
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-4">
+      {/* Cabecera del Pago */}
       <div className="flex justify-between items-center mb-4">
-        <p className="font-semibold">Pago #{index + 1}</p>
+        <h3 className="font-bold text-slate-900 text-lg">Pago #{index + 1}</h3>
         {puedeEliminar && (
-          <button
-            type="button"
+          <button 
             onClick={onEliminar}
-            className="text-red-500 hover:text-red-700"
+            className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition-colors"
+            title="Eliminar este pago"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-5 h-5" />
           </button>
         )}
       </div>
 
-      {/* Fila 1: Medio + Monto */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Formulario del Pago */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-sm font-semibold mb-1.5">
-            Medio de pago *
-          </label>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Medio de pago *</label>
           <select
-            value={String(pago.id_medio_pago || '')}
+            value={pago.id_medio_pago || ''}
             onChange={handleMedioChange}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange focus:border-brand-orange transition"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange outline-none"
           >
-            <option value="">Seleccionar...</option>
+            <option value="">Seleccione un medio</option>
             {medios.map(m => (
-              <option key={m.id_medio_pago} value={m.id_medio_pago}>
-                {m.nombre}
-              </option>
+              <option key={m.id_medio_pago} value={m.id_medio_pago}>{m.nombre}</option>
             ))}
           </select>
         </div>
-
         <div>
-          <label className="block text-sm font-semibold mb-1.5">
-            Monto (S/) *
-          </label>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Monto (S/) *</label>
           <input
             type="number"
-            value={pago.monto || ''}
-            onChange={handleMontoChange}
+            value={pago.monto}
+            onChange={(e) => handleChange('monto', e.target.value)}
             placeholder="0.00"
             step="0.01"
-            min="0"
-            className={`
-              w-full px-4 py-2.5 border rounded-lg
-              text-gray-900 placeholder:text-gray-400
-              focus:outline-none focus:ring-2 transition
-              ${excesoEste > 0
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:ring-brand-orange focus:border-brand-orange'}
-            `}
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange outline-none"
           />
-          {excesoEste > 0 && (
-            <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
-              Exceso: S/ {excesoEste.toFixed(2)}
-            </p>
-          )}
         </div>
-      </div>
-
-      {/* Fila 2: Observación + Referencia (referencia solo si NO es efectivo) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        {!esEfectivo && (
+        
+        {/* 🔥 AQUÍ ESTÁ LA LÓGICA RESTAURADA: Solo si NO es efectivo */}
+        {!pago.es_efectivo && (
           <div>
-            <label className="block text-sm font-semibold mb-1.5">
-              Referencia bancaria
-            </label>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Referencia bancaria</label>
             <input
               type="text"
               value={pago.referencia || ''}
-              onChange={handleReferenciaChange}
+              onChange={(e) => handleChange('referencia', e.target.value)}
               placeholder="Opcional"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange focus:border-brand-orange transition placeholder:text-gray-400"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange outline-none"
             />
           </div>
         )}
-        <div className={esEfectivo ? 'md:col-span-2' : ''}>
-          <label className="block text-sm font-semibold mb-1.5">
-            Observación
-          </label>
+        
+        {/* Si es efectivo, Observación ocupa todo el ancho para no dejar hueco */}
+        <div className={pago.es_efectivo ? 'md:col-span-2' : ''}>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Observación</label>
           <input
             type="text"
             value={pago.observacion || ''}
-            onChange={handleObservacionChange}
+            onChange={(e) => handleChange('observacion', e.target.value)}
             placeholder="Opcional"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange focus:border-brand-orange transition placeholder:text-gray-400"
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-orange outline-none"
           />
         </div>
       </div>
 
-      {/* Evidencia: solo si NO es efectivo */}
-      {!esEfectivo && medioSeleccionado && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <PagoEvidenciaUploader
-            pago={pago}
-            onPagoChange={onPagoChange}
-          />
+      {/* SECCIÓN DE EVIDENCIA / OCR (Solo si NO es efectivo) */}
+      {!pago.es_efectivo && pago.id_medio_pago && (
+        <div className="mt-6 border-t border-slate-100 pt-6">
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </div>
+          )}
+
+          {/* Si NO hay evidencia real (imagenBase64) */}
+          {!pago.evidencia?.imagenBase64 && (
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors relative">
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileChange} 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={loadingOCR}
+              />
+              {loadingOCR ? (
+                <>
+                  <Loader2 className="w-8 h-8 text-brand-orange animate-spin mb-2" />
+                  <p className="text-sm text-slate-600 font-medium">Procesando OCR...</p>
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-8 h-8 text-slate-400 mb-2" />
+                  <p className="text-sm text-slate-600 font-medium">Haz clic para subir la evidencia del cliente</p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Si HAY evidencia (imagenBase64) pero NO está confirmada */}
+          {pago.evidencia?.imagenBase64 && !pago.evidencia.confirmada && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <div className="flex gap-4 items-start">
+                {preview && (
+                  <img src={preview} alt="Evidencia" className="w-24 h-24 object-cover rounded-lg border border-slate-200" />
+                )}
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-slate-900 mb-1">Evidencia cargada</p>
+                      <p className="text-xs text-slate-500">Revisa los datos extraídos antes de confirmar.</p>
+                    </div>
+                    <button onClick={descartarEvidencia} className="text-slate-400 hover:text-red-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-2 mt-3">
+                    <button 
+                      onClick={confirmarEvidencia}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <Check className="w-3 h-3" /> Confirmar
+                    </button>
+                    <button 
+                      onClick={descartarEvidencia}
+                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* DISEÑO PREMIUM DE DATOS OCR (Sin confirmar) */}
+              {pago.evidencia.datosOCR && (
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-3">Datos detectados en la imagen:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Banknote className="w-3.5 h-3.5 text-emerald-500" />
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Monto</p>
+                      </div>
+                      <p className="font-bold text-slate-900">S/ {Number(pago.evidencia.datosOCR.monto || 0).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Fecha</p>
+                      </div>
+                      <p className="font-bold text-slate-900">{pago.evidencia.datosOCR.fecha_operacion || '---'}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Hash className="w-3.5 h-3.5 text-purple-500" />
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Referencia</p>
+                      </div>
+                      <p className="font-bold text-slate-900">{pago.evidencia.datosOCR.referencia_bancaria || pago.evidencia.datosOCR.numero_operacion || '---'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Si la evidencia YA ESTÁ CONFIRMADA */}
+          {pago.evidencia?.imagenBase64 && pago.evidencia?.confirmada && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <p className="font-bold text-green-900 text-sm">Evidencia confirmada (Cliente)</p>
+                <button onClick={descartarEvidencia} className="ml-auto text-xs text-green-700 hover:underline font-medium">
+                  Cambiar imagen
+                </button>
+              </div>
+              
+              {pago.evidencia.datosOCR && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="bg-white p-3 rounded-lg border border-green-100">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Monto</p>
+                    <p className="font-bold text-slate-900">S/ {Number(pago.evidencia.datosOCR.monto || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border border-green-100">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Banco / App</p>
+                    <p className="font-bold text-slate-900">{pago.evidencia.datosOCR.aplicacion_banco || '---'}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border border-green-100">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Referencia</p>
+                    <p className="font-bold text-slate-900">{pago.evidencia.datosOCR.referencia_bancaria || '---'}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
-
-export default PagoCard;

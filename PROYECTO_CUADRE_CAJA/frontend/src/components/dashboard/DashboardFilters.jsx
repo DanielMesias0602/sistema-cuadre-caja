@@ -50,11 +50,10 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
             <option value="">Todos los turnos</option>
             <option value="Mañana">Turno Mañana</option>
             <option value="Tarde">Turno Tarde</option>
-            <option value="Noche">Turno Noche</option>
           </select>
         </div>
 
-        {/* Status Selector */}
+        {/* Status Selector (Solo estados oficiales) */}
         <div className="lg:col-span-3 flex flex-col justify-center">
           <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
             Estado
@@ -65,10 +64,8 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
             className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl text-slate-800 text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-orange-500/30 border border-transparent focus:border-orange-500 transition cursor-pointer"
           >
             <option value="">Todos los estados</option>
-            <option value="REGISTRADO">REGISTRADO</option>
-            <option value="VERIFICADA">VERIFICADA</option>
+            <option value="PAGADA">PAGADA</option>
             <option value="PENDIENTE">PENDIENTE</option>
-            <option value="OBSERVADA">OBSERVADA</option>
             <option value="ANULADA">ANULADA</option>
           </select>
         </div>

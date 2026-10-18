@@ -6,36 +6,17 @@ export const createEvidencia = async ({
   tipo_evidencia,
   storage_key,
   fecha_evidencia,
-  observacion = null
-}) => {
-  const result = await query(
-    `INSERT INTO evidencia
-      (
-        id_operacion,
-        id_usuario,
-        tipo_evidencia,
-        storage_key,
-        fecha_evidencia,
-        observacion
-      )
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING
-       id_evidencia,
-       id_operacion,
-       id_usuario,
-       tipo_evidencia,
-       storage_key,
-       fecha_evidencia,
-       observacion,
-       fecha_registro`,
-    [
-      id_operacion,
-      id_usuario,
-      tipo_evidencia,
-      storage_key,
-      fecha_evidencia,
-      observacion
-    ]
+  observacion = null,
+  texto_ocr = null,
+  datos_ocr = null
+}, client = null) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
+    `INSERT INTO evidencia 
+       (id_operacion, id_usuario, tipo_evidencia, storage_key, fecha_evidencia, observacion, texto_ocr, datos_ocr) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+     RETURNING id_evidencia, id_operacion, id_usuario, tipo_evidencia, storage_key, fecha_evidencia, observacion, texto_ocr, datos_ocr, fecha_registro`,
+    [id_operacion, id_usuario, tipo_evidencia, storage_key, fecha_evidencia, observacion, texto_ocr, datos_ocr]
   );
 
   return result.rows[0];
@@ -51,6 +32,8 @@ export const findEvidenciaById = async (idEvidencia) => {
        storage_key,
        fecha_evidencia,
        observacion,
+       texto_ocr,
+       datos_ocr,
        fecha_registro
      FROM evidencia
      WHERE id_evidencia = $1`,
@@ -70,6 +53,8 @@ export const findEvidenciasByOperacion = async (idOperacion) => {
        storage_key,
        fecha_evidencia,
        observacion,
+       texto_ocr,
+       datos_ocr,
        fecha_registro
      FROM evidencia
      WHERE id_operacion = $1

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from '../pages/Login';
 import AppLayout from '../layouts/AppLayout';
 import Dashboard from '../pages/Dashboard';
@@ -98,14 +98,30 @@ export function AppRoutes() {
         <Route path="salidas-de-caja" element={<SalidasCaja />} />
         <Route path="anulaciones" element={<Anulaciones />} />
         <Route path="notas-de-credito" element={<NotasCredito />} />
-        <Route path="conciliacion" element={<Conciliacion />} />
-        <Route path="diferencias" element={<Diferencias />} />
         <Route path="reportes" element={<Reportes />} />
         <Route path="indicadores" element={<Indicadores />} />
+        
+        {/* RUTAS PROTEGIDAS SOLO PARA ADMINISTRADOR */}
+        <Route
+          path="conciliacion"
+          element={
+            <RoleRoute allowedRoles={['ADMINISTRADOR']}>
+              <Conciliacion />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="diferencias"
+          element={
+            <RoleRoute allowedRoles={['ADMINISTRADOR']}>
+              <Diferencias />
+            </RoleRoute>
+          }
+        />
         <Route
           path="usuarios"
           element={
-            <RoleRoute allowedRoles={[1]}>
+            <RoleRoute allowedRoles={['ADMINISTRADOR']}>
               <Usuarios />
             </RoleRoute>
           }
@@ -113,7 +129,7 @@ export function AppRoutes() {
         <Route
           path="roles-y-permisos"
           element={
-            <RoleRoute allowedRoles={[1]}>
+            <RoleRoute allowedRoles={['ADMINISTRADOR']}>
               <RolesPermisos />
             </RoleRoute>
           }

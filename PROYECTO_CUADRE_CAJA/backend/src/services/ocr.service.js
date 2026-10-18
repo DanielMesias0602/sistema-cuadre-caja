@@ -69,31 +69,6 @@ const extraerCampo = (texto, patron) => {
 
 /*
  * Extrae una sección del output del OCR.
- *
- * El Python devuelve secciones con esta forma:
- *
- *   === NOMBRE DE LA SECCION ===
- *   contenido
- *   === SIGUIENTE SECCION ===
- *
- * Esta función devuelve el contenido entre la sección
- * pedida y la siguiente (o el final del texto).
- *
- * Es clave para que el "Total:" de la sección TOTALES
- * no sea pisado por el "Total:" de cada producto en
- * la sección DETALLE DE PRODUCTOS.
- *
- * Ejemplo del problema que resuelve:
- *
- *   === DETALLE DE PRODUCTOS ===
- *   Producto 1
- *   Total: S/ 150.00      <- NO queremos este
- *
- *   === TOTALES ===
- *   Total: S/ 155.00      <- SÍ queremos este
- *
- * Sin esta función, el primer match ganaría y devolvería
- * 150 en vez de 155.
  */
 const extraerSeccion = (texto, nombre) => {
   if (!texto) {
@@ -112,16 +87,6 @@ const extraerSeccion = (texto, nombre) => {
 
 /*
  * Normaliza texto con mojibake de UTF-8.
- *
- * Ejemplo:
- * "NÃºmero"        -> "Número"
- * "DescripciÃ³n"   -> "Descripción"
- * "AutenticaciÃ³n" -> "Autenticación"
- *
- * El output del contenedor Docker a veces llega con
- * caracteres UTF-8 mal decodificados. Normalizar antes
- * de aplicar regex evita tener que duplicar los patrones
- * en cada campo.
  */
 const normalizar = (texto) => {
   if (!texto) {
@@ -133,7 +98,7 @@ const normalizar = (texto) => {
       .normalize('NFC')
       .replace(/Ã¡/g, 'á')
       .replace(/Ã©/g, 'é')
-      .replace(/Ã­/g, 'í')
+      .replace(/Ã/g, 'í')
       .replace(/Ã³/g, 'ó')
       .replace(/Ãº/g, 'ú')
       .replace(/Ã±/g, 'ñ')
@@ -182,10 +147,6 @@ const normalizarHora = (horaTexto) => {
  * ============================================================
  * LIMPIEZA INTELIGENTE DE DESCRIPCIÓN
  * ============================================================
- * 
- * Esta función limpia SOLO el texto de la descripción del producto,
- * atrapando las variaciones de la marca de agua (goda, Pagodo, etc.)
- * sin romper la estructura del ticket.
  */
 const limpiarDescripcion = (desc) => {
   if (!desc) {
@@ -220,9 +181,6 @@ const limpiarDescripcion = (desc) => {
  * ============================================================
  * SEPARADOR DE PRODUCTOS MEZCLADOS
  * ============================================================
- * 
- * Si Python entregó dos dimensiones en un mismo producto,
- * esto lo divide para que el resto se le asigne al siguiente.
  */
 const dividirDescripcionMezclada = (desc) => {
   if (!desc) return { principal: null, sobrante: null };
@@ -375,8 +333,6 @@ const parsearItems = (seccionProductos) => {
       /Descripci[oó]n:\s*(.+)/i
     );
 
-    // Si el producto anterior dejó un sobrante (ej. "27X45 CAVERNET"), 
-    // se lo agregamos al principio de este producto.
     if (sobranteAnterior) {
       if (descRaw) {
         descRaw = `${sobranteAnterior} ${descRaw}`;
@@ -388,7 +344,6 @@ const parsearItems = (seccionProductos) => {
 
     let principal = descRaw;
     
-    // Si hay dos dimensiones mezcladas, dividimos y guardamos el sobrante
     if (descRaw) {
       const dividido = dividirDescripcionMezclada(descRaw);
       principal = dividido.principal;
@@ -430,121 +385,70 @@ const parsearItems = (seccionProductos) => {
  */
 
 const parsearComprobante = (salidaOcr) => {
-  /*
-   * ----------------------------------------------------------
-   * LIMPIEZA GLOBAL
-   * ----------------------------------------------------------
-   * Quitamos TODOS los puntajes [0.99] del texto original
-   * para que no interfieran con los regex.
-   */
   const textoOriginal = String(salidaOcr || '').replace(/\[\d+\.\d+\]/g, '');
   const texto = normalizar(textoOriginal);
 
-  // Texto limpio (quita saltos de línea) para búsquedas de totales
   const textoLimpio = texto
     .replace(/\n/g, ' ')
     .replace(/\s+/g, ' ');
 
-  const seccionDatos = extraerSeccion(
-    texto, 
-    'DATOS DEL COMPROBANTE'
-  );
-
-  const seccionProductos = extraerSeccion(
-    texto, 
-    'DETALLE DE PRODUCTOS'
-  );
-
-  const seccionTotales = extraerSeccion(
-    texto, 
-    'TOTALES'
-  );
+  const seccionDatos = extraerSeccion(texto, 'DATOS DEL COMPROBANTE');
+  const seccionProductos = extraerSeccion(texto, 'DETALLE DE PRODUCTOS');
+  const seccionTotales = extraerSeccion(texto, 'TOTALES');
 
   const fuenteDatos = seccionDatos || texto;
   const fuenteTotales = seccionTotales || texto;
 
-  const tipo_comprobante = extraerCampo(
-    fuenteDatos, 
-    /Tipo:\s*(.+)/i
-  );
+  const tipo_comprobante = extraerCampo(fuenteDatos, /Tipo:\s*(.+)/i);
 
-  /*
-   * ----------------------------------------------------------
-   * SERIE Y NÚMERO
-   * ----------------------------------------------------------
-   */
-  let serie = extraerCampo(
-    fuenteDatos, 
-    /Serie:\s*(.+)/i
-  );
-
-  let numero = extraerCampo(
-    fuenteDatos, 
-    /N[uúÃ]{1,3}mero:\s*(.+)/i
-  );
+  // SERIE Y NÚMERO
+  let serie = extraerCampo(fuenteDatos, /Serie:\s*(.+)/i);
+  let numero = extraerCampo(fuenteDatos, /N[uúÃ]{1,3}mero:\s*(.+)/i);
   
   if (!serie || !numero) {
     const matchSerieNumero = texto.match(/([A-Z0-9]{2,4})-(\d{6,})/i);
-    
     if (matchSerieNumero) {
-      if (!serie) {
-        serie = matchSerieNumero[1];
-      }
-      if (!numero) {
-        numero = matchSerieNumero[2];
-      }
+      if (!serie) serie = matchSerieNumero[1];
+      if (!numero) numero = matchSerieNumero[2];
     }
   }
 
-  /*
-   * ----------------------------------------------------------
-   * FECHA
-   * ----------------------------------------------------------
-   */
-  let fecha = extraerCampo(
-    fuenteDatos, 
-    /Fecha:\s*(\d{2}\/\d{2}\/\d{4})/i
-  );
-
+  // FECHA
+  let fecha = extraerCampo(fuenteDatos, /Fecha:\s*(\d{2}\/\d{2}\/\d{4})/i);
   if (!fecha) {
-    fecha = extraerCampo(
-      texto, 
-      /(?:FECHA|EMISI[OÓ]N)[\s\S]{0,60}?(\d{2}\/\d{2}\/\d{4})/i
-    );
+    fecha = extraerCampo(texto, /(?:FECHA|EMISI[OÓ]N)[\s\S]{0,60}?(\d{2}\/\d{2}\/\d{4})/i);
   }
 
-  /*
-   * ----------------------------------------------------------
-   * HORA Y VENDEDOR
-   * ----------------------------------------------------------
-   */
-  const horaTexto = extraerCampo(
-    fuenteDatos, 
-    /Hora:\s*(\d{2}:\d{2}(?::\d{2})?)/i
-  );
-
+  // HORA Y VENDEDOR
+  const horaTexto = extraerCampo(fuenteDatos, /Hora:\s*(\d{2}:\d{2}(?::\d{2})?)/i);
   const hora = normalizarHora(horaTexto);
-
-  const vendedor = extraerCampo(
-    fuenteDatos, 
-    /Vendedor(?:\(A\))?:\s*(.+)/i
-  );
+  const vendedor = extraerCampo(fuenteDatos, /Vendedor(?:\(A\))?:\s*(.+)/i);
   
   /*
    * ----------------------------------------------------------
-   * CLIENTE
+   * CLIENTE (Lógica corregida RUC vs DNI)
    * ----------------------------------------------------------
    */
-  let cliente = extraerCampo(
-    texto, 
-    /CLIENTE\s*:?\s*([^\n]+)/i
-  );
-
-  if (!cliente) {
-    cliente = extraerCampo(
-      texto, 
-      /NOMBRE\s*:?\s*([^\n]+)/i
-    );
+  // Detectamos qué tipo de documento tiene el comprobante
+  const tieneRuc = /RUC\/PASAPORTE\/CARNET EXT\.|RUC\.\s*N°/i.test(texto);
+  const tieneDni = /DNI\/OTROS|DNI\s*:/i.test(texto);
+  
+  // Extraemos ambos campos posibles
+  const nombreField = extraerCampo(texto, /NOMBRE\s*:?\s*([^\n]+)/i);
+  const clienteField = extraerCampo(texto, /CLIENTE\s*:?\s*([^\n]+)/i);
+  
+  let cliente = null;
+  
+  if (tieneRuc && nombreField) {
+    // Si es RUC, la empresa está en el campo NOMBRE
+    cliente = nombreField;
+  } else if (tieneDni && clienteField) {
+    // Si es DNI, la persona está en el campo CLIENTE
+    cliente = clienteField;
+  } else if (nombreField) {
+    cliente = nombreField;
+  } else if (clienteField) {
+    cliente = clienteField;
   }
 
   if (cliente) {
@@ -555,30 +459,13 @@ const parsearComprobante = (salidaOcr) => {
    * ----------------------------------------------------------
    * TOTALES (IGV, OP GRAVADA, TOTAL, EFECTIVO)
    * ----------------------------------------------------------
-   * Buscamos primero como lo dicta el Python. 
-   * Si falla, hacemos "Plan B".
    */
-  let igvTexto = extraerCampo(
-    textoLimpio, 
-    /I\.?G\.?V\.?\s*S\/.*?([\d.,]+)/i
-  );
-
-  let opGravadaTexto = extraerCampo(
-    textoLimpio, 
-    /OP\.?\s*GRAVADA\s*S\/.*?([\d.,]+)/i
-  );
+  let igvTexto = extraerCampo(textoLimpio, /I\.?G\.?V\.?\s*S\/.*?([\d.,]+)/i);
+  let opGravadaTexto = extraerCampo(textoLimpio, /OP\.?\s*GRAVADA\s*S\/.*?([\d.,]+)/i);
+  const efectivoTexto = extraerCampo(fuenteTotales, /Efectivo:\s*S\/\s*([\d.,]+)/i);
   
-  const efectivoTexto = extraerCampo(
-    fuenteTotales, 
-    /Efectivo:\s*S\/\s*([\d.,]+)/i
-  );
+  let totalTexto = extraerCampo(fuenteTotales, /Total:\s*S\/\s*([\d.,]+)/i);
   
-  let totalTexto = extraerCampo(
-    fuenteTotales, 
-    /Total:\s*S\/\s*([\d.,]+)/i
-  );
-  
-  // Plan B para el Total: Si Python falló, buscamos en el texto general.
   if (!totalTexto || totalTexto === 'None') {
     const matchPlanB = 
       textoLimpio.match(/TOTAL S\/\s*:?\s*([\d.,]+)/i) || 
@@ -591,25 +478,15 @@ const parsearComprobante = (salidaOcr) => {
     }
   }
 
-  const moneda = extraerCampo(
-    fuenteTotales, 
-    /Moneda:\s*([A-Z]+)/i
-  ) || 'PEN';
+  const moneda = extraerCampo(fuenteTotales, /Moneda:\s*([A-Z]+)/i) || 'PEN';
 
-  /*
-   * ----------------------------------------------------------
-   * ITEMS
-   * ----------------------------------------------------------
-   */
+  // ITEMS
   const items = parsearItems(seccionProductos);
 
   /*
    * ----------------------------------------------------------
    * MEDIO DE PAGO
    * ----------------------------------------------------------
-   * Si el ticket tiene un monto en EFECTIVO (mayor a 0), 
-   * se asume EFECTIVO, ignorando la palabra "tarjeta" 
-   * que pueda aparecer en los productos.
    */
   let medio_pago = null;
   const textoLower = texto.toLowerCase();
@@ -664,130 +541,57 @@ const parsearTransferencia = (salidaOcr) => {
   const datos = { tipo_evidencia: 'TRANSFERENCIA' };
 
   const campos = [
-    {
-      clave: 'aplicacion_banco',
-      patron: /Aplicaci[oó]n\s*\/\s*banco:\s*(.+)/i
-    },
-    {
-      clave: 'estado_transferencia',
-      patron: /Estado de transferencia:\s*(.+)/i
-    },
-    {
-      clave: 'fecha_operacion',
-      patron: /Fecha de operaci[oó]n:\s*(\d{2}\/\d{2}\/\d{4})/i
-    },
-    {
-      clave: 'hora_operacion',
-      patron: /Hora de operaci[oó]n:\s*(\d{2}:\d{2})/i
-    },
-    {
-      clave: 'destinatario',
-      patron: /Destinatario:\s*(.+)/i
-    },
-    {
-      clave: 'cuenta_destino',
-      patron: /Cuenta destino:\s*(.+)/i
-    },
-    {
-      clave: 'tipo_cuenta_origen',
-      patron: /^Tipo de cuenta origen:\s*(.+)$/im
-    },
-    {
-      clave: 'cuenta_origen',
-      patron: /^Cuenta origen:\s*(.+)$/im
-    },
-    {
-      clave: 'mensaje',
-      patron: /Mensaje:\s*(.+)/i
-    },
-    {
-      clave: 'descripcion',
-      patron: /Descripci[oó]n:\s*(.+)/i
-    },
-    {
-      clave: 'sucursal_agencia',
-      patron: /Sucursal\/agencia:\s*(.+)/i
-    },
-    {
-      clave: 'cuenta_movimiento',
-      patron: /Cuenta movimiento:\s*(.+)/i
-    }
+    { clave: 'aplicacion_banco', patron: /Aplicaci[oó]n\s*\/\s*banco:\s*(.+)/i },
+    { clave: 'estado_transferencia', patron: /Estado de transferencia:\s*(.+)/i },
+    { clave: 'fecha_operacion', patron: /Fecha de operaci[oó]n:\s*(\d{2}\/\d{2}\/\d{4})/i },
+    { clave: 'hora_operacion', patron: /Hora de operaci[oó]n:\s*(\d{2}:\d{2})/i },
+    { clave: 'destinatario', patron: /Destinatario:\s*(.+)/i },
+    { clave: 'cuenta_destino', patron: /Cuenta destino:\s*(.+)/i },
+    { clave: 'tipo_cuenta_origen', patron: /^Tipo de cuenta origen:\s*(.+)$/im },
+    { clave: 'cuenta_origen', patron: /^Cuenta origen:\s*(.+)$/im },
+    { clave: 'mensaje', patron: /Mensaje:\s*(.+)/i },
+    { clave: 'descripcion', patron: /Descripci[oó]n:\s*(.+)/i },
+    { clave: 'sucursal_agencia', patron: /Sucursal\/agencia:\s*(.+)/i },
+    { clave: 'cuenta_movimiento', patron: /Cuenta movimiento:\s*(.+)/i }
   ];
 
   for (const campo of campos) {
-    const valor = extraerCampo(
-      texto,
-      campo.patron
-    );
-
+    const valor = extraerCampo(texto, campo.patron);
     if (valor !== null) {
       datos[campo.clave] = valor;
     }
   }
 
-  const montoEstructurado = extraerCampo(
-    texto,
-    /Monto:\s*S\/\s*([\d.,]+)/i
-  );
+  const montoEstructurado = extraerCampo(texto, /Monto:\s*S\/\s*([\d.,]+)/i);
 
   if (montoEstructurado !== null) {
-    datos.monto = parsearMonto(
-      montoEstructurado
-    );
+    datos.monto = parsearMonto(montoEstructurado);
   } else {
-    const montoOcr = texto.match(
-      /\bS\/\s*([\d.,]+)\b/i
-    );
-
+    const montoOcr = texto.match(/\bS\/\s*([\d.,]+)\b/i);
     if (montoOcr) {
-      datos.monto = parsearMonto(
-        montoOcr[1]
-      );
+      datos.monto = parsearMonto(montoOcr[1]);
     }
   }
 
-  const moneda = extraerCampo(
-    texto,
-    /Moneda:\s*(.+)/i
-  );
-
+  const moneda = extraerCampo(texto, /Moneda:\s*(.+)/i);
   if (moneda !== null) {
     const monedaNormalizada = moneda.toUpperCase();
-
-    if (
-      monedaNormalizada.includes('SOL') ||
-      monedaNormalizada.includes('PEN')
-    ) {
+    if (monedaNormalizada.includes('SOL') || monedaNormalizada.includes('PEN')) {
       datos.moneda = 'PEN';
     } else {
       datos.moneda = moneda;
     }
   }
 
-  const numeroInvertido = extraerCampo(
-    texto,
-    /(\d{6,})\s*\n\s*(?:\[\d+\.\d+\]\s*)?N[uúÃ]{1,3}mero de operaci[oó]n/i
-  );
-
+  const numeroInvertido = extraerCampo(texto, /(\d{6,})\s*\n\s*(?:\[\d+\.\d+\]\s*)?N[uúÃ]{1,3}mero de operaci[oó]n/i);
   if (numeroInvertido !== null) {
     datos.referencia_bancaria = numeroInvertido;
     datos.numero_operacion = numeroInvertido;
   }
 
-  const referenciaNormalizada = extraerCampo(
-    texto,
-    /Referencia normalizada:\s*(.+)/i
-  );
-
-  const referenciaBancaria = extraerCampo(
-    texto,
-    /Referencia bancaria:\s*(.+)/i
-  );
-
-  const numeroOperacion = extraerCampo(
-    texto,
-    /N[uúÃ]{1,3}mero de operaci[oó]n:\s*(.+)/i
-  );
+  const referenciaNormalizada = extraerCampo(texto, /Referencia normalizada:\s*(.+)/i);
+  const referenciaBancaria = extraerCampo(texto, /Referencia bancaria:\s*(.+)/i);
+  const numeroOperacion = extraerCampo(texto, /N[uúÃ]{1,3}mero de operaci[oó]n:\s*(.+)/i);
 
   if (referenciaNormalizada !== null) {
     datos.referencia_bancaria = referenciaNormalizada;
@@ -797,12 +601,8 @@ const parsearTransferencia = (salidaOcr) => {
     datos.referencia_bancaria = numeroOperacion;
   }
 
-  if (datos.referencia_bancaria === undefined) {
-    datos.referencia_bancaria = null;
-  }
-  if (datos.numero_operacion === undefined) {
-    datos.numero_operacion = null;
-  }
+  if (datos.referencia_bancaria === undefined) datos.referencia_bancaria = null;
+  if (datos.numero_operacion === undefined) datos.numero_operacion = null;
 
   return datos;
 };
@@ -826,7 +626,6 @@ export const extractEvidenceData = async ({
     const error = new Error(
       'filePath, mimeType y tipoEvidencia son obligatorios'
     );
-
     error.statusCode = 400;
     throw error;
   }
@@ -843,13 +642,9 @@ export const extractEvidenceData = async ({
       build: OCR_IMAGE_TRANSFERENCIA,
       estado: 'PROCESADO',
       confianza: null,
-
       texto_completo: resultado.stdout,
-
       datos_extraidos: parsearTransferencia(resultado.stdout),
-
       salida_ocr: resultado.stdout,
-
       requiere_revision: true,
       requiere_confirmacion: true
     };
@@ -868,13 +663,9 @@ export const extractEvidenceData = async ({
     build: OCR_IMAGE_COMPROBANTE,
     estado: 'PROCESADO',
     confianza: null,
-
     texto_completo: resultado.stdout,
-
     datos_extraidos: datosExtraidos,
-
     salida_ocr: resultado.stdout,
-
     requiere_revision: true,
     requiere_confirmacion: true
   };

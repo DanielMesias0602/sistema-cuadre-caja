@@ -37,7 +37,10 @@ export const getAuthenticatedUser = (req, res) => {
       id_usuario: req.user.id_usuario,
       id_rol: req.user.id_rol,
       rol: req.user.rol,
-      usuario: req.user.usuario
+      usuario: req.user.usuario,
+      nombres: req.user.nombres,
+      apellidos: req.user.apellidos,
+      condicion_personal: req.user.condicion_personal
     }
   });
 };

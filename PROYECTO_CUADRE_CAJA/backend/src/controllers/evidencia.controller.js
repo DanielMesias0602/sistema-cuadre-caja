@@ -165,3 +165,54 @@ export const getByOperacion = async (req, res, next) => {
     next(error);
   }
 };
+
+export const uploadOnly = async (req, res, next) => {
+  let tempFilePath = null;
+  let optimizedFilePath = null;
+  let objectName = null;
+
+  try {
+    if (!req.file) {
+      const error = new Error('El archivo de evidencia es obligatorio');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    tempFilePath = req.file.path;
+    const esImagen = req.file.mimetype.startsWith('image/');
+
+    let archivoParaSubir = tempFilePath;
+    let contentType = req.file.mimetype;
+    let extension = path.extname(req.file.originalname).toLowerCase();
+
+    if (esImagen) {
+      optimizedFilePath = `${tempFilePath}-optimized.jpg`;
+      await optimizarImagen(tempFilePath, optimizedFilePath);
+      archivoParaSubir = optimizedFilePath;
+      contentType = 'image/jpeg';
+      extension = '.jpg';
+    }
+
+    const nombreBase = path.parse(req.file.filename).name;
+    objectName = `evidencias/temp/${Date.now()}-${nombreBase}${extension}`;
+
+    await uploadObject({
+      objectName,
+      filePath: archivoParaSubir,
+      contentType
+    });
+
+    // CORREGIDO: Ahora devuelve 201 (Creado) igual que el resto de tu API
+    return res.status(201).json({
+      status: 'ok',
+      message: 'Archivo subido a OCI exitosamente',
+      data: { storage_key: objectName } 
+    });
+
+  } catch (error) {
+    next(error);
+  } finally {
+    if (tempFilePath) await fs.unlink(tempFilePath).catch(() => {});
+    if (optimizedFilePath) await fs.unlink(optimizedFilePath).catch(() => {});
+  }
+};

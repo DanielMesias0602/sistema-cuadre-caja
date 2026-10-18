@@ -62,3 +62,21 @@ export const resetPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+import { eliminarUsuario } from '../services/usuario.service.js'; // Asegúrate de importarlo arriba
+
+export const eliminar = async (req, res, next) => {
+  try {
+    await eliminarUsuario(Number(req.params.id));
+    res.json({ status: 'ok', message: 'Usuario eliminado' });
+  } catch (error) {
+    // Si tiene operaciones, PostgreSQL dará error 23503 (Foreign Key)
+    if (error.code === '23503') {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'No se puede eliminar porque tiene registros asociados. Desactívelo en su lugar.' 
+      });
+    }
+    next(error);
+  }
+};

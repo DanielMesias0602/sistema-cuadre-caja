@@ -54,9 +54,16 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    // 1. Limpiamos el token y usuario del localStorage
     authService.logout();
+    
+    // 2. Limpiamos los estados de React
     setUser(null);
     setToken(null);
+
+    // 3. Redirigimos usando la BASE_URL de Vite (respetando /cuadrecaja/)
+    const baseUrl = import.meta.env.BASE_URL || '/cuadrecaja/';
+    window.location.href = `${baseUrl}login`; 
   };
 
   return (

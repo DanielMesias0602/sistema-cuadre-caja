@@ -31,6 +31,9 @@ function AppLayout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Validación segura: Si isAdmin es una función, la ejecutamos. Si es un booleano, lo usamos directo.
+  const userIsAdmin = typeof isAdmin === 'function' ? isAdmin() : !!isAdmin;
+
   const menuItems = [
     { section: 'Principal', items: [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -55,7 +58,8 @@ function AppLayout() {
       { path: '/reportes', label: 'Reportes', icon: BarChart2 },
       { path: '/indicadores', label: 'Indicadores', icon: TrendingUp },
     ]},
-    ...(isAdmin() ? [{
+    // Sección exclusiva para Administradores
+    ...(userIsAdmin ? [{
       section: 'Administración', items: [
         { path: '/usuarios', label: 'Usuarios', icon: Users },
         { path: '/roles-y-permisos', label: 'Roles y permisos', icon: Shield },
@@ -164,9 +168,14 @@ function AppLayout() {
           </div>
 
           <div className="app-header-user">
-            <div className="user-info">
-              <span>{user?.usuario || 'Usuario'}</span>
-              <small>{user?.rol ? `Rol: ${user.rol}` : 'Sesión activa'}</small>
+            {/* AQUÍ ESTÁ EL CAMBIO: Nombre completo y condición */}
+            <div className="user-info text-right">
+              <span className="font-bold text-slate-800 block text-sm">
+                {user?.nombres ? `${user.nombres} ${user.apellidos}` : (user?.usuario || 'Usuario')}
+              </span>
+              <small className="text-slate-500 block text-xs">
+                {user?.condicion_personal ? `${user.condicion_personal} | ${user.rol}` : (user?.rol || 'Sesión activa')}
+              </small>
             </div>
             <button type="button" onClick={logout} className="logout-button">
               <LogOut className="w-4 h-4" />

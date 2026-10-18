@@ -1,4 +1,4 @@
-import { Check, Clock, AlertCircle, X, FileText, Wallet, Paperclip, ShieldCheck, Printer, History, ExternalLink } from 'lucide-react';
+import { Check, Clock, AlertCircle, X, FileText, Wallet, Paperclip, Printer, History, Package } from 'lucide-react';
 
 export function OperacionDetailDrawer({ selectedOp, onClose }) {
   if (!selectedOp) {
@@ -22,10 +22,10 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
 
   const getStatusBadge = (estado) => {
     const st = (estado || '').toUpperCase();
-    if (st === 'VERIFICADA' || st === 'COMPLETADO' || st === 'PAGADO') {
+    if (st === 'VERIFICADA' || st === 'COMPLETADO' || st === 'PAGADO' || st === 'PAGADA') {
       return (
         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
-          <Check className="w-3.5 h-3.5" /> VERIFICADA
+          <Check className="w-3.5 h-3.5" /> {st}
         </span>
       );
     }
@@ -33,13 +33,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
       return (
         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100">
           <Clock className="w-3.5 h-3.5" /> PENDIENTE
-        </span>
-      );
-    }
-    if (st === 'OBSERVADA') {
-      return (
-        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100">
-          <AlertCircle className="w-3.5 h-3.5" /> OBSERVADA
         </span>
       );
     }
@@ -51,9 +44,24 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
   };
 
   const pagosList = Array.isArray(selectedOp.pagos) ? selectedOp.pagos : [];
+  
+  // Validación segura por si los items vienen como string JSON de PostgreSQL
+  let itemsList = [];
+  try {
+    if (selectedOp.items) {
+      itemsList = typeof selectedOp.items === 'string' ? JSON.parse(selectedOp.items) : selectedOp.items;
+    } else if (selectedOp.comprobante?.items) {
+      itemsList = typeof selectedOp.comprobante.items === 'string' ? JSON.parse(selectedOp.comprobante.items) : selectedOp.comprobante.items;
+    }
+  } catch (e) {
+    console.error("Error parseando items:", e);
+  }
+
+  // Obtener datos del comprobante (a veces vienen en la raíz, a veces en .comprobante)
+  const dataComprobante = selectedOp.comprobante || selectedOp;
 
   return (
-    <div className="bg-white rounded-2xl shadow-xs border border-gray-100 p-5 flex flex-col space-y-5">
+    <div className="bg-white rounded-2xl shadow-xs border border-gray-100 p-5 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto">
       {/* BLOQUE A: INFORMACIÓN DE LA OPERACIÓN */}
       <div className="pb-4 border-b border-gray-100">
         <div className="flex items-start justify-between gap-2">
@@ -62,16 +70,11 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
               Información de la Operación
             </span>
             <h2 className="text-xl font-extrabold text-slate-900 mt-0.5">
-              {selectedOp.comprobante
-                ? `${selectedOp.comprobante.tipo_comprobante} ${selectedOp.comprobante.serie}-${selectedOp.comprobante.numero}`
-                : selectedOp.tipo_comprobante
-                  ? `${selectedOp.tipo_comprobante} ${selectedOp.serie}-${selectedOp.numero}`
-                  : `Operación #${selectedOp.id_operacion}`
-              }
+              {dataComprobante.tipo_comprobante} {dataComprobante.serie}-{dataComprobante.numero}
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            {getStatusBadge(selectedOp.estado_operacion)}
+            {getStatusBadge(selectedOp.estado_operacion || selectedOp.estado)}
             {onClose && (
               <button
                 type="button"
@@ -86,42 +89,88 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         <div className="grid grid-cols-2 gap-2 mt-3 p-3 bg-slate-50 rounded-xl text-xs">
           <div>
             <span className="text-gray-500 block font-medium">Fecha y hora</span>
-            <span className="text-slate-900 font-bold">{selectedOp.fecha || selectedOp.fecha_comprobante}</span>
+            <span className="text-slate-900 font-bold">
+              {dataComprobante.fecha || selectedOp.fecha} 
+              {dataComprobante.hora ? ` - ${dataComprobante.hora}` : ''}
+            </span>
+          </div>
+          <div>
+            <span className="text-gray-500 block font-medium">Cliente</span>
+            <span className="text-slate-900 font-bold">{dataComprobante.cliente || 'No registrado'}</span>
           </div>
           <div>
             <span className="text-gray-500 block font-medium">Usuario</span>
             <span className="text-slate-900 font-bold">{selectedOp.usuario || 'Sistema'}</span>
           </div>
+          <div>
+            <span className="text-gray-500 block font-medium">Vendedor</span>
+            <span className="text-slate-900 font-bold">{dataComprobante.vendedor || 'No registrado'}</span>
+          </div>
         </div>
       </div>
 
-      {/* BLOQUE B: COMPROBANTE */}
+      {/* BLOQUE B: COMPROBANTE Y TOTALES */}
       <div className="bg-slate-50 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between text-xs text-gray-500 font-bold uppercase tracking-wider">
-          <span>Comprobante</span>
+          <span>Totales del Comprobante</span>
           <FileText className="w-4 h-4 text-gray-400" />
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>
-            <span className="text-gray-500 block">Tipo comprobante</span>
-            <strong className="text-slate-900 font-bold">{selectedOp.tipo_comprobante}</strong>
+            <span className="text-gray-500 block">Op. Gravada</span>
+            <strong className="text-slate-900 font-bold">{formatCurrency(dataComprobante.op_gravada)}</strong>
           </div>
           <div>
-            <span className="text-gray-500 block">Serie / Número</span>
-            <strong className="text-slate-900 font-bold">{selectedOp.serie}-{selectedOp.numero}</strong>
+            <span className="text-gray-500 block">IGV</span>
+            <strong className="text-slate-900 font-bold">{formatCurrency(dataComprobante.igv)}</strong>
           </div>
-          <div>
-            <span className="text-gray-500 block">Fecha emisión</span>
-            <strong className="text-slate-900 font-bold">{selectedOp.fecha_comprobante || selectedOp.fecha}</strong>
-          </div>
-          <div>
-            <span className="text-gray-500 block">Monto total</span>
+          <div className="col-span-2 pt-2 border-t border-gray-200 mt-1">
+            <span className="text-gray-500 block">Monto Total</span>
             <strong className="text-brand-orange font-extrabold text-base">
-              {formatCurrency(selectedOp.monto_operacion || selectedOp.monto_comprobante)}
+              {formatCurrency(selectedOp.monto_operacion || dataComprobante.monto)}
             </strong>
           </div>
         </div>
       </div>
+
+      {/* BLOQUE NUEVO: TABLA DE PRODUCTOS (ITEMS) */}
+      {itemsList.length > 0 && (
+        <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">
+            <span>Detalle de Productos ({itemsList.length})</span>
+            <Package className="w-4 h-4 text-gray-400" />
+          </div>
+          <div className="overflow-x-auto bg-white rounded-lg border border-gray-100">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="px-2 py-1.5 font-semibold text-center w-12">Cant.</th>
+                  <th className="px-2 py-1.5 font-semibold">Descripción</th>
+                  <th className="px-2 py-1.5 font-semibold text-right">P. Unit</th>
+                  <th className="px-2 py-1.5 font-semibold text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {itemsList.map((item, idx) => (
+                  <tr key={idx}>
+                    <td className="px-2 py-2 text-center text-slate-700">{item.cantidad}</td>
+                    {/* LA REGLA CRÍTICA DE CSS APLICADA AQUÍ */}
+                    <td className="px-2 py-2 text-slate-900 whitespace-normal break-words max-w-[150px] sm:max-w-xs">
+                      {item.descripcion}
+                    </td>
+                    <td className="px-2 py-2 text-right text-slate-700 whitespace-nowrap">
+                      {formatCurrency(item.precio_unitario)}
+                    </td>
+                    <td className="px-2 py-2 text-right font-bold text-slate-900 whitespace-nowrap">
+                      {formatCurrency(item.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* BLOQUE C: PAGOS */}
       <div className="bg-slate-50 rounded-xl p-4 space-y-2">
@@ -153,32 +202,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         )}
       </div>
 
-      {/* BLOQUE D: EVIDENCIA & VERIFICACIÓN */}
-      <div className="bg-slate-50 rounded-xl p-4 space-y-3">
-        <div className="flex items-center justify-between text-xs text-gray-500 font-bold uppercase tracking-wider">
-          <span>Evidencia y Cotejo</span>
-          <Paperclip className="w-4 h-4 text-gray-400" />
-        </div>
-        <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-gray-100 text-xs">
-          <div className="w-9 h-9 rounded-lg bg-orange-100 text-brand-orange flex items-center justify-center font-bold">
-            <Paperclip className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="block font-bold text-slate-900 truncate">
-              {selectedOp.storage_key
-                ? selectedOp.storage_key.split('/').pop().split('-').slice(-1)[0]
-                : selectedOp.tipo_evidencia
-                  ? `Evidencia: ${selectedOp.tipo_evidencia}`
-                  : 'Sin evidencia'
-              }
-            </span>
-            <span className="block text-gray-400 text-[11px]">
-              Evidencias adjuntas: {selectedOp.total_evidencias || 0}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* BLOQUE G: ACCIONES */}
       <div className="flex items-center gap-3 pt-2">
         <button
@@ -187,13 +210,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         >
           <Printer className="w-4 h-4 text-slate-500" />
           <span>Imprimir Resumen</span>
-        </button>
-        <button
-          type="button"
-          className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition flex items-center gap-2 cursor-pointer"
-        >
-          <History className="w-4 h-4" />
-          <span>Historial</span>
         </button>
       </div>
     </div>

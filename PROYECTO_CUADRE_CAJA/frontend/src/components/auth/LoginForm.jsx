@@ -18,7 +18,6 @@ export function LoginForm() {
     defaultValues: {
       username: '',
       password: '',
-      role: '',
     },
   });
 
@@ -68,8 +67,8 @@ export function LoginForm() {
         </div>
       )}
 
-      {/* Form */}
-      <form className="space-y-4 sm:space-y-5" data-purpose="login-form" onSubmit={handleSubmit(onSubmit)}>
+      {/* Formulario con autoComplete desactivado */}
+      <form className="space-y-4 sm:space-y-5" data-purpose="login-form" onSubmit={handleSubmit(onSubmit)} autoComplete="off">
         {/* Username */}
         <div data-purpose="input-group-user">
           <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide mb-2" htmlFor="username">
@@ -86,6 +85,7 @@ export function LoginForm() {
               type="text"
               placeholder="Ej. usuario.caja"
               disabled={isSubmitting}
+              autoComplete="off"
               className="w-full border-none p-0 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0"
               {...register('username', { required: 'El usuario es obligatorio' })}
             />
@@ -95,32 +95,6 @@ export function LoginForm() {
 
         {/* Password */}
         <PasswordField register={register} error={errors.password} disabled={isSubmitting} />
-
-        {/* Role Select */}
-        <div data-purpose="input-group-role">
-          <label className="block text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide mb-2" htmlFor="operational-role">
-            Rol Operativo <span className="text-red-500 font-bold">*</span>
-          </label>
-          <div className="relative flex items-center rounded-xl border border-gray-300 bg-white px-4 py-3 sm:py-3.5 transition custom-input">
-            <span className="text-gray-400 mr-3 flex-shrink-0">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <select
-              id="operational-role"
-              disabled={isSubmitting}
-              className="w-full border-none p-0 text-base text-gray-700 focus:outline-none focus:ring-0 bg-transparent cursor-pointer"
-              {...register('role', { required: 'Seleccione un rol operativo' })}
-            >
-              <option value="" disabled>Seleccione rol asignado</option>
-              <option value="cajero">Cajero / Receptor de Pagos</option>
-              <option value="supervisor">Supervisor de Caja</option>
-              <option value="administrador">Administrador del Sistema</option>
-            </select>
-          </div>
-          {errors.role && <p className="text-red-500 text-xs mt-1 font-medium">{errors.role.message}</p>}
-        </div>
 
         {/* Submit Button */}
         <div className="pt-3" data-purpose="submit-container">

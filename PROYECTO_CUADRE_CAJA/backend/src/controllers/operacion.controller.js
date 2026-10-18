@@ -1,5 +1,6 @@
 import {
   registerOperacion,
+  registerOperacionUnificada,
   getOperacionById,
   getOperaciones
 } from '../services/operacion.service.js';
@@ -15,6 +16,27 @@ export const create = async (req, res, next) => {
       status: 'ok',
       message: 'Operación registrada correctamente',
       data: operacion
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// NUEVO CONTROLADOR: Transacción ACID Unificada
+export const registrarUnificado = async (req, res, next) => {
+  try {
+    const id_usuario = req.user.id_usuario;
+    const payload = req.body;
+    
+    const resultado = await registerOperacionUnificada({ 
+      ...payload, 
+      id_usuario 
+    });
+
+    res.status(201).json({ 
+      status: 'ok', 
+      message: 'Operación registrada con trazabilidad OCR completa',
+      data: resultado 
     });
   } catch (error) {
     next(error);

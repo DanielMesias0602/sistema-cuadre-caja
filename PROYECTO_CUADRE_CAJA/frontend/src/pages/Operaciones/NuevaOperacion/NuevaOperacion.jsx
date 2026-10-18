@@ -5,13 +5,13 @@ import { ErrorBoundary } from '../../../components/ui/ErrorBoundary';
 import { StepIndicator } from './StepIndicator';
 import { Paso1Comprobante } from './Paso1Comprobante';
 import { Paso2Pagos } from './Paso2Pagos';
-import { Paso3Confirmacion } from './Paso3Confirmacion';
+import { Paso3EvidenciaEmpresa } from './Paso3EvidenciaEmpresa';
+import { Paso4Confirmacion } from './Paso4Confirmacion';
 
 function NuevaOperacionContent() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [datos, setDatos] = useState({
-    // Comprobante
     tipo_comprobante: '',
     serie: '',
     numero: '',
@@ -25,17 +25,16 @@ function NuevaOperacionContent() {
     medio_pago: '',
     producto: '',
     items: [],
-
-    // Evidencia del comprobante
     evidencia: null,
     previewUrl: null,
-
-    // Pagos (para el Paso 2)
     pagos: [],
+    evidenciaEmpresa: null,
+    previewEmpresa: null,
+    ocrEmpresa: null,
   });
   const [success, setSuccess] = useState(false);
 
-  const totalSteps = 3;
+  const totalSteps = 4;
 
   const handlePaso1Change = useCallback((partialData) => {
     setDatos((prev) => ({ ...prev, ...partialData }));
@@ -53,6 +52,15 @@ function NuevaOperacionContent() {
   const handlePaso2Next = useCallback((data) => {
     setDatos((prev) => ({ ...prev, ...data }));
     setCurrentStep(3);
+  }, []);
+
+  const handlePaso3Change = useCallback((partialData) => {
+    setDatos((prev) => ({ ...prev, ...partialData }));
+  }, []);
+
+  const handlePaso3Next = useCallback((data) => {
+    setDatos((prev) => ({ ...prev, ...data }));
+    setCurrentStep(4);
   }, []);
 
   const handleBack = useCallback(() => {
@@ -107,9 +115,21 @@ function NuevaOperacionContent() {
         )}
 
         {currentStep === 3 && (
-          <Paso3Confirmacion
+          <Paso3EvidenciaEmpresa
+            datosIniciales={datos}
+            pagos={datos.pagos} // <-- ¡AQUÍ ESTÁ LA LÍNEA AGREGADA!
+            onDataChange={handlePaso3Change}
+            onNext={handlePaso3Next}
+            onBack={handleBack}
+          />
+        )}
+
+        {currentStep === 4 && (
+          <Paso4Confirmacion
             comprobante={datos}
             pagos={datos.pagos}
+            evidenciaEmpresa={datos.evidenciaEmpresa}
+            ocrEmpresa={datos.ocrEmpresa}
             onBack={handleBack}
             onSuccess={handleSuccess}
           />

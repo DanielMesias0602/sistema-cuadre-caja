@@ -142,3 +142,11 @@ export const existsByUsername = async (username) => {
   );
   return result.rows.length > 0;
 };
+
+export const deleteUser = async (idUsuario) => {
+  const result = await query(
+    `DELETE FROM usuario WHERE id_usuario = $1 RETURNING id_usuario`,
+    [idUsuario]
+  );
+  return result.rows[0] ?? null;
+};

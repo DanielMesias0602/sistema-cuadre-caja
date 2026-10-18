@@ -1,5 +1,4 @@
 import { Router } from 'express';
-
 import {
   listar,
   obtener,
@@ -7,6 +6,7 @@ import {
   actualizar,
   cambiarEstado,
   resetPassword,
+  eliminar,
 } from '../controllers/usuario.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/role.middleware.js';
@@ -22,5 +22,6 @@ router.post('/', crear);
 router.put('/:id', actualizar);
 router.patch('/:id/estado', cambiarEstado);
 router.patch('/:id/password', resetPassword);
+router.delete('/:id', eliminar);
 
 export default router;
