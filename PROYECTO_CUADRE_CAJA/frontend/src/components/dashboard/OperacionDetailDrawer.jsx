@@ -43,7 +43,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
     );
   };
 
-  const pagosList = Array.isArray(selectedOp.pagos) ? selectedOp.pagos : [];
+  const pagosList = Array.isArray(selectedOp.pagos) ? selectedOp.pagos : (Array.isArray(selectedOp.payments) ? selectedOp.payments : []);
   
   // Validación segura por si los items vienen como string JSON de PostgreSQL
   let itemsList = [];
@@ -74,7 +74,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            {getStatusBadge(selectedOp.estado_operacion || selectedOp.estado)}
+            {getStatusBadge(selectedOp.estado_operacion || selectedOp.estado || selectedOp.status)}
             {onClose && (
               <button
                 type="button"
@@ -100,7 +100,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
           </div>
           <div>
             <span className="text-gray-500 block font-medium">Usuario</span>
-            <span className="text-slate-900 font-bold">{selectedOp.usuario || 'Sistema'}</span>
+            <span className="text-slate-900 font-bold">{selectedOp.usuario || `${selectedOp.nombres || ''} ${selectedOp.apellidos || ''}`.trim() || 'Sistema'}</span>
           </div>
           <div>
             <span className="text-gray-500 block font-medium">Vendedor</span>
@@ -118,16 +118,16 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>
             <span className="text-gray-500 block">Op. Gravada</span>
-            <strong className="text-slate-900 font-bold">{formatCurrency(dataComprobante.op_gravada)}</strong>
+            <strong className="text-slate-900 font-bold">{formatCurrency(dataComprobante.op_gravada ?? selectedOp.op_gravada)}</strong>
           </div>
           <div>
             <span className="text-gray-500 block">IGV</span>
-            <strong className="text-slate-900 font-bold">{formatCurrency(dataComprobante.igv)}</strong>
+            <strong className="text-slate-900 font-bold">{formatCurrency(dataComprobante.igv ?? selectedOp.igv)}</strong>
           </div>
           <div className="col-span-2 pt-2 border-t border-gray-200 mt-1">
             <span className="text-gray-500 block">Monto Total</span>
             <strong className="text-brand-orange font-extrabold text-base">
-              {formatCurrency(selectedOp.monto_operacion || dataComprobante.monto)}
+              {formatCurrency(selectedOp.monto_operacion || selectedOp.monto || selectedOp.total || dataComprobante.monto)}
             </strong>
           </div>
         </div>
@@ -154,7 +154,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
                 {itemsList.map((item, idx) => (
                   <tr key={idx}>
                     <td className="px-2 py-2 text-center text-slate-700">{item.cantidad}</td>
-                    {/* LA REGLA CRÍTICA DE CSS APLICADA AQUÍ */}
                     <td className="px-2 py-2 text-slate-900 whitespace-normal break-words max-w-[150px] sm:max-w-xs">
                       {item.descripcion}
                     </td>
@@ -206,6 +205,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
       <div className="flex items-center gap-3 pt-2">
         <button
           type="button"
+          onClick={() => window.print()}
           className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-xs text-slate-800 transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <Printer className="w-4 h-4 text-slate-500" />

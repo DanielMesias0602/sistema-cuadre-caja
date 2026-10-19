@@ -40,7 +40,6 @@ function AppLayout() {
       { path: '/operaciones', label: 'Operaciones', icon: Receipt },
       { path: '/pagos', label: 'Pagos', icon: CreditCard },
       { path: '/evidencias', label: 'Evidencias', icon: Paperclip },
-      { path: '/verificacion-de-pagos', label: 'Verificación de pagos', icon: CheckCircle },
     ]},
     { section: 'Caja', items: [
       { path: '/cierres-de-caja', label: 'Cierres de caja', icon: Store },

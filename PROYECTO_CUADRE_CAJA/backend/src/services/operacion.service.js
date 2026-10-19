@@ -24,36 +24,47 @@ export const getOperacionById = async (idOperacion) => {
 export const getOperaciones = async () => {
   const operaciones = await findAllOperaciones();
   
-  // Mapeamos las operaciones para inyectar la URL segura (prefirmada) en cada pago
+  // Mapeamos las operaciones para inyectar la URL segura (prefirmada) en cada pago y evidencia
   const operacionesConLinks = await Promise.all(operaciones.map(async (op) => {
-    // Si la operación no tiene pagos, la dejamos igual
-    if (!op.pagos || !Array.isArray(op.pagos) || op.pagos.length === 0) {
-      return op;
-    }
-
-    // Procesamos cada pago para generar su enlace si tiene evidencia
-    const pagosConLinks = await Promise.all(op.pagos.map(async (pago) => {
+    // Procesamos pagos para generar enlaces seguros
+    const pagosConLinks = await Promise.all((op.pagos || []).map(async (pago) => {
       if (pago.evidencia_url && pago.evidencia_url !== 'None') {
         try {
-          // Generamos un enlace válido por 24 horas
           const signedUrl = await generatePreauthenticatedRequest(pago.evidencia_url, 24);
-          
           if (signedUrl) {
-            return {
-              ...pago,
-              evidencia_url: signedUrl // Reemplazamos el nombre del archivo por la URL completa
-            };
+            return { ...pago, evidencia_url: signedUrl };
           }
           return pago;
         } catch (err) {
-          console.error("Error generando enlace para evidencia:", err);
+          console.error("Error generando enlace para evidencia de pago:", err);
           return pago;
         }
       }
       return pago;
     }));
 
-    return { ...op, pagos: pagosConLinks };
+    // Procesamos evidencias para generar enlaces seguros
+    const evidenciasConLinks = await Promise.all((op.evidencias || []).map(async (evidencia) => {
+      if (evidencia.storage_key && evidencia.storage_key !== 'None') {
+        try {
+          const signedUrl = await generatePreauthenticatedRequest(evidencia.storage_key, 24);
+          if (signedUrl) {
+            return { ...evidencia, storage_key: signedUrl };
+          }
+          return evidencia;
+        } catch (err) {
+          console.error("Error generando enlace para evidencia:", err);
+          return evidencia;
+        }
+      }
+      return evidencia;
+    }));
+
+    return { 
+      ...op, 
+      pagos: pagosConLinks,
+      evidencias: evidenciasConLinks
+    };
   }));
   
   return operacionesConLinks;

@@ -128,6 +128,7 @@ function NuevaOperacionContent() {
           <Paso4Confirmacion
             comprobante={datos}
             pagos={datos.pagos}
+            evidenciaComprobante={datos.evidencia}
             evidenciaEmpresa={datos.evidenciaEmpresa}
             ocrEmpresa={datos.ocrEmpresa}
             onBack={handleBack}

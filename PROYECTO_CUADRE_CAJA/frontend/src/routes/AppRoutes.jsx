@@ -6,7 +6,6 @@ import { Operaciones } from '../pages/Operaciones/Operaciones';
 import { NuevaOperacion } from '../pages/Operaciones/NuevaOperacion/NuevaOperacion';
 import { Pagos } from '../pages/Pagos/Pagos';
 import { Evidencias } from '../pages/Evidencias/Evidencias';
-import { VerificacionPagos } from '../pages/VerificacionPagos/VerificacionPagos';
 import { CierresCaja } from '../pages/CierresCaja/CierresCaja';
 import { SalidasCaja } from '../pages/SalidasCaja/SalidasCaja';
 import { Anulaciones } from '../pages/Anulaciones/Anulaciones';
@@ -93,7 +92,6 @@ export function AppRoutes() {
         <Route path="operaciones/nueva" element={<NuevaOperacion />} />
         <Route path="pagos" element={<Pagos />} />
         <Route path="evidencias" element={<Evidencias />} />
-        <Route path="verificacion-de-pagos" element={<VerificacionPagos />} />
         <Route path="cierres-de-caja" element={<CierresCaja />} />
         <Route path="salidas-de-caja" element={<SalidasCaja />} />
         <Route path="anulaciones" element={<Anulaciones />} />

@@ -17,7 +17,7 @@ const base64ToBlob = (base64, contentType = 'image/jpeg') => {
   return new Blob(byteArrays, { type: contentType });
 };
 
-export function Paso4Confirmacion({ comprobante, pagos, evidenciaEmpresa, ocrEmpresa, onBack, onSuccess }) {
+export function Paso4Confirmacion({ comprobante, pagos, evidenciaComprobante, evidenciaEmpresa, ocrEmpresa, onBack, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -54,8 +54,28 @@ export function Paso4Confirmacion({ comprobante, pagos, evidenciaEmpresa, ocrEmp
         : comprobante.fecha;
 
       const evidenciasParaPayload = [];
-      
-      // 1. Subir Evidencia Empresa (Paso 3)
+
+      // 1. Subir Evidencia Comprobante (Paso 1)
+      if (evidenciaComprobante) {
+        const formDataComprobante = new FormData();
+        formDataComprobante.append('archivo', evidenciaComprobante);
+
+        const resUploadComprobante = await api.post('/evidencias/upload', formDataComprobante, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        const keyComprobante = resUploadComprobante.data?.data?.storage_key;
+        if (keyComprobante) {
+          evidenciasParaPayload.push({
+            tipo_evidencia: 'COMPROBANTE',
+            storage_key: keyComprobante,
+            fecha_evidencia: fechaISO,
+            observacion: 'Comprobante de operación'
+          });
+        }
+      }
+
+      // 2. Subir Evidencia Empresa (Paso 3)
       if (evidenciaEmpresa) {
         const formDataEmpresa = new FormData();
         formDataEmpresa.append('archivo', evidenciaEmpresa);
@@ -75,7 +95,7 @@ export function Paso4Confirmacion({ comprobante, pagos, evidenciaEmpresa, ocrEmp
         }
       }
 
-      // 2. Subir Evidencias Cliente (Paso 2)
+      // 3. Subir Evidencias Cliente (Paso 2)
       for (const pago of pagos) {
         if (pago.evidencia?.imagenBase64) {
           const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
@@ -102,7 +122,7 @@ export function Paso4Confirmacion({ comprobante, pagos, evidenciaEmpresa, ocrEmp
         }
       }
 
-      // 3. Payload Final
+      // 4. Payload Final
       const payload = {
         comprobante: {
           tipo_comprobante: comprobante.tipo_comprobante,

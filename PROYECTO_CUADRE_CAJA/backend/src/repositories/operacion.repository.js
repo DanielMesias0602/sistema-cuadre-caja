@@ -69,36 +69,40 @@ export const findAllOperaciones = async () => {
        c.igv,
        c.op_gravada,
        c.items,
+       -- Subconsulta independiente para pagos (evita producto cartesiano)
        COALESCE(
-         jsonb_agg(
-           DISTINCT jsonb_build_object(
+         (SELECT jsonb_agg(
+           jsonb_build_object(
              'id_pago', p.id_pago,
              'medio_pago', mp.nombre,
              'monto', p.monto,
-             'referencia', p.referencia_bancaria,
-             'evidencia_url', (
-               SELECT e2.storage_key 
-               FROM evidencia e2 
-               WHERE e2.id_operacion = o.id_operacion 
-               AND e2.tipo_evidencia = 'EMPRESA' 
-               LIMIT 1
-             )
+             'referencia', p.referencia_bancaria
            )
-         ) FILTER (WHERE p.id_pago IS NOT NULL),
+         ) FROM pago p
+         LEFT JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+         WHERE p.id_operacion = o.id_operacion),
          '[]'::jsonb
-       ) AS pagos
+       ) AS pagos,
+       -- Subconsulta independiente para evidencias (evita producto cartesiano)
+       COALESCE(
+         (SELECT jsonb_agg(
+           jsonb_build_object(
+             'tipo_evidencia', e.tipo_evidencia,
+             'storage_key', e.storage_key
+           )
+         ) FROM evidencia e
+         WHERE e.id_operacion = o.id_operacion),
+         '[]'::jsonb
+       ) AS evidencias
      FROM operacion o
      INNER JOIN usuario u
        ON u.id_usuario = o.id_usuario
      INNER JOIN comprobante c
        ON c.id_comprobante = o.id_comprobante
-     LEFT JOIN pago p
-       ON p.id_operacion = o.id_operacion
-     LEFT JOIN medio_pago mp
-       ON mp.id_medio_pago = p.id_medio_pago
-     GROUP BY 
-       o.id_operacion, u.nombres, u.apellidos, 
-       c.id_comprobante, c.tipo_comprobante, c.serie, c.numero, 
+     -- NO LEFT JOIN a pagos ni evidencias a este nivel
+     GROUP BY
+       o.id_operacion, u.nombres, u.apellidos,
+       c.id_comprobante, c.tipo_comprobante, c.serie, c.numero,
        c.cliente, c.vendedor, c.hora, c.moneda, c.igv, c.op_gravada, c.items
      ORDER BY o.id_operacion DESC`
   );
