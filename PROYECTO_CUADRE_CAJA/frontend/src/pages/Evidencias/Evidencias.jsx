@@ -117,9 +117,15 @@ export function Evidencias() {
     try {
       setVerificando(true);
       
-      // Hacer PUT a cada pago pendiente
+      // Hacer PUT a cada pago pendiente con el objeto completo
       const promesas = pagosPendientes.map(p => 
-        api.put(`/pagos/${p.id_pago}`, { estado: 'VERIFICADO' })
+        api.put(`/pagos/${p.id_pago}`, {
+          id_medio_pago: p.id_medio_pago || p.id_medio,
+          monto: Number(p.monto),
+          referencia_bancaria: p.referencia || p.referencia_bancaria || null,
+          observacion: p.observacion || null,
+          estado: 'VERIFICADO'
+        })
       );
 
       await Promise.all(promesas);

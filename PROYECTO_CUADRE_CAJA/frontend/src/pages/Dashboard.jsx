@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboard } from '../hooks/useDashboard';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
@@ -48,11 +48,17 @@ export function Dashboard() {
       const matchUser = (op.usuario || '').toLowerCase();
       if (!matchComp.includes(q) && !matchUser.includes(q)) return false;
     }
-    if (filters.turno && op.turno) {
-      if (!op.turno.toLowerCase().includes(filters.turno.toLowerCase())) return false;
+    if (filters.turno) {
+      const horaRegistroRaw = op.hora_registro || op.hora;
+      const horaRegistro = typeof horaRegistroRaw === 'string' ? horaRegistroRaw : '00:00';
+      const [horas, minutos, segundos] = horaRegistro.split(':').map(Number);
+      const horaDecimal = horas + minutos / 60 + segundos / 3600;
+      
+      if (filters.turno === 'Mañana' && horaDecimal >= 14) return false;
+      if (filters.turno === 'Tarde' && (horaDecimal < 14 || horaDecimal >= 20)) return false;
     }
-    if (filters.estado && op.estado_operacion) {
-      if (op.estado_operacion.toUpperCase() !== filters.estado.toUpperCase()) return false;
+    if (filters.estado && op.estado) {
+      if (op.estado.toUpperCase() !== filters.estado.toUpperCase()) return false;
     }
     return true;
   });
@@ -80,7 +86,7 @@ export function Dashboard() {
       )}
 
       {/* Top KPI Cards Grid */}
-      {loading || !metrics?.resumen ? (
+      {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 h-32">
@@ -90,7 +96,7 @@ export function Dashboard() {
           ))}
         </div>
       ) : (
-        <SummaryGrid metrics={metrics} />
+        <SummaryGrid filteredOps={filteredOps} />
       )}
 
       {/* Advanced Filter Panel */}
@@ -119,7 +125,7 @@ export function Dashboard() {
                   setDrawerAbierto(true);
                 }}
               />
-              <PagosPorMedioSection pagosPorMedio={pagosPorMedio} />
+              <PagosPorMedioSection filteredOps={filteredOps} />
             </div>
 
             {/* Detail Drawer Column */}

@@ -1,10 +1,39 @@
 import { CreditCard, Banknote, Smartphone, Landmark } from 'lucide-react';
+import { useMemo } from 'react';
 
-export function PagosPorMedioSection({ pagosPorMedio }) {
-  const totalMontoGeneral = pagosPorMedio.reduce(
-    (acc, item) => acc + Number(item.total_monto || 0),
-    0
-  );
+export function PagosPorMedioSection({ filteredOps }) {
+  const pagosPorMedio = useMemo(() => {
+    const medios = {};
+    
+    filteredOps.forEach(op => {
+      const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+      pagos.forEach(p => {
+        const medio = p.medio_pago || p.nombre_medio || 'Efectivo';
+        // El monto puede venir directamente del pago o de op.comprobante.monto
+        const monto = Number(p.monto || p.importe || 0);
+        const esEfectivo = (medio || '').toLowerCase().includes('efectivo');
+        
+        if (!medios[medio]) {
+          medios[medio] = {
+            medio_pago: medio,
+            total_monto: 0,
+            es_efectivo: esEfectivo,
+            count: 0
+          };
+        }
+        medios[medio].total_monto += monto;
+        medios[medio].count += 1;
+      });
+    });
+    
+    return Object.values(medios);
+  }, [filteredOps]);
+
+  const totalMontoGeneral = filteredOps.reduce((acc, op) => {
+    const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+    const sumaPagos = pagos.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+    return acc + sumaPagos;
+  }, 0);
 
   const getMedioIcon = (nombre, esEfectivo) => {
     if (esEfectivo) return Banknote;

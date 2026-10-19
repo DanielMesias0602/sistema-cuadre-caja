@@ -12,6 +12,8 @@ export function CierresCaja() {
   const [pasoModal, setPasoModal] = useState(1);
   const [confirmacionAbierta, setConfirmacionAbierta] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [turnosDeshabilitados, setTurnosDeshabilitados] = useState({ mañana: false, tarde: false });
+  const [motivoDeshabilitado, setMotivoDeshabilitado] = useState({ mañana: '', tarde: '' });
   
   // Filtros
   const [busqueda, setBusqueda] = useState('');
@@ -127,11 +129,59 @@ export function CierresCaja() {
     }
   };
 
-  const abrirModal = () => {
-    setFormCierre({ turno: '', efectivoFisico: '', observaciones: '' });
+  const abrirModal = async () => {
+    const currentHour = new Date().getHours();
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // Verificar cierres existentes hoy
+    const cierresHoy = cierres.filter(c => c.fecha === hoy);
+    const cierreMañana = cierresHoy.find(c => c.turno === 'Mañana');
+    const cierreTarde = cierresHoy.find(c => c.turno === 'Tarde');
+    
+    // Determinar disponibilidad de turnos
+    const nuevoTurnosDeshabilitados = { mañana: false, tarde: false };
+    const nuevoMotivo = { mañana: '', tarde: '' };
+    
+    if (cierreMañana) {
+      nuevoTurnosDeshabilitados.mañana = true;
+      nuevoMotivo.mañana = 'Este turno ya fue cerrado';
+    } else if (currentHour >= 14) {
+      nuevoTurnosDeshabilitados.mañana = true;
+      nuevoMotivo.mañana = 'El turno Mañana ya finalizó';
+    }
+    
+    if (cierreTarde) {
+      nuevoTurnosDeshabilitados.tarde = true;
+      nuevoMotivo.tarde = 'Este turno ya fue cerrado';
+    } else if (currentHour < 14) {
+      nuevoTurnosDeshabilitados.tarde = true;
+      nuevoMotivo.tarde = 'El turno Tarde aún no ha comenzado';
+    }
+    
+    setTurnosDeshabilitados(nuevoTurnosDeshabilitados);
+    setMotivoDeshabilitado(nuevoMotivo);
+    
+    // Preseleccionar turno activo si está disponible
+    let turnoSugerido = '';
+    if (currentHour < 14 && !nuevoTurnosDeshabilitados.mañana) {
+      turnoSugerido = 'Mañana';
+    } else if (currentHour >= 14 && !nuevoTurnosDeshabilitados.tarde) {
+      turnoSugerido = 'Tarde';
+    }
+    
+    setFormCierre({ turno: turnoSugerido, efectivoFisico: '', observaciones: '' });
     setEfectivoEsperado(0);
-    setPasoModal(1);
-    setModalAbierto(true);
+    
+    // Si hay un turno sugerido, ir directamente al Paso 2 y calcular efectivo
+    if (turnoSugerido) {
+      setPasoModal(2);
+      setModalAbierto(true);
+      await calcularEfectivoEsperado(turnoSugerido);
+    } else {
+      // Fuera de horario o todos los turnos cerrados, mostrar Paso 1
+      setPasoModal(1);
+      setModalAbierto(true);
+    }
   };
 
   const cerrarModal = () => {
@@ -467,24 +517,42 @@ export function CierresCaja() {
                   <button
                     type="button"
                     onClick={() => seleccionarTurno('Mañana')}
-                    className="flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50 p-6 transition-all hover:border-brand-orange hover:bg-orange-50 active:scale-95"
+                    disabled={turnosDeshabilitados.mañana}
+                    className={`flex flex-col items-center gap-3 rounded-2xl border-2 p-6 transition-all active:scale-95 ${
+                      turnosDeshabilitados.mañana
+                        ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
+                        : 'border-slate-200 bg-slate-50 hover:border-brand-orange hover:bg-orange-50'
+                    }`}
                   >
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-orange text-white">
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                      turnosDeshabilitados.mañana ? 'bg-slate-300 text-slate-500' : 'bg-brand-orange text-white'
+                    }`}>
                       <Sun className="h-8 w-8" />
                     </div>
                     <span className="text-lg font-bold text-slate-900">Mañana</span>
-                    <span className="text-xs text-slate-500">Antes de las 14:00</span>
+                    <span className="text-xs text-slate-500">
+                      {turnosDeshabilitados.mañana ? motivoDeshabilitado.mañana : 'Antes de las 14:00'}
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => seleccionarTurno('Tarde')}
-                    className="flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-slate-50 p-6 transition-all hover:border-brand-orange hover:bg-orange-50 active:scale-95"
+                    disabled={turnosDeshabilitados.tarde}
+                    className={`flex flex-col items-center gap-3 rounded-2xl border-2 p-6 transition-all active:scale-95 ${
+                      turnosDeshabilitados.tarde
+                        ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
+                        : 'border-slate-200 bg-slate-50 hover:border-brand-orange hover:bg-orange-50'
+                    }`}
                   >
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-orange text-white">
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-full ${
+                      turnosDeshabilitados.tarde ? 'bg-slate-300 text-slate-500' : 'bg-brand-orange text-white'
+                    }`}>
                       <Moon className="h-8 w-8" />
                     </div>
                     <span className="text-lg font-bold text-slate-900">Tarde</span>
-                    <span className="text-xs text-slate-500">14:00 a 20:00</span>
+                    <span className="text-xs text-slate-500">
+                      {turnosDeshabilitados.tarde ? motivoDeshabilitado.tarde : '14:00 a 20:00'}
+                    </span>
                   </button>
                 </div>
               </div>

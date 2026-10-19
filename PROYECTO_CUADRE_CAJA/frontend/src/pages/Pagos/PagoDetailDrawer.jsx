@@ -92,10 +92,18 @@ export function PagoDetailDrawer({ selectedPago, onClose, onVerificado }) {
       setMarcando(true);
       if (pago.id_pago) {
         try {
-          // Usamos estrictamente pago.id_pago (el ID real de la BD)
-          await api.put(`/pagos/${pago.id_pago}`, { estado: 'VERIFICADO' });
+          // Enviamos el objeto completo con todos los campos
+          await api.put(`/pagos/${pago.id_pago}`, {
+            id_medio_pago: pago.id_medio_pago || pago.id_medio,
+            monto: Number(pago.monto),
+            referencia_bancaria: pago.referencia || pago.referencia_bancaria || null,
+            observacion: pago.observacion || null,
+            estado: 'VERIFICADO'
+          });
         } catch (apiErr) {
-          console.warn('No se pudo actualizar vía PUT /pagos, revertiendo estado local:', apiErr);
+          console.error('Error al actualizar pago:', apiErr);
+          const errorMessage = apiErr.response?.data?.message || apiErr.message || 'Error al verificar el pago';
+          alert(errorMessage);
           // Revertimos el estado si falla el PUT
           setEstadoLocal(estadoAnterior);
           return;
@@ -108,6 +116,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onVerificado }) {
       }
     } catch (err) {
       console.error('Error al verificar pago:', err);
+      alert(err.message || 'Error al verificar el pago');
       // Revertimos el estado si hay error
       setEstadoLocal(estadoAnterior);
     } finally {

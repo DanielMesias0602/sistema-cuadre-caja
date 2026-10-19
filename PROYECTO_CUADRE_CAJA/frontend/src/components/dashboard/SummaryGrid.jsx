@@ -1,18 +1,50 @@
 import { FileText, Clock, Wallet, AlertTriangle, Calendar, Layers, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { useMemo } from 'react';
 
-export function SummaryGrid({ metrics }) {
-  const resumen = metrics?.resumen || {};
-  const operaciones = metrics?.operaciones || {};
-  const pagos = metrics?.pagos || {};
-
+export function SummaryGrid({ filteredOps }) {
   const formatCurrency = (val) => {
     const num = Number(val || 0);
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const totalOps = operaciones.total_operaciones || 0;
-  const totalMonto = resumen.total_ingresos || 0;
-  const reqVerificacion = operaciones.operaciones_con_verificacion || 0;
+  const kpis = useMemo(() => {
+    const totalOps = filteredOps.length;
+    const opsConPago = filteredOps.filter(op => op.pagos && op.pagos.length > 0).length;
+    
+    // Sumar efectivo esperado de todas las operaciones
+    const efectivoEsperado = filteredOps.reduce((acc, op) => {
+      const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+      const efectivo = pagos.reduce((sum, p) => {
+        const medio = (p.medio_pago || '').toLowerCase();
+        if (medio.includes('efectivo')) {
+          return sum + Number(p.monto || 0);
+        }
+        return sum;
+      }, 0);
+      return acc + efectivo;
+    }, 0);
+    
+    // Pagos completos (todos los pagos de la operación tienen monto > 0)
+    const pagosCompletos = filteredOps.filter(op => {
+      const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+      if (pagos.length === 0) return false;
+      return pagos.every(p => Number(p.monto || 0) > 0);
+    }).length;
+    
+    // Requieren verificación (operaciones pendientes)
+    const reqVerificacion = filteredOps.filter(op => {
+      const estado = (op.estado || op.estado_operacion || '').toUpperCase();
+      return estado === 'PENDIENTE' || estado === 'REGISTRADO';
+    }).length;
+
+    return {
+      totalOps,
+      opsConPago,
+      efectivoEsperado,
+      pagosCompletos,
+      reqVerificacion
+    };
+  }, [filteredOps]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -25,7 +57,7 @@ export function SummaryGrid({ metrics }) {
               Operaciones Registradas
             </span>
             <span className="text-3xl font-extrabold text-slate-900 mt-1 tabular-nums">
-              {totalOps}
+              {kpis.totalOps}
             </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
@@ -34,7 +66,7 @@ export function SummaryGrid({ metrics }) {
         </div>
         <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500 font-medium">
           <Calendar className="w-3.5 h-3.5 text-blue-600" />
-          <span>Registros del día en curso</span>
+          <span>Registros filtrados</span>
         </div>
       </div>
 
@@ -47,7 +79,7 @@ export function SummaryGrid({ metrics }) {
               Operaciones con Pago
             </span>
             <span className="text-3xl font-extrabold text-slate-900 mt-1 tabular-nums">
-              {operaciones.operaciones_con_pago || 0}
+              {kpis.opsConPago}
             </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-brand-orange">
@@ -56,7 +88,7 @@ export function SummaryGrid({ metrics }) {
         </div>
         <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500 font-medium">
           <Layers className="w-3.5 h-3.5 text-brand-orange" />
-          <span>{operaciones.operaciones_con_pagos_completos || 0} pagos completos</span>
+          <span>{kpis.pagosCompletos} pagos completos</span>
         </div>
       </div>
 
@@ -69,7 +101,13 @@ export function SummaryGrid({ metrics }) {
               Monto Total Ingresos
             </span>
             <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1 tabular-nums">
-              {formatCurrency(totalMonto)}
+              {formatCurrency(
+                filteredOps.reduce((acc, op) => {
+                  const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+                  const sumaPagos = pagos.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+                  return acc + sumaPagos;
+                }, 0)
+              )}
             </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
@@ -78,7 +116,7 @@ export function SummaryGrid({ metrics }) {
         </div>
         <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500 font-medium">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Efectivo esperado: {formatCurrency(resumen.efectivo_esperado)}</span>
+          <span>Efectivo esperado: {formatCurrency(kpis.efectivoEsperado)}</span>
         </div>
       </div>
 
@@ -91,7 +129,7 @@ export function SummaryGrid({ metrics }) {
               Requieren Verificación
             </span>
             <span className="text-3xl font-extrabold text-rose-600 mt-1 tabular-nums">
-              {reqVerificacion}
+              {kpis.reqVerificacion}
             </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../../lib/api';
 import { PagoDetailDrawer } from './PagoDetailDrawer';
+import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Banknote,
   Wallet,
@@ -305,23 +306,15 @@ export function Pagos() {
             />
           </div>
 
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3 text-xs text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
-            />
-          </div>
-
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3 text-xs text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+          <div className="flex-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Rango de fechas</label>
+            <DateRangePicker
+              fechaDesde={fechaDesde}
+              fechaHasta={fechaHasta}
+              onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                setFechaDesde(newDesde);
+                setFechaHasta(newHasta);
+              }}
             />
           </div>
 
@@ -558,7 +551,7 @@ export function Pagos() {
                           title="Abrir panel de conciliación y verificación"
                         >
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          <span>{isVerificado ? 'Ver Conciliación' : 'Verificar Pago'}</span>
+                          <span>{isVerificado ? 'Ver Detalle' : 'Verificar Pago'}</span>
                         </button>
                       </td>
                     </tr>

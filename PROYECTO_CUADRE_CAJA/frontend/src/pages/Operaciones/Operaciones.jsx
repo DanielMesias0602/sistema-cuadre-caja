@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { OperacionDetailDrawerPremium } from '../../components/dashboard/OperacionDetailDrawerPremium';
+import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
@@ -113,13 +114,16 @@ export function Operaciones() {
           <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="text" placeholder="Buscar por comprobante o cliente..." value={busqueda} onChange={e => setBusqueda(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none transition" />
         </div>
-        <div className="relative">
-          <Calendar className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 focus:ring-2 focus:ring-brand-orange outline-none transition" />
-        </div>
-        <div className="relative">
-          <Calendar className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 focus:ring-2 focus:ring-brand-orange outline-none transition" />
+        <div className="col-span-2">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Rango de fechas</label>
+          <DateRangePicker
+            fechaDesde={fechaDesde}
+            fechaHasta={fechaHasta}
+            onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+              setFechaDesde(newDesde);
+              setFechaHasta(newHasta);
+            }}
+          />
         </div>
         <div>
           <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 focus:ring-2 focus:ring-brand-orange outline-none transition cursor-pointer">

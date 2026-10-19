@@ -1,13 +1,35 @@
-import { Plus } from 'lucide-react';
+import { Plus, Clock, Sun, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function DashboardHeader({ user }) {
   const navigate = useNavigate();
+  
   const currentDateStr = new Date().toLocaleDateString('es-PE', {
     day: '2-digit',
-    month: '2-digit',
+    month: 'short',
     year: 'numeric',
   });
+
+  const currentHour = new Date().getHours();
+  
+  let turnoInfo = {
+    nombre: 'Fuera de horario',
+    icon: Clock,
+  };
+
+  if (currentHour < 14) {
+    turnoInfo = {
+      nombre: 'Turno Mañana',
+      icon: Sun,
+    };
+  } else if (currentHour >= 14 && currentHour < 20) {
+    turnoInfo = {
+      nombre: 'Turno Tarde',
+      icon: Moon,
+    };
+  }
+
+  const IconComponent = turnoInfo.icon;
 
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -16,9 +38,10 @@ export function DashboardHeader({ user }) {
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Operaciones y Dashboard
           </h1>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold shadow-xs border border-blue-100">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Turno Activo • {currentDateStr} • Caja abierta</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <IconComponent className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-700 tracking-wide">{turnoInfo.nombre} • {currentDateStr}</span>
           </div>
         </div>
         <p className="text-sm text-slate-500 mt-1">

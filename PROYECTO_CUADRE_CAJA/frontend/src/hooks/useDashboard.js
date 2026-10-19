@@ -7,10 +7,24 @@ export function useDashboard() {
   const [operacionesRecientes, setOperacionesRecientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({
-    fecha_desde: '',
-    fecha_hasta: '',
-  });
+  
+  // Cargar filtros desde sessionStorage
+  const hoy = new Date().toISOString().split('T')[0];
+  const savedFilters = sessionStorage.getItem('dashboardFilters');
+  const initialFilters = savedFilters ? JSON.parse(savedFilters) : {
+    fecha_desde: hoy,
+    fecha_hasta: hoy,
+    turno: '',
+    estado: '',
+    search: '',
+  };
+  
+  const [filters, setFilters] = useState(initialFilters);
+  
+  // Guardar filtros en sessionStorage cuando cambian
+  useEffect(() => {
+    sessionStorage.setItem('dashboardFilters', JSON.stringify(filters));
+  }, [filters]);
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);

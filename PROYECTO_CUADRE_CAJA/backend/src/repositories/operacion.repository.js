@@ -76,7 +76,8 @@ export const findAllOperaciones = async () => {
              'id_pago', p.id_pago,
              'medio_pago', mp.nombre,
              'monto', p.monto,
-             'referencia', p.referencia_bancaria
+             'referencia', p.referencia_bancaria,
+             'estado', p.estado
            )
          ) FROM pago p
          LEFT JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago

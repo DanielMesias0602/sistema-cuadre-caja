@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   FileText,
   FileSpreadsheet,
@@ -108,7 +109,7 @@ export function Reportes() {
 
       doc.setFontSize(14);
       doc.setTextColor(232, 93, 44);
-      doc.text('REPORTE DE CONCILIACIÓN DE CAJA', pageWidth / 2, 27, { align: 'center' });
+      doc.text('REPORTE DE OPERACIONES Y PAGOS', pageWidth / 2, 27, { align: 'center' });
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
@@ -276,7 +277,7 @@ export function Reportes() {
 
     const worksheet = XLSX.utils.json_to_sheet(datos);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Conciliación");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Operaciones");
     worksheet['!cols'] = [
       { wch: 12 },
       { wch: 25 },
@@ -287,7 +288,222 @@ export function Reportes() {
       { wch: 15 },
       { wch: 25 }
     ];
-    XLSX.writeFile(workbook, `REPORTE_CONCILIACION_CAJA_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `REPORTE_OPERACIONES_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // --- EXPORTACIÓN PDF VISUAL CON EVIDENCIAS ---
+  const exportarPDFVisual = async () => {
+    try {
+      const operacionesFiltradas = operaciones.filter((op) => {
+        if (fechaDesde && op.fecha < fechaDesde) return false;
+        if (fechaHasta && op.fecha > fechaHasta) return false;
+        return true;
+      });
+
+      const opsConEvidencia = operacionesFiltradas.filter(op => {
+        const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
+        return evidencias.some(e => e.tipo_evidencia === 'EMPRESA');
+      }).slice(0, 10);
+
+      if (opsConEvidencia.length === 0) {
+        alert('No hay operaciones con evidencia de empresa para exportar.');
+        return;
+      }
+
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // 1. Cargar Logo (JPEG Seguro)
+      let logoBase64 = null;
+      try {
+        const logoUrl = `${import.meta.env.BASE_URL}logo-finito.png`;
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = logoUrl;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        logoBase64 = canvas.toDataURL('image/jpeg', 0.9);
+      } catch (e) {
+        console.warn('No se pudo cargar el logo:', e);
+      }
+
+      // 2. Cabecera
+      if (logoBase64) {
+        doc.addImage(logoBase64, 'JPEG', 14, 10, 20, 8);
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text('DISTRIBUIDORA DE CERÁMICA Y ACABADOS S.A.C.', pageWidth / 2, 20, { align: 'center' });
+
+      doc.setFontSize(12);
+      doc.setTextColor(30, 58, 138); // AZUL PREMIUM
+      doc.text('REPORTE DE CONCILIACIÓN VISUAL', pageWidth / 2, 26, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generado el: ${new Date().toLocaleDateString('es-PE')} | Filtro: ${fechaDesde || 'Inicio'} al ${fechaHasta || 'Fin'}`, pageWidth / 2, 32, { align: 'center' });
+
+      let y = 42;
+
+      // 3. Agrupar por Fechas
+      const agrupadasPorFecha = opsConEvidencia.reduce((acc, op) => {
+        if (!acc[op.fecha]) acc[op.fecha] = [];
+        acc[op.fecha].push(op);
+        return acc;
+      }, {});
+
+      const fechasOrdenadas = Object.keys(agrupadasPorFecha).sort();
+
+      for (const fecha of fechasOrdenadas) {
+        const opsDelDia = agrupadasPorFecha[fecha];
+        
+        // Verificar espacio para el encabezado
+        if (y + 30 > pageHeight - 20) { doc.addPage(); y = 20; }
+
+        let colIndex = 0;
+        let maxHeightFila = 0;
+        let startY = y;
+
+        for (const op of opsDelDia) {
+          const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
+          const evidenciaEmpresa = evidencias.find(e => e.tipo_evidencia === 'EMPRESA');
+          if (!evidenciaEmpresa) continue;
+
+          // Calcular posición de la columna
+          const gap = 4;
+          const colWidth = (pageWidth - 28 - (gap * 2)) / 3;
+          const xPos = 14 + (colIndex * (colWidth + gap));
+          const centerX = xPos + (colWidth / 2);
+
+          // Altura fija del cuadro
+          const alturaBloque = 120; 
+
+          // Dibujar el cuadro azul
+          doc.setDrawColor(30, 58, 138);
+          doc.setLineWidth(0.4);
+          doc.roundedRect(xPos, startY, colWidth, alturaBloque, 2, 2, 'D');
+
+          // --- DIBUJAR TEXTOS (usando startY en lugar de currentY) ---
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(30, 58, 138);
+          doc.text(`FECHA: ${fecha}`, centerX, startY + 6, { align: 'center' });
+
+          doc.setFontSize(8);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`${op.tipo_comprobante} ${op.serie}-${op.numero}`, centerX, startY + 14, { align: 'center' });
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Cliente: ${op.cliente?.substring(0, 20) || '-'}`, centerX, startY + 20, { align: 'center' });
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(30, 58, 138);
+          doc.text(`Monto: S/ ${Number(op.monto || 0).toFixed(2)}`, centerX, startY + 26, { align: 'center' });
+
+          // Etiqueta de evidencia
+          const pagoEvidencia = op.pagos.find(p => !(p.medio_pago || '').toLowerCase().includes('efectivo'));
+          const medioEvidencia = pagoEvidencia?.medio_pago || 'Transferencia';
+          const montoEvidencia = pagoEvidencia ? `S/ ${Number(pagoEvidencia.monto).toFixed(2)}` : '';
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Evidencia: ${medioEvidencia} ${montoEvidencia}`, centerX, startY + 32, { align: 'center' });
+
+          // --- DIBUJAR IMAGEN ---
+          try {
+            const imageUrl = evidenciaEmpresa.storage_key.startsWith('http')
+              ? evidenciaEmpresa.storage_key
+              : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${evidenciaEmpresa.storage_key}`;
+            
+            const imgResponse = await fetch(imageUrl);
+            const imgBlob = await imgResponse.blob();
+            const imgBase64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(imgBlob);
+            });
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.src = imgBase64;
+            await new Promise((resolve) => { img.onload = resolve; });
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            const safeBase64 = canvas.toDataURL('image/jpeg', 0.9);
+            
+            // Ajustar imagen dentro del cuadro
+            const imgY = startY + 38;
+            const imgWidth = colWidth - 4;
+            const imgHeight = 80; // Altura fija para todas las imágenes
+            
+            const ratio = Math.min(imgWidth / img.width, imgHeight / img.height);
+            const finalWidth = img.width * ratio;
+            const finalHeight = img.height * ratio;
+            const xCentro = xPos + (colWidth / 2) - (finalWidth / 2);
+            
+            doc.addImage(safeBase64, 'JPEG', xCentro, imgY, finalWidth, finalHeight);
+          } catch (e) {
+            console.error('Error al cargar imagen:', e);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Imagen no disponible', centerX, startY + 60, { align: 'center' });
+          }
+
+          // Actualizar altura máxima de la fila
+          const alturaTotal = alturaBloque; // Usamos la altura fija
+          if (alturaTotal > maxHeightFila) maxHeightFila = alturaTotal;
+
+          // Avanzar columna
+          colIndex++;
+          if (colIndex === 3) {
+            y = startY + maxHeightFila + 10;
+            colIndex = 0;
+            maxHeightFila = 0;
+            startY = y;
+            if (y + 30 > pageHeight - 20) { doc.addPage(); y = 20; }
+          }
+        }
+        
+        // Si quedaron elementos en la fila parcial
+        if (colIndex > 0) {
+          y = startY + maxHeightFila + 10;
+        }
+      }
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Página ${i} de ${pageCount} | Sistema de Cuadre de Caja - FINITO`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      }
+
+      doc.save(`REPORTE_CONCILIACION_VISUAL_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (err) {
+      console.error("Error al generar PDF visual:", err);
+      alert(`Hubo un error al generar el PDF visual: ${err.message}`);
+    }
   };
 
   return (
@@ -317,23 +533,15 @@ export function Reportes() {
       {/* Filtros de fecha */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
-            />
-          </div>
-
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Rango de fechas</label>
+            <DateRangePicker
+              fechaDesde={fechaDesde}
+              fechaHasta={fechaHasta}
+              onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                setFechaDesde(newDesde);
+                setFechaHasta(newHasta);
+              }}
             />
           </div>
 
@@ -350,46 +558,86 @@ export function Reportes() {
       </div>
 
       {/* Botones de Exportación */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Tarjeta PDF */}
         <button
           type="button"
           onClick={exportarPDF}
           disabled={loading}
-          className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 disabled:opacity-50"
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-64"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-red-600">
-            <FileText className="h-6 w-6" />
+          <img 
+            src={`${import.meta.env.BASE_URL}pdf-icon.png`} 
+            alt="PDF background" 
+            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none" 
+          />
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div>
+              <h3 className="text-xl font-black text-white mb-1">Reporte de Operaciones y Pagos</h3>
+              <p className="text-sm text-blue-100 line-clamp-2">Exporta el reporte unificado de conciliación.</p>
+            </div>
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/20">
+              <span className="text-xs font-medium text-blue-100">Incluye desglose de productos y totales</span>
+              <Download className="h-6 w-6 text-white group-hover:animate-bounce" />
+            </div>
           </div>
-          <div className="text-left">
-            <p className="text-sm font-bold text-slate-900">Exportar PDF</p>
-            <p className="text-xs text-slate-500">Reporte de Conciliación de Caja</p>
-          </div>
-          <Download className="ml-auto h-5 w-5 text-slate-400" />
         </button>
 
+        {/* Tarjeta Excel */}
         <button
           type="button"
           onClick={exportarExcel}
           disabled={loading}
-          className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95 disabled:opacity-50"
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-64"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-            <FileSpreadsheet className="h-6 w-6" />
+          <img 
+            src={`${import.meta.env.BASE_URL}excel-icon.png`} 
+            alt="Excel background" 
+            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none" 
+          />
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div>
+              <h3 className="text-xl font-black text-white mb-1">Reporte de Operaciones y Pagos</h3>
+              <p className="text-sm text-emerald-100 line-clamp-2">Ideal para análisis y filtros personalizados.</p>
+            </div>
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/20">
+              <span className="text-xs font-medium text-emerald-100">Incluye datos tabulares por pago</span>
+              <Download className="h-6 w-6 text-white group-hover:animate-bounce" />
+            </div>
           </div>
-          <div className="text-left">
-            <p className="text-sm font-bold text-slate-900">Exportar Excel</p>
-            <p className="text-xs text-slate-500">Reporte de Conciliación de Caja</p>
+        </button>
+
+        {/* Tarjeta PDF Visual */}
+        <button
+          type="button"
+          onClick={exportarPDFVisual}
+          disabled={loading}
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 to-violet-700 p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-64"
+        >
+          <img 
+            src={`${import.meta.env.BASE_URL}aura-icon.png`} 
+            alt="Aura background" 
+            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none" 
+          />
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div>
+              <h3 className="text-xl font-black text-white mb-1">Reporte Visual</h3>
+              <p className="text-sm text-violet-100 line-clamp-2">Incluye capturas de evidencias de la empresa.</p>
+            </div>
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/20">
+              <span className="text-xs font-medium text-violet-100">Muestra las fotos de las transferencias</span>
+              <Download className="h-6 w-6 text-white group-hover:animate-bounce" />
+            </div>
           </div>
-          <Download className="ml-auto h-5 w-5 text-slate-400" />
         </button>
       </div>
 
       {/* Resumen */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-orange/10 text-brand-orange">
-              <Lock className="h-6 w-6" />
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-orange/10 text-brand-orange">
+              <Lock className="h-8 w-8" />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-900">Resumen del Periodo</p>
@@ -400,7 +648,7 @@ export function Reportes() {
           </div>
           <div className="text-right">
             <p className="text-xs text-slate-500">Total Conciliado</p>
-            <p className="text-2xl font-black text-brand-orange tabular-nums">
+            <p className="text-4xl font-black text-brand-orange tabular-nums">
               {formatCurrency(
                 operaciones.filter(op => {
                   if (fechaDesde && op.fecha < fechaDesde) return false;
