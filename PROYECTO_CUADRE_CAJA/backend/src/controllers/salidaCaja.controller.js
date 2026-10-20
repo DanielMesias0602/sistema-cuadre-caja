@@ -1,8 +1,28 @@
 import {
   registrarSalidaCaja,
   obtenerSalidaCaja,
-  listarSalidasPorCierre
+  listarSalidasPorCierre,
+  listarSalidasCaja
 } from '../services/salidaCaja.service.js';
+
+export const getSalidas = async (req, res, next) => {
+  try {
+    const salidas = await listarSalidasCaja();
+
+    return res.json({
+      status: 'success',
+      data: salidas
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+    return next(error);
+  }
+};
 
 export const createSalida = async (req, res, next) => {
   try {

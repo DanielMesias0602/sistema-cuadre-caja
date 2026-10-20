@@ -99,3 +99,30 @@ export const findSalidasByCierre = async (idCierre) => {
 
   return result.rows;
 };
+
+export const findSalidasCaja = async () => {
+  const result = await query(
+    `SELECT
+       sc.id_salida,
+       TO_CHAR(sc.fecha, 'YYYY-MM-DD') AS fecha,
+       sc.id_cierre,
+       cc.turno,
+       sc.id_tipo_salida,
+       ts.nombre AS tipo,
+       sc.id_usuario,
+       u.nombres || ' ' || u.apellidos AS usuario,
+       sc.id_comprobante,
+       sc.monto,
+       sc.motivo,
+       sc.observacion,
+       sc.storage_key,
+       sc.fecha_registro
+     FROM salida_caja sc
+     INNER JOIN cierre_caja cc ON cc.id_cierre = sc.id_cierre
+     INNER JOIN tipo_salida ts ON ts.id_tipo_salida = sc.id_tipo_salida
+     INNER JOIN usuario u ON u.id_usuario = sc.id_usuario
+     ORDER BY sc.fecha DESC, sc.id_salida DESC`
+  );
+
+  return result.rows;
+};

@@ -8,16 +8,33 @@ export function useDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Cargar filtros desde sessionStorage
-  const hoy = new Date().toISOString().split('T')[0];
-  const savedFilters = sessionStorage.getItem('dashboardFilters');
-  const initialFilters = savedFilters ? JSON.parse(savedFilters) : {
+  // Cargar filtros desde sessionStorage con validación de fecha local
+  const hoy = new Date().toLocaleDateString('en-CA');
+  
+  let initialFilters = {
     fecha_desde: hoy,
     fecha_hasta: hoy,
     turno: '',
     estado: '',
     search: '',
   };
+
+  try {
+    const saved = sessionStorage.getItem('dashboardFilters');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Si la fecha guardada en sessionStorage es futura o proviene del bug UTC anterior (ej. 20/10/2026 cuando local es 19/10/2026), limpiamos
+      if (parsed.fecha_desde && parsed.fecha_desde > hoy) {
+        parsed.fecha_desde = hoy;
+      }
+      if (parsed.fecha_hasta && parsed.fecha_hasta > hoy) {
+        parsed.fecha_hasta = hoy;
+      }
+      initialFilters = { ...initialFilters, ...parsed };
+    }
+  } catch {
+    // Fallback a initialFilters
+  }
   
   const [filters, setFilters] = useState(initialFilters);
   

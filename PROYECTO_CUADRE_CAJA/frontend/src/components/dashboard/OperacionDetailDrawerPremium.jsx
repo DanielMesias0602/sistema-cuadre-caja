@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Calendar, Check, CreditCard, Package, Printer, Receipt, X, ZoomIn, Image as ImageIcon, Eye, ZoomOut } from 'lucide-react';
+import { Calendar, Check, CreditCard, Package, Printer, Receipt, X, ZoomIn, Image as ImageIcon, Eye, ZoomOut, Sun, Moon, Clock } from 'lucide-react';
 
 export function OperacionDetailDrawerPremium({ op, onClose }) {
   const open = op !== null;
@@ -46,6 +46,30 @@ export function OperacionDetailDrawerPremium({ op, onClose }) {
   const formatPEN = (val) => {
     const num = Number(val || 0);
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const getTurnoBadge = (hora) => {
+    if (!hora) return null;
+    const horaComparar = hora.substring(0, 8) || hora;
+    if (horaComparar <= '14:00:00') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100">
+          <Sun className="w-3.5 h-3.5" /> Mañana
+        </span>
+      );
+    }
+    if (horaComparar > '14:00:00' && horaComparar <= '20:00:00') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+          <Moon className="w-3.5 h-3.5" /> Tarde
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+        <Clock className="w-3.5 h-3.5" /> Fuera de turno
+      </span>
+    );
   };
 
   // Mapeo robusto de datos reales de la BD a las variables del diseño
@@ -129,12 +153,13 @@ export function OperacionDetailDrawerPremium({ op, onClose }) {
           <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900">
             {comprobante}
           </h2>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
-            <Calendar className="w-3.5 h-3.5" />
-            <span className="tabular-nums">
+          <div className="mt-2 flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-slate-500" />
+            <span className="tabular-nums text-sm text-slate-500">
               {fecha} {hora ? `· ${hora.substring(0, 5)}` : ''}
             </span>
-          </p>
+            {getTurnoBadge(hora)}
+          </div>
 
           <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">Monto total</p>
           <p className="mt-1 text-4xl font-black tracking-tight text-brand-orange tabular-nums">

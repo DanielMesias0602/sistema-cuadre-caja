@@ -3,7 +3,8 @@ import express from 'express';
 import {
   createSalida,
   getSalida,
-  getSalidasByCierre
+  getSalidasByCierre,
+  getSalidas
 } from '../controllers/salidaCaja.controller.js';
 
 import { requireAuth } from '../middlewares/auth.middleware.js';
@@ -14,6 +15,12 @@ router.post(
   '/',
   requireAuth,
   createSalida
+);
+
+router.get(
+  '/',
+  requireAuth,
+  getSalidas
 );
 
 router.get(

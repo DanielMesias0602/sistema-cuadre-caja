@@ -1,7 +1,7 @@
 import { Search, Calendar, Filter, RotateCcw, Minus } from 'lucide-react';
 
 export function DashboardFilters({ filters, onFilterChange, onReset }) {
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = new Date().toLocaleDateString('en-CA');
   const esHoy = filters.fecha_desde === fechaHoy && filters.fecha_hasta === fechaHoy;
 
   const setHoy = () => {

@@ -6,7 +6,7 @@ import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
-  User, CreditCard, Eye, Filter, ChevronDown
+  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon
 } from 'lucide-react';
 
 export function Operaciones() {
@@ -45,6 +45,37 @@ export function Operaciones() {
   const formatCurrency = (val) => {
     const num = Number(val || 0);
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const getTurno = (hora) => {
+    if (!hora) return '-';
+    const horaComparar = hora.substring(0, 8) || hora;
+    if (horaComparar <= '14:00:00') return 'MAÑANA';
+    if (horaComparar > '14:00:00' && horaComparar <= '20:00:00') return 'TARDE';
+    return 'FUERA DE TURNO';
+  };
+
+  const getTurnoBadge = (hora) => {
+    const turno = getTurno(hora);
+    if (turno === 'MAÑANA') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100">
+          <Sun className="w-3.5 h-3.5" /> Mañana
+        </span>
+      );
+    }
+    if (turno === 'TARDE') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+          <Moon className="w-3.5 h-3.5" /> Tarde
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+        <Clock className="w-3.5 h-3.5" /> {turno}
+      </span>
+    );
   };
 
   const getStatusBadge = (estado) => {
@@ -160,6 +191,7 @@ export function Operaciones() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
                 <th className="p-4">Fecha</th>
+                <th className="p-4">Turno</th>
                 <th className="p-4">Comprobante</th>
                 <th className="p-4">Cliente</th>
                 <th className="p-4">Medios de Pago</th>
@@ -171,11 +203,11 @@ export function Operaciones() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500 text-lg">Cargando historial...</td>
+                  <td colSpan={8} className="p-12 text-center text-slate-500 text-lg">Cargando historial...</td>
                 </tr>
               ) : operacionesFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500 text-lg flex flex-col items-center gap-2">
+                  <td colSpan={8} className="p-12 text-center text-slate-500 text-lg flex flex-col items-center gap-2">
                     <FileText className="w-10 h-10 text-slate-300" />
                     No se encontraron operaciones con los filtros seleccionados.
                   </td>
@@ -194,6 +226,10 @@ export function Operaciones() {
                         <Calendar className="w-5 h-5 text-slate-400 flex-shrink-0" />
                         <span className="text-sm font-semibold text-slate-900">{op.fecha}</span>
                       </div>
+                    </td>
+
+                    <td className="p-4">
+                      {getTurnoBadge(op.hora || op.fecha_registro)}
                     </td>
 
                     <td className="p-4">

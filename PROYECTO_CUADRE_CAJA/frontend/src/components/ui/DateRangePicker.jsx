@@ -9,7 +9,7 @@ export function DateRangePicker({ fechaDesde, fechaHasta, onChange }) {
       <ReactDatePicker
         selected={fechaDesde ? new Date(fechaDesde + 'T00:00:00') : null}
         onChange={(date) => {
-          const formatted = date ? date.toISOString().split('T')[0] : '';
+          const formatted = date ? date.toLocaleDateString('en-CA') : '';
           onChange({ fechaDesde: formatted, fechaHasta });
         }}
         selectsStart
@@ -25,7 +25,7 @@ export function DateRangePicker({ fechaDesde, fechaHasta, onChange }) {
       <ReactDatePicker
         selected={fechaHasta ? new Date(fechaHasta + 'T00:00:00') : null}
         onChange={(date) => {
-          const formatted = date ? date.toISOString().split('T')[0] : '';
+          const formatted = date ? date.toLocaleDateString('en-CA') : '';
           onChange({ fechaDesde, fechaHasta: formatted });
         }}
         selectsEnd

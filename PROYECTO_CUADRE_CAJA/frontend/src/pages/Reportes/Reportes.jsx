@@ -238,7 +238,7 @@ export function Reportes() {
         doc.text(`Página ${i} de ${pageCount} | Sistema de Cuadre de Caja - FINITO`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
       }
 
-      doc.save(`REPORTE_CONCILIACION_CAJA_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`REPORTE_CONCILIACION_CAJA_${new Date().toLocaleDateString('en-CA')}.pdf`);
     } catch (err) {
       console.error("Error al generar PDF:", err);
       alert(`Hubo un error al generar el PDF: ${err.message}`);
@@ -288,7 +288,7 @@ export function Reportes() {
       { wch: 15 },
       { wch: 25 }
     ];
-    XLSX.writeFile(workbook, `REPORTE_OPERACIONES_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `REPORTE_OPERACIONES_${new Date().toLocaleDateString('en-CA')}.xlsx`);
   };
 
   // --- EXPORTACIÓN PDF VISUAL CON EVIDENCIAS ---
@@ -499,7 +499,7 @@ export function Reportes() {
         doc.text(`Página ${i} de ${pageCount} | Sistema de Cuadre de Caja - FINITO`, pageWidth / 2, pageHeight - 10, { align: 'center' });
       }
 
-      doc.save(`REPORTE_CONCILIACION_VISUAL_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`REPORTE_CONCILIACION_VISUAL_${new Date().toLocaleDateString('en-CA')}.pdf`);
     } catch (err) {
       console.error("Error al generar PDF visual:", err);
       alert(`Hubo un error al generar el PDF visual: ${err.message}`);

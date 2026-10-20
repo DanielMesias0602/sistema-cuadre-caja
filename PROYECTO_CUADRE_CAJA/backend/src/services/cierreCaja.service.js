@@ -1,7 +1,8 @@
 import {
   createCierreCaja,
   findCierreCajaById,
-  findCierresCaja
+  findCierresCaja,
+  getTotalesParaCierre
 } from '../repositories/cierreCaja.repository.js';
 
 import {
@@ -116,4 +117,15 @@ export const obtenerCierreCaja = async (idCierre) => {
 
 export const listarCierresCaja = async () => {
   return findCierresCaja();
+};
+
+export const obtenerPreCalculoCierre = async (fecha, turno) => {
+  const totales = await getTotalesParaCierre(fecha, turno);
+  const ingresos = Number(totales.total_ingresos);
+  const noEfectivo = Number(totales.total_no_efectivo);
+  return {
+    total_ingresos: ingresos,
+    total_no_efectivo: noEfectivo,
+    efectivo_esperado: ingresos - noEfectivo
+  };
 };

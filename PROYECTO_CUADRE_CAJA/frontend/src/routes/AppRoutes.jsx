@@ -94,6 +94,7 @@ export function AppRoutes() {
         <Route path="evidencias" element={<Evidencias />} />
         <Route path="cierres-de-caja" element={<CierresCaja />} />
         <Route path="salidas-de-caja" element={<SalidasCaja />} />
+        <Route path="salidas" element={<SalidasCaja />} />
         <Route path="anulaciones" element={<Anulaciones />} />
         <Route path="notas-de-credito" element={<NotasCredito />} />
         <Route path="reportes" element={<Reportes />} />

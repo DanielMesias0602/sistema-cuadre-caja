@@ -1,7 +1,8 @@
 import {
   createSalidaCaja,
   findSalidaCajaById,
-  findSalidasByCierre
+  findSalidasByCierre,
+  findSalidasCaja
 } from '../repositories/salidaCaja.repository.js';
 
 import {
@@ -159,6 +160,13 @@ export const registrarSalidaCaja = async ({
       );
     }
 
+    if (cierre.estado && cierre.estado.toUpperCase() === 'CERRADO') {
+      throw new SalidaCajaError(
+        'No se pueden registrar salidas en un turno que ya ha sido cerrado',
+        400
+      );
+    }
+
     // ============================
     // 2. VALIDAR TIPO DE SALIDA
     // ============================
@@ -305,4 +313,8 @@ export const listarSalidasPorCierre = async (idCierre) => {
   }
 
   return findSalidasByCierre(idCierre);
+};
+
+export const listarSalidasCaja = async () => {
+  return findSalidasCaja();
 };
