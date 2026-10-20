@@ -10,6 +10,10 @@ import {
 } from '../repositories/operacion.repository.js';
 
 import {
+  findMedioPagoById
+} from '../repositories/medioPago.repository.js';
+
+import {
   withTransaction
 } from '../repositories/base.repository.js';
 
@@ -39,6 +43,31 @@ export const registerPago = async (data) => {
   }
 
   return withTransaction(async (client) => {
+    /*
+     * Consultamos el medio de pago para determinar el estado inicial.
+     * Lógica de Caja Real: El efectivo se auto-verifica (validación física en Cierre de Caja).
+     * Los pagos virtuales quedan pendientes para verificar en Evidencias.
+     */
+    const medioPagoResult = await client.query(
+      `SELECT es_efectivo
+       FROM medio_pago
+       WHERE id_medio_pago = $1`,
+      [id_medio_pago]
+    );
+
+    if (medioPagoResult.rows.length === 0) {
+      const error = new Error(
+        'El medio de pago no existe'
+      );
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const esEfectivo = medioPagoResult.rows[0].es_efectivo;
+    const estadoInicial = esEfectivo ? 'VERIFICADO' : 'REGISTRADO';
+
+    console.log(`[registerPago] id_medio_pago: ${id_medio_pago}, esEfectivo: ${esEfectivo}, estadoInicial: ${estadoInicial}`);
+
     /*
      * Bloqueamos la operación durante toda la transacción.
      * Esto evita que dos pagos concurrentes puedan superar
@@ -102,7 +131,7 @@ export const registerPago = async (data) => {
     }
 
     /*
-     * Primero registramos el pago.
+     * Primero registramos el pago con el estado determinado.
      */
     const pago = await createPago(
       {
@@ -110,7 +139,8 @@ export const registerPago = async (data) => {
         id_medio_pago,
         monto,
         referencia_bancaria,
-        observacion
+        observacion,
+        estado: estadoInicial
       },
       client
     );

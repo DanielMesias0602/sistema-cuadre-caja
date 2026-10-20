@@ -7,7 +7,7 @@ import {
 import { createComprobante } from '../repositories/comprobante.repository.js';
 import { createPago } from '../repositories/pago.repository.js';
 import { createEvidencia } from '../repositories/evidencia.repository.js';
-import { generatePreauthenticatedRequest } from './ociStorage.service.js'; // <-- NUEVO IMPORT
+import { generatePreauthenticatedRequest } from './ociStorage.service.js';
 
 // --- FUNCIONES EXISTENTES ---
 
@@ -73,13 +73,20 @@ export const getOperaciones = async () => {
 // --- FUNCIÓN TRANSACCIONAL (Para guardar todo de golpe) ---
 
 export const registerOperacionUnificada = async (data) => {
-  const { 
-    comprobante, 
-    operacion, 
-    pagos, 
-    evidencias, 
-    id_usuario 
+  const {
+    comprobante,
+    operacion,
+    pagos,
+    evidencias,
+    id_usuario
   } = data;
+
+  // Validación estricta: debe haber al menos un pago
+  if (!pagos || !Array.isArray(pagos) || pagos.length === 0) {
+    const error = new Error('La operación debe tener al menos un pago asociado');
+    error.statusCode = 400;
+    throw error;
+  }
 
   return await withTransaction(async (client) => {
     // 1. Crear Comprobante con datos de OCR
@@ -92,12 +99,28 @@ export const registerOperacionUnificada = async (data) => {
       id_usuario: id_usuario
     }, client);
 
-    // 3. Crear Pagos
+    // 3. Crear Pagos con lógica de auto-verificación para efectivo
     const createdPagos = await Promise.all(
-      pagos.map(pago => createPago({
-        ...pago,
-        id_operacion: newOperacion.id_operacion
-      }, client))
+      pagos.map(async (pago) => {
+        // Consultar si el medio de pago es efectivo
+        const medioPagoResult = await client.query(
+          `SELECT es_efectivo
+           FROM medio_pago
+           WHERE id_medio_pago = $1`,
+          [pago.id_medio_pago]
+        );
+
+        const esEfectivo = medioPagoResult.rows.length > 0 && medioPagoResult.rows[0].es_efectivo;
+        const estadoInicial = esEfectivo ? 'VERIFICADO' : (pago.estado || 'REGISTRADO');
+
+        console.log(`[registerOperacionUnificada] Pago: ${pago.id_medio_pago}, esEfectivo: ${esEfectivo}, estado: ${estadoInicial}`);
+
+        return createPago({
+          ...pago,
+          id_operacion: newOperacion.id_operacion,
+          estado: estadoInicial
+        }, client);
+      })
     );
 
     // 4. Crear Evidencias con datos de OCR

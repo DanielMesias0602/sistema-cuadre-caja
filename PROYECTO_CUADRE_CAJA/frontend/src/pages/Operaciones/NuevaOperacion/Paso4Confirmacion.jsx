@@ -45,6 +45,13 @@ export function Paso4Confirmacion({ comprobante, pagos, evidenciaComprobante, ev
     setError(null);
 
     try {
+      // Validación: debe haber al menos un pago
+      if (!pagos || pagos.length === 0) {
+        setError('La operación debe tener al menos un pago asociado');
+        setLoading(false);
+        return;
+      }
+
       const montoComprobante = Number(comprobante.monto) || 0;
       const pendienteCalculado = montoComprobante - totalPagado;
       const estadoFinal = pendienteCalculado <= 0 ? 'PAGADA' : 'PENDIENTE';
@@ -148,8 +155,7 @@ export function Paso4Confirmacion({ comprobante, pagos, evidenciaComprobante, ev
           id_medio_pago: p.id_medio_pago,
           monto: Number(p.monto),
           referencia_bancaria: p.referencia || null,
-          observacion: p.observacion || null,
-          estado: 'REGISTRADO'
+          observacion: p.observacion || null
         })),
         evidencias: evidenciasParaPayload
       };

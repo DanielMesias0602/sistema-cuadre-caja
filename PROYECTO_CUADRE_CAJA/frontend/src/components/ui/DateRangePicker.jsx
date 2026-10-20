@@ -4,7 +4,7 @@ import "react-datepicker/dist/react-datepicker.css";
 
 export function DateRangePicker({ fechaDesde, fechaHasta, onChange }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 h-10 w-full overflow-hidden">
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 h-11 w-full min-w-[250px] overflow-hidden">
       <Calendar className="text-slate-400 w-4 h-4 flex-shrink-0" />
       <ReactDatePicker
         selected={fechaDesde ? new Date(fechaDesde + 'T00:00:00') : null}

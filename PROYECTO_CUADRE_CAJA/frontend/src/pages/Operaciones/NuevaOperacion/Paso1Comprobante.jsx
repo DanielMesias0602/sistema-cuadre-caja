@@ -482,8 +482,9 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="number"
                 name="monto"
-                value={formatNumber(formData.monto)}
+                value={formData.monto}
                 onChange={(e) => handleChange('monto', e.target.value)}
+                onBlur={() => handleChange('monto', formatNumber(formData.monto))}
                 placeholder="0.00"
                 step="0.01"
                 min="0"
@@ -539,8 +540,9 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="number"
                 name="igv"
-                value={formatNumber(formData.igv)}
+                value={formData.igv}
                 onChange={(e) => handleChange('igv', e.target.value)}
+                onBlur={() => handleChange('igv', formatNumber(formData.igv))}
                 placeholder="0.00"
                 step="0.01"
                 min="0"
@@ -555,8 +557,9 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="number"
                 name="efectivo"
-                value={formatNumber(formData.efectivo)}
+                value={formData.efectivo}
                 onChange={(e) => handleChange('efectivo', e.target.value)}
+                onBlur={() => handleChange('efectivo', formatNumber(formData.efectivo))}
                 placeholder="0.00"
                 step="0.01"
                 min="0"

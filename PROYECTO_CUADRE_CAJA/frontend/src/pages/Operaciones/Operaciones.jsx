@@ -6,7 +6,7 @@ import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
-  User, CreditCard
+  User, CreditCard, Eye, Filter, ChevronDown
 } from 'lucide-react';
 
 export function Operaciones() {
@@ -109,29 +109,47 @@ export function Operaciones() {
       </div>
 
       {/* FILTROS */}
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="relative">
-          <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="Buscar por comprobante o cliente..." value={busqueda} onChange={e => setBusqueda(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none transition" />
-        </div>
-        <div className="col-span-2">
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Rango de fechas</label>
-          <DateRangePicker
-            fechaDesde={fechaDesde}
-            fechaHasta={fechaHasta}
-            onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
-              setFechaDesde(newDesde);
-              setFechaHasta(newHasta);
-            }}
-          />
-        </div>
-        <div>
-          <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 focus:ring-2 focus:ring-brand-orange outline-none transition cursor-pointer">
-            <option value="">Todos los estados</option>
-            <option value="PAGADA">Pagadas</option>
-            <option value="PENDIENTE">Pendientes</option>
-            <option value="ANULADA">Anuladas</option>
-          </select>
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+        <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
+          {/* Buscador */}
+          <div className="relative w-full flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por comprobante o cliente..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange"
+            />
+          </div>
+
+          {/* Fechas */}
+          <div className="w-full flex-1 min-w-[250px]">
+            <DateRangePicker
+              fechaDesde={fechaDesde}
+              fechaHasta={fechaHasta}
+              onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                setFechaDesde(newDesde);
+                setFechaHasta(newHasta);
+              }}
+            />
+          </div>
+
+          {/* Selector de Estado */}
+          <div className="relative w-full flex-1">
+            <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <select
+              value={estadoFiltro}
+              onChange={e => setEstadoFiltro(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
+            >
+              <option value="">Todos los estados</option>
+              <option value="PAGADA">Pagadas</option>
+              <option value="PENDIENTE">Pendientes</option>
+              <option value="ANULADA">Anuladas</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
       </div>
 
@@ -218,10 +236,11 @@ export function Operaciones() {
                     </td>
 
                     <td className="p-4 text-center">
-                      <button 
-                        onClick={() => { setSelectedOp(op); setDrawerAbierto(true); }} 
-                        className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                      <button
+                        onClick={() => { setSelectedOp(op); setDrawerAbierto(true); }}
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
                       >
+                        <Eye className="h-4 w-4" />
                         Ver Detalle
                       </button>
                     </td>

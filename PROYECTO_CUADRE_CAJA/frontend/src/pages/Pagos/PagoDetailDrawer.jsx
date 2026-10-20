@@ -3,7 +3,6 @@ import {
   X,
   CheckCircle2,
   Clock,
-  ExternalLink,
   Banknote,
   CreditCard,
   Wallet,
@@ -15,9 +14,8 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import api from '../../lib/api';
 
-export function PagoDetailDrawer({ selectedPago, onClose, onVerificado }) {
+export function PagoDetailDrawer({ selectedPago, onClose }) {
   const open = selectedPago !== null;
   const lastPago = useRef(selectedPago);
   const justOpened = useRef(false);
@@ -25,7 +23,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onVerificado }) {
   const pago = lastPago.current;
   const closeRef = useRef(null);
 
-  const [marcando, setMarcando] = useState(false);
   const [estadoLocal, setEstadoLocal] = useState(null);
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
@@ -81,48 +78,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onVerificado }) {
       ? pago.evidencia_url
       : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${pago.evidencia_url}`
     : null;
-
-  const handleMarcarVerificado = async () => {
-    const estadoAnterior = estadoActual;
-    
-    // Actualización optimista: cambiamos el estado local inmediatamente
-    setEstadoLocal('VERIFICADO');
-    
-    try {
-      setMarcando(true);
-      if (pago.id_pago) {
-        try {
-          // Enviamos el objeto completo con todos los campos
-          await api.put(`/pagos/${pago.id_pago}`, {
-            id_medio_pago: pago.id_medio_pago || pago.id_medio,
-            monto: Number(pago.monto),
-            referencia_bancaria: pago.referencia || pago.referencia_bancaria || null,
-            observacion: pago.observacion || null,
-            estado: 'VERIFICADO'
-          });
-        } catch (apiErr) {
-          console.error('Error al actualizar pago:', apiErr);
-          const errorMessage = apiErr.response?.data?.message || apiErr.message || 'Error al verificar el pago';
-          alert(errorMessage);
-          // Revertimos el estado si falla el PUT
-          setEstadoLocal(estadoAnterior);
-          return;
-        }
-      }
-      
-      // Notificamos al padre para actualizar la tabla
-      if (onVerificado) {
-        onVerificado(pago.id_pago, 'VERIFICADO');
-      }
-    } catch (err) {
-      console.error('Error al verificar pago:', err);
-      alert(err.message || 'Error al verificar el pago');
-      // Revertimos el estado si hay error
-      setEstadoLocal(estadoAnterior);
-    } finally {
-      setMarcando(false);
-    }
-  };
 
   const renderMedioIcon = (medio) => {
     const m = (medio || '').toLowerCase();
@@ -421,41 +376,41 @@ export function PagoDetailDrawer({ selectedPago, onClose, onVerificado }) {
                 <ShieldCheck className="h-4 w-4 text-slate-400" />
                 Estado de Conciliación
               </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {isVerificado
-                  ? 'Este pago ha sido verificado y conciliado con el arqueo o extracto correspondiente.'
-                  : 'Este pago se encuentra registrado pero requiere validación contra el estado de cuenta bancario o arqueo de caja físico.'}
-              </p>
+              {isVerificado && (pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-2">
+                  <p className="text-xs font-semibold text-blue-800 flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" />
+                    Pago en Efectivo Verificado
+                  </p>
+                  <p className="text-[11px] text-blue-700 mt-1">
+                    El efectivo se valida físicamente en el arqueo del Cierre de Caja.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {isVerificado
+                    ? 'Este pago ha sido verificado y conciliado con el arqueo o extracto correspondiente.'
+                    : 'Este pago se encuentra registrado pero requiere validación contra el estado de cuenta bancario o arqueo de caja físico.'}
+                </p>
+              )}
             </section>
           </div>
         </div>
 
         {/* Pie de Panel con Acciones */}
-        <footer className="flex gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
+        <footer className="flex flex-col gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
+          <div className="rounded-xl bg-blue-50 p-3 text-xs text-blue-800 border border-blue-200 flex items-start gap-2">
+            <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <p>La verificación de pagos se realiza en la <strong>Mesa de Conciliación</strong> (módulo de Evidencias).</p>
+          </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="h-11 flex-1 rounded-xl bg-slate-100 text-xs font-bold text-slate-700 transition hover:bg-slate-200"
+            className="h-11 w-full rounded-xl bg-slate-100 text-xs font-bold text-slate-700 transition hover:bg-slate-200"
           >
             Cerrar
           </button>
-
-          {!isVerificado ? (
-            <button
-              type="button"
-              disabled={marcando}
-              onClick={handleMarcarVerificado}
-              className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              <span>{marcando ? 'Verificando...' : 'Marcar como Verificado'}</span>
-            </button>
-          ) : (
-            <div className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-xl bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-600/20">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span>Pago Verificado</span>
-            </div>
-          )}
         </footer>
       </aside>
     </div>

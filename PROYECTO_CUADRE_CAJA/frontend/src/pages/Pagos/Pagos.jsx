@@ -13,7 +13,6 @@ import {
   Filter,
   CheckCircle2,
   Clock,
-  ShieldCheck,
   Receipt,
   ChevronDown,
   Eye
@@ -54,18 +53,7 @@ export function Pagos() {
     }
   };
 
-  const handlePagoVerificado = (id, nuevoEstado) => {
-    // 1. Actualizamos las verificaciones locales para la tabla (usando id_pago real)
-    setVerificacionesLocales((prev) => ({
-      ...prev,
-      [id]: nuevoEstado
-    }));
-    
-    // 2. CRÍTICO: Actualizamos el objeto selectedPago para que el Drawer se entere
-    if (selectedPago && selectedPago.id_pago === id) {
-      setSelectedPago(prev => ({ ...prev, estado: nuevoEstado }));
-    }
-  };
+
 
   // Desglosar las operaciones en una lista de pagos individuales enfocada en conciliación
   const todosLosPagos = useMemo(() => {
@@ -293,21 +281,22 @@ export function Pagos() {
       </div>
 
       {/* 3. BARRA DE FILTROS */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
+          {/* Buscador */}
+          <div className="relative w-full flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Buscar cliente, referencia..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-3 text-xs text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange"
             />
           </div>
 
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Rango de fechas</label>
+          {/* Fechas */}
+          <div className="w-full flex-1 min-w-[250px]">
             <DateRangePicker
               fechaDesde={fechaDesde}
               fechaHasta={fechaHasta}
@@ -318,35 +307,35 @@ export function Pagos() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Filter className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <select
-                value={medioFiltro}
-                onChange={(e) => setMedioFiltro(e.target.value)}
-                className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-8 text-xs text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
-              >
-                <option value="">Todos los medios</option>
-                {mediosDisponibles.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-            </div>
-
-            {hayFiltrosActivos && (
-              <button
-                type="button"
-                onClick={limpiarFiltros}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
-                title="Limpiar filtros"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+          {/* Selector de Medio */}
+          <div className="relative w-full flex-1">
+            <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <select
+              value={medioFiltro}
+              onChange={(e) => setMedioFiltro(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
+            >
+              <option value="">Todos los medios</option>
+              {mediosDisponibles.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           </div>
+
+          {/* Botón Limpiar */}
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+              title="Limpiar filtros"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -535,7 +524,7 @@ export function Pagos() {
                         )}
                       </td>
 
-                      {/* 9. Acciones (Verificar Pago) */}
+                      {/* 9. Acciones (Ver Detalle) */}
                       <td className="py-3.5 pl-3 pr-6 text-center">
                         <button
                           type="button"
@@ -543,15 +532,11 @@ export function Pagos() {
                             setSelectedPago(pago);
                             setDrawerAbierto(true);
                           }}
-                          className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold shadow-2xs transition active:scale-95 ${
-                            isVerificado
-                              ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
-                          }`}
-                          title="Abrir panel de conciliación y verificación"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+                          title="Ver detalle del pago"
                         >
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          <span>{isVerificado ? 'Ver Detalle' : 'Verificar Pago'}</span>
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Ver Detalle</span>
                         </button>
                       </td>
                     </tr>
@@ -580,11 +565,10 @@ export function Pagos() {
         )}
       </div>
 
-      {/* 5. DRAWER ESPECIALIZADO DE DETALLE Y VERIFICACIÓN DE PAGO */}
+      {/* 5. DRAWER ESPECIALIZADO DE DETALLE DE PAGO */}
       <PagoDetailDrawer
         selectedPago={drawerAbierto ? selectedPago : null}
         onClose={() => setDrawerAbierto(false)}
-        onVerificado={handlePagoVerificado}
       />
     </div>
   );

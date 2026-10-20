@@ -103,7 +103,6 @@ export function Evidencias() {
     });
 
     if (pagosPendientes.length === 0) {
-      alert('No hay pagos pendientes para verificar en esta operación.');
       return;
     }
 
@@ -116,9 +115,9 @@ export function Evidencias() {
 
     try {
       setVerificando(true);
-      
+
       // Hacer PUT a cada pago pendiente con el objeto completo
-      const promesas = pagosPendientes.map(p => 
+      const promesas = pagosPendientes.map(p =>
         api.put(`/pagos/${p.id_pago}`, {
           id_medio_pago: p.id_medio_pago || p.id_medio,
           monto: Number(p.monto),
@@ -129,17 +128,17 @@ export function Evidencias() {
       );
 
       await Promise.all(promesas);
-      
+
       // Recargar datos
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
       setOperaciones(Array.isArray(data) ? data : []);
-      
+
       cerrarModal();
     } catch (err) {
       console.error('Error al verificar pagos:', err);
       alert('Error al verificar los pagos. Por favor intenta nuevamente.');
-      
+
       // Revertir estado local
       const revertirEstados = {};
       pagosPendientes.forEach(p => {
@@ -413,23 +412,48 @@ export function Evidencias() {
 
                 {/* Botones de Acción */}
                 <div className="pt-4 border-t border-slate-200 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={cerrarModal}
-                    disabled={verificando}
-                    className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200 transition active:scale-95 disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAprobarPagos}
-                    disabled={verificando}
-                    className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-                  >
-                    <ShieldCheck className="h-5 w-5" />
-                    {verificando ? 'Verificando...' : 'Aprobar y Verificar'}
-                  </button>
+                  {(() => {
+                    const pagosPendientesCount = (Array.isArray(selectedOp.pagos) ? selectedOp.pagos : []).filter(p => {
+                      const est = String(p.estado || 'PENDIENTE').toUpperCase();
+                      return est === 'PENDIENTE' || est === 'REGISTRADO';
+                    }).length;
+
+                    return pagosPendientesCount > 0 ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={cerrarModal}
+                          disabled={verificando}
+                          className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200 transition active:scale-95 disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAprobarPagos}
+                          disabled={verificando}
+                          className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                        >
+                          <ShieldCheck className="h-5 w-5" />
+                          {verificando ? 'Verificando...' : 'Aprobar y Verificar'}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={cerrarModal}
+                          disabled={verificando}
+                          className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200 transition active:scale-95 disabled:opacity-50"
+                        >
+                          Cerrar
+                        </button>
+                        <div className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
+                          <CheckCircle className="h-5 w-5" /> Operación ya conciliada
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

@@ -55,6 +55,10 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
   const todosCompletos = pagos.every(p => p.id_medio_pago && Number(p.monto) > 0);
 
   const handleContinuar = () => {
+    if (!pagos || pagos.length === 0) {
+      setIntentoAvanzar(true);
+      return;
+    }
     if (!todosCompletos || excede) {
       setIntentoAvanzar(true);
       return;
