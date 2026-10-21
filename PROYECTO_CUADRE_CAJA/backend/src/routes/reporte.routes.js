@@ -1,5 +1,4 @@
 import express from 'express';
-
 import {
   getOperacionesReport,
   getPagosPorMedioReport,
@@ -8,9 +7,9 @@ import {
   getConciliacionReport,
   getSalidasReport,
   getEvidenciasVerificacionesReport,
-  getDashboard
+  getDashboard,
+  getIndicadores
 } from '../controllers/reporte.controller.js';
-
 import { requireAuth } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -23,5 +22,6 @@ router.get('/conciliacion', requireAuth, getConciliacionReport);
 router.get('/salidas', requireAuth, getSalidasReport);
 router.get('/evidencias-verificaciones', requireAuth, getEvidenciasVerificacionesReport);
 router.get('/dashboard', requireAuth, getDashboard);
+router.get('/indicadores', requireAuth, getIndicadores);
 
 export default router;

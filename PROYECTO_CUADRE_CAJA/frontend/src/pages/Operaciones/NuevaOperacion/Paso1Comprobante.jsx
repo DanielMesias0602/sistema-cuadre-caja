@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlertCircle, CheckCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
 
 export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack }) {
@@ -110,8 +110,24 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
     };
   }, []);
 
+  // MODIFICADO: Calcula IGV y Op. Gravada automáticamente cuando el modo es manual
   const handleChange = (field, value) => {
-    const nuevo = { ...formData, [field]: value };
+    let nuevo = { ...formData, [field]: value };
+
+    if (field === 'monto' && modo === 'manual') {
+      const montoNum = Number(value);
+      if (Number.isFinite(montoNum) && montoNum > 0) {
+        // Fórmula peruana: el monto total incluye IGV (18%)
+        const igvCalculado = montoNum * (0.18 / 1.18);
+        const opGravadaCalculada = montoNum - igvCalculado;
+        nuevo.igv = igvCalculado.toFixed(2);
+        nuevo.op_gravada = opGravadaCalculada.toFixed(2);
+      } else {
+        nuevo.igv = '';
+        nuevo.op_gravada = '';
+      }
+    }
+
     setFormData(nuevo);
     onDataChange(nuevo);
   };
@@ -124,13 +140,13 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         urlRef.current = URL.createObjectURL(archivoComprimido);
         setImagenPreview(urlRef.current);
         setModo('ocr');
-        
+
         onDataChange({
           ...formData,
           evidencia: archivoComprimido,
           previewUrl: urlRef.current,
         });
-        
+
         procesarOCR(archivoComprimido);
       } catch (err) {
         console.error('Error procesando archivo:', err);
@@ -149,7 +165,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
       setOcrData(ocrResult);
 
       const datos = ocrResult?.datos_extraidos || {};
-      
+
       const nuevo = {
         ...formData,
         tipo_comprobante: datos.tipo_comprobante || '',
@@ -170,7 +186,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         evidencia: archivo,
         previewUrl: urlRef.current,
       };
-      
+
       setFormData(nuevo);
       onDataChange(nuevo);
       setLoading(false);
@@ -186,7 +202,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
     setImagenPreview(null);
     setOcrData(null);
     blobRef.current = null;
-    
+
     const nuevo = {
       ...formData,
       evidencia: null,
@@ -247,7 +263,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         {modo === null ? (
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-slate-900 mb-4">¿Cómo deseas registrar el comprobante?</h3>
-            
+
             <button
               type="button"
               onClick={() => document.getElementById('archivo-input').click()}
@@ -534,8 +550,14 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                 IGV
+                {modo === 'manual' && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                    <Calculator className="w-3 h-3" />
+                    Auto
+                  </span>
+                )}
               </label>
               <input
                 type="number"
@@ -546,8 +568,15 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                readOnly={modo === 'manual'}
+                className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition ${modo === 'manual' ? 'bg-slate-100 cursor-not-allowed text-slate-600' : ''
+                  }`}
               />
+              {modo === 'manual' && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Calculado automáticamente (18% incluido en el monto)
+                </p>
+              )}
             </div>
 
             <div>

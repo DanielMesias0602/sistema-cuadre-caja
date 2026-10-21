@@ -578,3 +578,69 @@ export const findDashboardReport = async (filters) => {
     }
   };
 };
+
+// ============================================================
+// NUEVA FUNCIÓN: 20 INDICADORES EMPRESARIALES
+// ============================================================
+export const findIndicadoresCompletos = async (filters) => {
+  const fechaDesde = filters.fecha_desde || null;
+  const fechaHasta = filters.fecha_hasta || null;
+  const params = [fechaDesde, fechaHasta];
+
+  const result = await query(
+    `WITH ops AS (
+       SELECT o.*, c.cliente, c.vendedor, cc.turno 
+       FROM operacion o 
+       JOIN comprobante c ON c.id_comprobante = o.id_comprobante
+       LEFT JOIN cierre_caja cc ON cc.id_cierre = o.id_cierre
+       WHERE ($1::date IS NULL OR o.fecha >= $1::date) 
+         AND ($2::date IS NULL OR o.fecha <= $2::date)
+     ),
+     pagos AS (
+       SELECT p.*, mp.nombre AS medio_pago, mp.es_efectivo, o.fecha, o.estado AS estado_op
+       FROM pago p
+       JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+       JOIN operacion o ON o.id_operacion = p.id_operacion
+       WHERE ($1::date IS NULL OR o.fecha >= $1::date) 
+         AND ($2::date IS NULL OR o.fecha <= $2::date)
+     ),
+     cierres AS (
+       SELECT * FROM cierre_caja cc
+       WHERE ($1::date IS NULL OR cc.fecha >= $1::date) 
+         AND ($2::date IS NULL OR cc.fecha <= $2::date)
+     )
+     SELECT
+       -- Categoría 1: Ventas
+       (SELECT COALESCE(SUM(monto), 0) FROM ops WHERE estado != 'ANULADA') AS ventas_totales,
+       (SELECT COUNT(*)::INT FROM ops WHERE estado != 'ANULADA') AS operaciones_registradas,
+       (SELECT COUNT(*)::INT FROM ops WHERE estado = 'ANULADA') AS operaciones_anuladas,
+       (SELECT COALESCE(AVG(monto), 0) FROM ops WHERE estado != 'ANULADA') AS ticket_promedio,
+       
+       -- Categoría 2: Medios de Pago
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = TRUE AND estado_op != 'ANULADA') AS monto_efectivo,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = FALSE AND estado_op != 'ANULADA') AS monto_virtual,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE medio_pago ILIKE '%tarjeta%' AND estado_op != 'ANULADA') AS monto_tarjeta,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE (medio_pago ILIKE '%yape%' OR medio_pago ILIKE '%transfer%') AND estado_op != 'ANULADA') AS monto_yape_transf,
+       
+       -- Categoría 3: Caja
+       (SELECT COALESCE(SUM(diferencia), 0) FROM cierres) AS diferencia_acumulada,
+       (SELECT COUNT(*)::INT FROM cierres WHERE diferencia <> 0) AS cierres_con_diferencia,
+       (SELECT COUNT(*)::INT FROM cierres) AS total_cierres,
+       (SELECT COALESCE(SUM(total_salidas), 0) FROM cierres) AS total_salidas,
+       
+       -- Categoría 4: Calidad y Trazabilidad
+       (SELECT COUNT(DISTINCT o.id_operacion)::INT FROM ops o JOIN evidencia e ON e.id_operacion = o.id_operacion WHERE o.estado != 'ANULADA') AS ops_con_evidencia,
+       (SELECT COUNT(DISTINCT o.id_operacion)::INT FROM ops o JOIN pago p ON p.id_operacion = o.id_operacion JOIN verificacion_pago vp ON vp.id_pago = p.id_pago WHERE o.estado != 'ANULADA') AS ops_verificadas,
+       (SELECT COUNT(*)::INT FROM pagos WHERE fecha_modificacion IS NOT NULL) AS pagos_corregidos,
+       (SELECT COUNT(*)::INT FROM pagos WHERE referencia_bancaria IS NOT NULL AND es_efectivo = FALSE) AS pagos_con_referencia,
+       
+       -- Categoría 5: Operativas
+       (SELECT COUNT(*)::INT FROM ops WHERE turno = 'Mañana' AND estado != 'ANULADA') AS ops_manana,
+       (SELECT COUNT(*)::INT FROM ops WHERE turno = 'Tarde' AND estado != 'ANULADA') AS ops_tarde,
+       (SELECT COALESCE(SUM(monto), 0) FROM nota_credito WHERE ($1::date IS NULL OR fecha >= $1::date) AND ($2::date IS NULL OR fecha <= $2::date)) AS total_notas_credito,
+       (SELECT cliente FROM ops WHERE estado != 'ANULADA' AND cliente IS NOT NULL GROUP BY cliente ORDER BY SUM(monto) DESC LIMIT 1) AS top_cliente`,
+    params
+  );
+
+  return result.rows[0] || {};
+};

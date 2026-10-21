@@ -7,13 +7,13 @@ export function useDashboard() {
   const [operacionesRecientes, setOperacionesRecientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Cargar filtros desde sessionStorage con validación de fecha local
+
   const hoy = new Date().toLocaleDateString('en-CA');
-  
+
+  // 🔥 CAMBIO CLAVE: Por defecto, el filtro es "Todos" (fechas vacías)
   let initialFilters = {
-    fecha_desde: hoy,
-    fecha_hasta: hoy,
+    fecha_desde: '',
+    fecha_hasta: '',
     turno: '',
     estado: '',
     search: '',
@@ -23,22 +23,21 @@ export function useDashboard() {
     const saved = sessionStorage.getItem('dashboardFilters');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Si la fecha guardada en sessionStorage es futura o proviene del bug UTC anterior (ej. 20/10/2026 cuando local es 19/10/2026), limpiamos
+      // Si la fecha guardada es futura (bug UTC antiguo), la limpiamos
       if (parsed.fecha_desde && parsed.fecha_desde > hoy) {
-        parsed.fecha_desde = hoy;
+        parsed.fecha_desde = '';
       }
       if (parsed.fecha_hasta && parsed.fecha_hasta > hoy) {
-        parsed.fecha_hasta = hoy;
+        parsed.fecha_hasta = '';
       }
       initialFilters = { ...initialFilters, ...parsed };
     }
   } catch {
     // Fallback a initialFilters
   }
-  
+
   const [filters, setFilters] = useState(initialFilters);
-  
-  // Guardar filtros en sessionStorage cuando cambian
+
   useEffect(() => {
     sessionStorage.setItem('dashboardFilters', JSON.stringify(filters));
   }, [filters]);
@@ -86,7 +85,6 @@ export function useDashboard() {
     filters,
     updateFilters,
     refetch: fetchDashboardData,
-    // KPIs normalizados para fácil acceso
     kpis: metrics?.kpis || {
       operaciones_registradas: 0,
       operaciones_con_pago: 0,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usuariosService, extractData } from '../../services/usuarios.service';
-import { ShieldCheck, UserCheck, Users, Check, Crown } from 'lucide-react';
+import { UserCheck, Users, Check, Crown } from 'lucide-react';
 
 export function RolesPermisos() {
   const [usuarios, setUsuarios] = useState([]);
@@ -20,26 +20,39 @@ export function RolesPermisos() {
     cargar();
   }, []);
 
+  // Definimos los permisos operativos (compartidos por ambos roles)
+  const permisosOperativos = [
+    'Registrar operaciones',
+    'Registrar pagos',
+    'Adjuntar evidencia',
+    'Registrar salidas',
+    'Cierres de caja',
+    'Anulaciones',
+    'Notas de crédito'
+  ];
+
   const rolesInfo = [
     {
       nombre: 'ADMINISTRADOR',
-      desc: 'Nivel de acceso máximo. Responsable de la supervisión, verificación de pagos, conciliaciones y gestión del personal del sistema.',
+      desc: 'Nivel de acceso máximo. Supervisa la operación, verifica pagos, realiza conciliaciones y gestiona el personal y los roles del sistema.',
       gradient: 'from-purple-600 to-indigo-700',
       bgLight: 'bg-purple-50',
       textColor: 'text-purple-700',
       borderColor: 'border-purple-200',
       icon: Crown,
-      permisos: ['Registrar todo', 'Verificar pagos', 'Conciliación', 'Gestionar usuarios', 'Cierres de caja']
+      permisosOperativos: permisosOperativos,
+      permisosAdmin: ['Verificar pagos', 'Conciliación', 'Gestionar usuarios', 'Gestionar roles']
     },
     {
-      nombre: 'USUARIO DE REGISTRO',
-      desc: 'Nivel operativo. Personal de caja encargado de registrar ventas, gestionar medios de pago, adjuntar evidencias y registrar salidas.',
+      nombre: 'PERSONAL DE CAJA',
+      desc: 'Nivel operativo. Personal encargado de registrar ventas, gestionar medios de pago, adjuntar evidencias, registrar salidas y realizar cierres de caja.',
       gradient: 'from-blue-600 to-cyan-600',
       bgLight: 'bg-blue-50',
       textColor: 'text-blue-700',
       borderColor: 'border-blue-200',
       icon: UserCheck,
-      permisos: ['Registrar operaciones', 'Registrar pagos', 'Adjuntar evidencia', 'Registrar salidas']
+      permisosOperativos: permisosOperativos,
+      permisosAdmin: [] // No tiene privilegios administrativos
     }
   ];
 
@@ -56,9 +69,12 @@ export function RolesPermisos() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         {rolesInfo.map((rol) => {
           const Icono = rol.icon;
-          const usuariosRol = usuarios.filter(u => u.rol_nombre === rol.nombre);
+          const usuariosRol = usuarios.filter(u => {
+            if (rol.nombre === 'ADMINISTRADOR') return u.rol_nombre === 'ADMINISTRADOR';
+            return u.rol_nombre === 'RESPONSABLE DE CAJA' || u.rol_nombre === 'USUARIO DE REGISTRO';
+          });
           const activos = usuariosRol.filter(u => u.estado).length;
-          
+
           return (
             <div key={rol.nombre} className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col group hover:shadow-xl transition-all duration-300">
               {/* Header con Gradiente */}
@@ -72,20 +88,20 @@ export function RolesPermisos() {
                       <Icono className="w-8 h-8" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-black text-white tracking-wide">{rol.nombre}</h2>
-                      <p className="text-white/80 text-sm font-semibold">{usuariosRol.length} personas asignadas</p>
+                      <h2 className="text-xl font-black text-white tracking-wide leading-tight">{rol.nombre}</h2>
+                      <p className="text-white/80 text-sm font-semibold mt-1">{usuariosRol.length} personas asignadas</p>
                     </div>
                   </div>
                   <p className="text-white/90 text-sm leading-relaxed max-w-md">{rol.desc}</p>
                 </div>
               </div>
-              
-              <div className="p-8 flex-1 flex flex-col gap-8 bg-white">
-                {/* Permisos */}
+
+              <div className="p-8 flex-1 flex flex-col gap-6 bg-white">
+                {/* Privilegios Operativos */}
                 <div>
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Privilegios del Rol</h3>
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Privilegios Operativos</h3>
                   <div className="flex flex-wrap gap-2">
-                    {rol.permisos.map(p => (
+                    {rol.permisosOperativos.map(p => (
                       <span key={p} className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${rol.bgLight} border ${rol.borderColor} ${rol.textColor} rounded-xl text-xs font-bold`}>
                         <Check className="w-3.5 h-3.5" /> {p}
                       </span>
@@ -93,17 +109,33 @@ export function RolesPermisos() {
                   </div>
                 </div>
 
+                {/* Privilegios Administrativos (solo si tiene) */}
+                {rol.permisosAdmin.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <Crown className="w-4 h-4 text-amber-500" /> Privilegios Administrativos
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {rol.permisosAdmin.map(p => (
+                        <span key={p} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold">
+                          <Check className="w-3.5 h-3.5" /> {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Personal Asignado */}
-                <div className="flex-1">
+                <div className="flex-1 mt-2">
                   <div className="flex justify-between items-end mb-4">
                     <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                       <Users className="w-4 h-4" /> Personal Asignado
                     </h3>
                     <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">{activos} Activos</span>
                   </div>
-                  
+
                   <div className="space-y-3">
-                    {usuariosRol.map(u => (
+                    {usuariosRol.length > 0 ? usuariosRol.map(u => (
                       <div key={u.id_usuario} className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-slate-200 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${u.estado ? 'bg-white text-slate-700 shadow-sm' : 'bg-slate-200 text-slate-400'}`}>
@@ -111,12 +143,14 @@ export function RolesPermisos() {
                           </div>
                           <div>
                             <p className="text-sm font-bold text-slate-800">{u.nombres} {u.apellidos}</p>
-                            <p className="text-xs font-medium text-slate-500">@{u.usuario} • {u.condicion_personal}</p>
+                            <p className="text-xs font-medium text-slate-500">@{u.usuario} · {u.condicion_personal}</p>
                           </div>
                         </div>
                         <span className={`w-2.5 h-2.5 rounded-full ${u.estado ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-red-500'}`}></span>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="text-center py-4 text-sm text-slate-400 italic">Sin personal asignado</div>
+                    )}
                   </div>
                 </div>
               </div>
