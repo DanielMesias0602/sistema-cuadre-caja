@@ -15,7 +15,8 @@ import {
   Clock,
   Receipt,
   ChevronDown,
-  Eye
+  Eye,
+  XCircle
 } from 'lucide-react';
 
 export function Pagos() {
@@ -23,13 +24,11 @@ export function Pagos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filtros
   const [busqueda, setBusqueda] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [medioFiltro, setMedioFiltro] = useState('');
 
-  // Drawer de Detalle y Verificación del Pago
   const [selectedPago, setSelectedPago] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
   const [verificacionesLocales, setVerificacionesLocales] = useState({});
@@ -53,17 +52,13 @@ export function Pagos() {
     }
   };
 
-
-
-  // Desglosar las operaciones en una lista de pagos individuales enfocada en conciliación
   const todosLosPagos = useMemo(() => {
     const list = [];
     operaciones.forEach((op) => {
       const pagos = Array.isArray(op.pagos) ? op.pagos : (Array.isArray(op.payments) ? op.payments : []);
       const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
       const totalPagosOp = pagos.length;
-      
-      // Buscar evidencia de tipo CLIENTE para usarla en los pagos
+
       const evidenciaCliente = evidencias.find(e => e.tipo_evidencia === 'CLIENTE');
       const urlEvidenciaCliente = evidenciaCliente?.storage_key || null;
 
@@ -71,6 +66,7 @@ export function Pagos() {
         const idUnico = p.id_pago ? `${op.id_operacion}-${p.id_pago}` : `${op.id_operacion}-pago-${idx}`;
         const estadoDb = p.estado || op.estado;
         const estadoFinal = verificacionesLocales[idUnico] || verificacionesLocales[p.id_pago] || estadoDb || 'PENDIENTE';
+        const esAnulada = String(op.estado || '').toUpperCase() === 'ANULADA';
 
         list.push({
           id_pago_unico: idUnico,
@@ -90,6 +86,8 @@ export function Pagos() {
           referencia: p.referencia || p.referencia_bancaria || '',
           evidencia_url: urlEvidenciaCliente || (p.evidencia_url && p.evidencia_url !== 'None' ? p.evidencia_url : null),
           estado: estadoFinal,
+          estado_operacion: op.estado || 'PENDIENTE',
+          esAnulada: esAnulada,
           operacionCompleta: op,
           pagoIndex: idx,
           totalPagosOp: totalPagosOp
@@ -99,7 +97,6 @@ export function Pagos() {
     return list;
   }, [operaciones, verificacionesLocales]);
 
-  // Medios de pago únicos para el filtro
   const mediosDisponibles = useMemo(() => {
     const set = new Set();
     todosLosPagos.forEach((p) => {
@@ -108,7 +105,6 @@ export function Pagos() {
     return Array.from(set).sort();
   }, [todosLosPagos]);
 
-  // Filtrado de pagos
   const pagosFiltrados = useMemo(() => {
     return todosLosPagos.filter((p) => {
       if (busqueda.trim()) {
@@ -128,7 +124,7 @@ export function Pagos() {
     });
   }, [todosLosPagos, busqueda, fechaDesde, fechaHasta, medioFiltro]);
 
-  // KPIs
+  // KPIs CORREGIDOS: excluyen operaciones anuladas
   const { totalRecaudado, totalEfectivo, totalVirtual, cantEfectivo, cantVirtual } = useMemo(() => {
     let recaudado = 0;
     let efectivo = 0;
@@ -137,6 +133,9 @@ export function Pagos() {
     let cVi = 0;
 
     pagosFiltrados.forEach((p) => {
+      // FILTRO CLAVE: Saltar si la operación está anulada
+      if (p.esAnulada) return;
+
       const m = Number(p.monto || 0);
       recaudado += m;
       const esCash = (p.medio_pago || '').toLowerCase().includes('efectivo');
@@ -158,11 +157,15 @@ export function Pagos() {
     };
   }, [pagosFiltrados]);
 
+  // Contador para el badge de trazabilidad
+  const hayAnuladasEnFiltro = useMemo(() => {
+    return pagosFiltrados.some(p => p.esAnulada);
+  }, [pagosFiltrados]);
+
   const formatCurrency = (val) => {
     const num = Number(val || 0);
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-
 
   const limpiarFiltros = () => {
     setBusqueda('');
@@ -198,7 +201,6 @@ export function Pagos() {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* 1. ENCABEZADO Y ACCIONES */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
@@ -223,9 +225,7 @@ export function Pagos() {
         </div>
       </div>
 
-      {/* 2. TARJETAS DE KPIS SUPERIORES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total Recaudado */}
         <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/10">
             <Wallet className="h-6 w-6" />
@@ -238,12 +238,11 @@ export function Pagos() {
               {formatCurrency(totalRecaudado)}
             </p>
             <p className="mt-0.5 text-xs text-slate-400">
-              {pagosFiltrados.length} {pagosFiltrados.length === 1 ? 'pago registrado' : 'pagos registrados'}
+              {pagosFiltrados.filter(p => !p.esAnulada).length} {pagosFiltrados.filter(p => !p.esAnulada).length === 1 ? 'pago válido' : 'pagos válidos'}
             </p>
           </div>
         </div>
 
-        {/* Pagos en Efectivo */}
         <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-600/10">
             <Banknote className="h-6 w-6" />
@@ -261,7 +260,6 @@ export function Pagos() {
           </div>
         </div>
 
-        {/* Pagos Virtuales */}
         <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-600/10">
             <CreditCard className="h-6 w-6" />
@@ -280,10 +278,8 @@ export function Pagos() {
         </div>
       </div>
 
-      {/* 3. BARRA DE FILTROS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
-          {/* Buscador */}
           <div className="relative w-full flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -295,7 +291,6 @@ export function Pagos() {
             />
           </div>
 
-          {/* Fechas */}
           <div className="w-full flex-1 min-w-[250px]">
             <DateRangePicker
               fechaDesde={fechaDesde}
@@ -307,13 +302,12 @@ export function Pagos() {
             />
           </div>
 
-          {/* Selector de Medio */}
           <div className="relative w-full flex-1">
             <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <select
               value={medioFiltro}
               onChange={(e) => setMedioFiltro(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
+              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
             >
               <option value="">Todos los medios</option>
               {mediosDisponibles.map((m) => (
@@ -325,12 +319,11 @@ export function Pagos() {
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {/* Botón Limpiar */}
           {hayFiltrosActivos && (
             <button
               type="button"
               onClick={limpiarFiltros}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 cursor-pointer"
               title="Limpiar filtros"
             >
               <X className="h-4 w-4" />
@@ -339,49 +332,47 @@ export function Pagos() {
         </div>
       </div>
 
-      {/* 4. TABLA DE PAGOS (CONCILIACIÓN Y VERIFICACIÓN) */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto w-full">
           {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <RefreshCw className="h-8 w-8 animate-spin text-brand-orange" />
-            <p className="mt-3 text-sm font-semibold text-slate-700">Cargando pagos...</p>
-            <p className="text-xs text-slate-400">Consultando operaciones y concilaciones en el servidor</p>
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-sm font-semibold text-rose-600">{error}</p>
-            <button
-              type="button"
-              onClick={cargarDatos}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-            >
-              Reintentar
-            </button>
-          </div>
-        ) : pagosFiltrados.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400">
-              <Receipt className="h-6 w-6" />
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <RefreshCw className="h-8 w-8 animate-spin text-brand-orange" />
+              <p className="mt-3 text-sm font-semibold text-slate-700">Cargando pagos...</p>
+              <p className="text-xs text-slate-400">Consultando operaciones y conciliaciones en el servidor</p>
             </div>
-            <p className="mt-3 text-sm font-bold text-slate-800">No se encontraron pagos</p>
-            <p className="mt-1 text-xs text-slate-500 max-w-sm">
-              {hayFiltrosActivos
-                ? 'No hay registros que coincidan con los filtros aplicados. Intenta cambiar los criterios de búsqueda.'
-                : 'Aún no se han registrado operaciones de pago en el sistema.'}
-            </p>
-            {hayFiltrosActivos && (
+          ) : error ? (
+            <div className="p-8 text-center">
+              <p className="text-sm font-semibold text-rose-600">{error}</p>
               <button
                 type="button"
-                onClick={limpiarFiltros}
-                className="mt-4 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                onClick={cargarDatos}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 cursor-pointer"
               >
-                Limpiar filtros
+                Reintentar
               </button>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
+            </div>
+          ) : pagosFiltrados.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400">
+                <Receipt className="h-6 w-6" />
+              </div>
+              <p className="mt-3 text-sm font-bold text-slate-800">No se encontraron pagos</p>
+              <p className="mt-1 text-xs text-slate-500 max-w-sm">
+                {hayFiltrosActivos
+                  ? 'No hay registros que coincidan con los filtros aplicados. Intenta cambiar los criterios de búsqueda.'
+                  : 'Aún no se han registrado operaciones de pago en el sistema.'}
+              </p>
+              {hayFiltrosActivos && (
+                <button
+                  type="button"
+                  onClick={limpiarFiltros}
+                  className="mt-4 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          ) : (
             <table className="w-full min-w-[900px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -399,8 +390,7 @@ export function Pagos() {
               <tbody className="text-xs">
                 {pagosFiltrados.map((pago, index) => {
                   const esMismaOperacion = index > 0 && pagosFiltrados[index - 1].id_operacion === pago.id_operacion;
-                  const esPrimeraDelGrupo = index === 0 || pagosFiltrados[index - 1].id_operacion !== pago.id_operacion;
-                  
+
                   const urlFinal = pago.evidencia_url
                     ? pago.evidencia_url.startsWith('http')
                       ? pago.evidencia_url
@@ -415,24 +405,22 @@ export function Pagos() {
                   return (
                     <tr
                       key={pago.id_pago_unico}
-                      className={`group transition-colors hover:bg-slate-50/60 ${
-                        esMismaOperacion ? 'bg-slate-50 border-t-0' : 'border-t border-slate-200'
-                      }`}
+                      className={`group transition-colors hover:bg-slate-50/60 ${esMismaOperacion ? 'bg-slate-50 border-t-0' : 'border-t border-slate-200'
+                        } ${pago.esAnulada ? 'bg-rose-50/30' : ''}`}
                     >
-                      {/* 1. Fecha */}
                       <td className="py-3.5 pl-6 pr-3">
                         <div className="flex flex-col">
-                          <span className="font-semibold text-slate-900">{pago.fecha}</span>
+                          <span className={`font-semibold ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{pago.fecha}</span>
                           <span className="text-[11px] text-slate-400">
                             {pago.hora ? pago.hora.substring(0, 5) : '00:00'}
                           </span>
                         </div>
                       </td>
 
-                      {/* 2. Operación */}
                       <td className="px-3 py-3.5">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 font-semibold text-slate-800">
+                          <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold ${pago.esAnulada ? 'bg-slate-100 text-slate-400 line-through' : 'bg-slate-100 text-slate-800'
+                            }`}>
                             {pago.comprobante}
                           </span>
                           {pago.totalPagosOp > 1 && (
@@ -443,9 +431,8 @@ export function Pagos() {
                         </div>
                       </td>
 
-                      {/* 3. Cliente */}
                       <td className="px-3 py-3.5">
-                        <div className="max-w-[190px] truncate font-medium text-slate-900" title={pago.cliente}>
+                        <div className={`max-w-[190px] truncate font-medium ${pago.esAnulada ? 'text-slate-400' : 'text-slate-900'}`} title={pago.cliente}>
                           {pago.cliente}
                         </div>
                         <div className="text-[11px] text-slate-400">
@@ -453,22 +440,19 @@ export function Pagos() {
                         </div>
                       </td>
 
-                      {/* 4. Medio de Pago */}
                       <td className="px-3 py-3.5">
                         <div className="flex items-center gap-2">
                           {renderMedioIcon(pago.medio_pago)}
-                          <span className="font-semibold text-slate-800">
+                          <span className={`font-semibold ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                             {pago.medio_pago}
                           </span>
                         </div>
                       </td>
 
-                      {/* 5. Monto */}
-                      <td className="px-3 py-3.5 text-right font-bold text-slate-900 tabular-nums">
+                      <td className={`px-3 py-3.5 text-right font-bold tabular-nums ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                         {formatCurrency(pago.monto)}
                       </td>
 
-                      {/* 6. Referencia */}
                       <td className="px-3 py-3.5">
                         {pago.referencia ? (
                           <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
@@ -479,30 +463,34 @@ export function Pagos() {
                         )}
                       </td>
 
-                      {/* 7. Estado de Verificación */}
                       <td className="px-3 py-3.5 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${
-                            isVerificado
-                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
-                              : 'bg-amber-50 text-amber-700 ring-amber-600/20'
-                          }`}
-                        >
-                          {isVerificado ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3" />
-                              Verificado
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="h-3 w-3" />
-                              Pendiente
-                            </>
-                          )}
-                        </span>
+                        {pago.esAnulada ? (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                            <XCircle className="h-3 w-3" />
+                            Anulada
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${isVerificado
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                                : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                              }`}
+                          >
+                            {isVerificado ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3" />
+                                Verificado
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="h-3 w-3" />
+                                Pendiente
+                              </>
+                            )}
+                          </span>
+                        )}
                       </td>
 
-                      {/* 8. Comprobante Digital */}
                       <td className="px-3 py-3.5 text-center">
                         {(pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
                           <span className="text-slate-400">-</span>
@@ -513,7 +501,7 @@ export function Pagos() {
                               setSelectedPago(pago);
                               setDrawerAbierto(true);
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-100 hover:text-blue-700"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-100 hover:text-blue-700 cursor-pointer"
                             title="Ver evidencia"
                           >
                             <Eye className="h-4 w-4" />
@@ -524,7 +512,6 @@ export function Pagos() {
                         )}
                       </td>
 
-                      {/* 9. Acciones (Ver Detalle) */}
                       <td className="py-3.5 pl-3 pr-6 text-center">
                         <button
                           type="button"
@@ -532,7 +519,7 @@ export function Pagos() {
                             setSelectedPago(pago);
                             setDrawerAbierto(true);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 cursor-pointer"
                           title="Ver detalle del pago"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -544,28 +531,33 @@ export function Pagos() {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-        {/* Resumen al pie de la tabla */}
         {!loading && pagosFiltrados.length > 0 && (
           <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4 sm:flex-row sm:items-center sm:justify-between text-xs">
             <span className="text-slate-500">
               Mostrando <strong className="text-slate-800">{pagosFiltrados.length}</strong> de{' '}
               <strong className="text-slate-800">{todosLosPagos.length}</strong> pagos
             </span>
-            <div className="flex items-center gap-2">
-              <span className="font-bold uppercase tracking-wider text-slate-500">Total Filtrado:</span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
-                {formatCurrency(totalRecaudado)}
-              </span>
+            <div className="flex items-center gap-3">
+              {hayAnuladasEnFiltro && (
+                <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 flex items-center gap-1.5">
+                  <XCircle className="w-3.5 h-3.5" />
+                  Excluye {pagosFiltrados.filter(p => p.esAnulada).length} pago(s) anulado(s)
+                </span>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="font-bold uppercase tracking-wider text-slate-500">Total Filtrado:</span>
+                <span className="text-base font-black text-slate-900 tabular-nums">
+                  {formatCurrency(totalRecaudado)}
+                </span>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* 5. DRAWER ESPECIALIZADO DE DETALLE DE PAGO */}
       <PagoDetailDrawer
         selectedPago={drawerAbierto ? selectedPago : null}
         onClose={() => setDrawerAbierto(false)}

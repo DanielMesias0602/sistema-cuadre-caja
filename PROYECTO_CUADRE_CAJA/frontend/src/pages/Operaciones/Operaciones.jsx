@@ -6,12 +6,12 @@ import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
-  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon
+  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon, XCircle
 } from 'lucide-react';
 
 export function Operaciones() {
   const navigate = useNavigate();
-  
+
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -94,6 +94,13 @@ export function Operaciones() {
         </span>
       );
     }
+    if (st === 'ANULADA') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100">
+          <XCircle className="w-3 h-3" /> ANULADA
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
         <AlertCircle className="w-3 h-3" /> {st || 'REGISTRADO'}
@@ -115,6 +122,8 @@ export function Operaciones() {
     return true;
   });
 
+  const hayAnuladas = operacionesFiltradas.some(op => (op.estado || '').toUpperCase() === 'ANULADA');
+
   return (
     <div className="w-full space-y-6 animate-fade-in-up">
       {/* CABECERA */}
@@ -128,7 +137,7 @@ export function Operaciones() {
             Consulta, filtra y exporta todas las ventas registradas en el sistema.
           </p>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3">
           <button
             onClick={() => navigate('/operaciones/nueva')}
@@ -142,7 +151,6 @@ export function Operaciones() {
       {/* FILTROS */}
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
         <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
-          {/* Buscador */}
           <div className="relative w-full flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -154,7 +162,6 @@ export function Operaciones() {
             />
           </div>
 
-          {/* Fechas */}
           <div className="w-full flex-1 min-w-[250px]">
             <DateRangePicker
               fechaDesde={fechaDesde}
@@ -166,7 +173,6 @@ export function Operaciones() {
             />
           </div>
 
-          {/* Selector de Estado */}
           <div className="relative w-full flex-1">
             <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <select
@@ -184,7 +190,7 @@ export function Operaciones() {
         </div>
       </div>
 
-      {/* TABLA CON overflow-x-auto */}
+      {/* TABLA */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[900px]">
@@ -195,7 +201,7 @@ export function Operaciones() {
                 <th className="p-4">Comprobante</th>
                 <th className="p-4">Cliente</th>
                 <th className="p-4">Medios de Pago</th>
-                <th className="p-4">Referencia</th>
+                <th className="p-4">Estado</th>
                 <th className="p-4 text-right">Monto Total</th>
                 <th className="p-4 text-center">Acción</th>
               </tr>
@@ -213,18 +219,18 @@ export function Operaciones() {
                   </td>
                 </tr>
               ) : operacionesFiltradas.map((op) => {
-                // Buscar el primer pago con referencia
-                const pagoConReferencia = op.pagos && op.pagos.length > 0 
-                  ? op.pagos.find(p => p.referencia && p.referencia !== 'None') 
+                const pagoConReferencia = op.pagos && op.pagos.length > 0
+                  ? op.pagos.find(p => p.referencia && p.referencia !== 'None')
                   : null;
                 const referenciaFinal = pagoConReferencia?.referencia || '-';
+                const esAnulada = (op.estado || '').toUpperCase() === 'ANULADA';
 
                 return (
-                  <tr key={op.id_operacion} className="hover:bg-slate-50 transition-colors group">
+                  <tr key={op.id_operacion} className={`hover:bg-slate-50 transition-colors group ${esAnulada ? 'bg-rose-50/30' : ''}`}>
                     <td className="p-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <span className="text-sm font-semibold text-slate-900">{op.fecha}</span>
+                        <span className={`text-sm font-semibold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{op.fecha}</span>
                       </div>
                     </td>
 
@@ -234,10 +240,10 @@ export function Operaciones() {
 
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                        <FileText className={`w-5 h-5 flex-shrink-0 ${esAnulada ? 'text-slate-300' : 'text-slate-400'}`} />
                         <div className="flex flex-col">
                           <span className="text-xs text-slate-500 uppercase">{op.tipo_comprobante || 'DOC'}</span>
-                          <span className="text-sm font-bold text-slate-900">{op.serie}-{op.numero}</span>
+                          <span className={`text-sm font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{op.serie}-{op.numero}</span>
                         </div>
                       </div>
                     </td>
@@ -245,7 +251,7 @@ export function Operaciones() {
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <User className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <span className="text-sm font-medium text-slate-900 max-w-[200px] truncate" title={op.cliente || 'No registrado'}>
+                        <span className={`text-sm font-medium max-w-[200px] truncate ${esAnulada ? 'text-slate-400' : 'text-slate-900'}`} title={op.cliente || 'No registrado'}>
                           {op.cliente || 'No registrado'}
                         </span>
                       </div>
@@ -255,20 +261,22 @@ export function Operaciones() {
                       <div className="flex flex-col gap-1">
                         {op.pagos && op.pagos.length > 0 ? op.pagos.map((pago, i) => (
                           <div key={i} className="flex items-center gap-1.5">
-                            <CreditCard className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                            <span className="text-xs font-semibold text-slate-700">{pago.medio_pago || pago.nombre_medio || 'Efectivo'}:</span>
-                            <span className="text-xs font-bold text-slate-900">S/ {parseFloat(pago.monto).toFixed(2)}</span>
+                            <CreditCard className={`w-4 h-4 flex-shrink-0 ${esAnulada ? 'text-slate-300' : 'text-blue-600'}`} />
+                            <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400' : 'text-slate-700'}`}>{pago.medio_pago || pago.nombre_medio || 'Efectivo'}:</span>
+                            <span className={`text-xs font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>S/ {parseFloat(pago.monto).toFixed(2)}</span>
                           </div>
                         )) : <span className="text-xs text-slate-400">-</span>}
                       </div>
                     </td>
 
                     <td className="p-4">
-                      <span className="text-slate-700 text-sm font-mono">{referenciaFinal}</span>
+                      {getStatusBadge(op.estado)}
                     </td>
 
                     <td className="p-4 text-right whitespace-nowrap">
-                      <span className="text-lg font-bold text-brand-orange">{formatCurrency(op.monto)}</span>
+                      <span className={`text-lg font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-brand-orange'}`}>
+                        {formatCurrency(op.monto)}
+                      </span>
                     </td>
 
                     <td className="p-4 text-center">
@@ -286,18 +294,30 @@ export function Operaciones() {
             </tbody>
           </table>
         </div>
-        
+
         {operacionesFiltradas.length > 0 && (
-          <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+          <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-4">
+            {/* TRAZABILIDAD: Nota explicativa */}
+            {hayAnuladas && (
+              <span className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                El total excluye operaciones anuladas
+              </span>
+            )}
             <div className="text-right">
               <span className="text-sm font-bold text-slate-600 mr-2 uppercase">Total Conciliado:</span>
-              <span className="text-xl font-black text-slate-900">{formatCurrency(operacionesFiltradas.reduce((sum, op) => sum + Number(op.monto), 0))}</span>
+              <span className="text-xl font-black text-slate-900">
+                {formatCurrency(
+                  operacionesFiltradas
+                    .filter(op => (op.estado || '').toUpperCase() !== 'ANULADA')
+                    .reduce((sum, op) => sum + Number(op.monto), 0)
+                )}
+              </span>
             </div>
           </div>
         )}
       </div>
 
-      {/* PANEL LATERAL DE DETALLE */}
       <OperacionDetailDrawerPremium op={drawerAbierto ? selectedOp : null} onClose={() => setDrawerAbierto(false)} />
     </div>
   );

@@ -18,50 +18,10 @@ export const createCierreCaja = async ({
 
   const result = await executor.query(
     `INSERT INTO cierre_caja
-      (
-        id_usuario_responsable,
-        fecha,
-        turno,
-        total_ingresos,
-        total_no_efectivo,
-        efectivo_esperado,
-        total_salidas,
-        efectivo_despues_salidas,
-        efectivo_fisico,
-        diferencia,
-        estado,
-        fecha_fin
-      )
-     VALUES
-      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-     RETURNING
-       id_cierre,
-       id_usuario_responsable,
-       fecha,
-       turno,
-       total_ingresos,
-       total_no_efectivo,
-       efectivo_esperado,
-       total_salidas,
-       efectivo_despues_salidas,
-       efectivo_fisico,
-       diferencia,
-       estado,
-       fecha_fin`,
-    [
-      id_usuario_responsable,
-      fecha,
-      turno,
-      total_ingresos,
-      total_no_efectivo,
-      efectivo_esperado,
-      total_salidas,
-      efectivo_despues_salidas,
-      efectivo_fisico,
-      diferencia,
-      estado,
-      fecha_fin
-    ]
+      (id_usuario_responsable, fecha, turno, total_ingresos, total_no_efectivo, efectivo_esperado, total_salidas, efectivo_despues_salidas, efectivo_fisico, diferencia, estado, fecha_fin)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     RETURNING id_cierre, id_usuario_responsable, fecha, turno, total_ingresos, total_no_efectivo, efectivo_esperado, total_salidas, efectivo_despues_salidas, efectivo_fisico, diferencia, estado, fecha_fin`,
+    [id_usuario_responsable, fecha, turno, total_ingresos, total_no_efectivo, efectivo_esperado, total_salidas, efectivo_despues_salidas, efectivo_fisico, diferencia, estado, fecha_fin]
   );
 
   return result.rows[0];
@@ -69,8 +29,8 @@ export const createCierreCaja = async ({
 
 export const findParticipantesCierre = async (idCierre) => {
   const result = await query(
-    `SELECT 
-       u.id_usuario, 
+    `SELECT
+       u.id_usuario,
        u.nombres || ' ' || u.apellidos AS nombre_completo,
        MIN(o.fecha_registro) AS primera_operacion,
        MAX(o.fecha_registro) AS ultima_operacion,
@@ -88,19 +48,10 @@ export const findParticipantesCierre = async (idCierre) => {
 export const findCierreCajaById = async (idCierre) => {
   const result = await query(
     `SELECT
-       c.id_cierre,
-       c.id_usuario_responsable,
-       TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
-       c.turno,
-       c.total_ingresos,
-       c.total_no_efectivo,
-       c.efectivo_esperado,
-       c.total_salidas,
-       c.efectivo_despues_salidas,
-       c.efectivo_fisico,
-       c.diferencia,
-       c.estado,
-       c.fecha_fin,
+       c.id_cierre, c.id_usuario_responsable, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
+       c.turno, c.total_ingresos, c.total_no_efectivo, c.efectivo_esperado,
+       c.total_salidas, c.efectivo_despues_salidas, c.efectivo_fisico, c.diferencia,
+       c.estado, c.fecha_fin,
        u.nombres || ' ' || u.apellidos AS responsable
      FROM cierre_caja c
      INNER JOIN usuario u ON u.id_usuario = c.id_usuario_responsable
@@ -118,25 +69,15 @@ export const findCierreCajaById = async (idCierre) => {
 export const findCierresCaja = async () => {
   const result = await query(
     `SELECT
-       c.id_cierre,
-       c.id_usuario_responsable,
-       TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
-       c.turno,
-       c.total_ingresos,
-       c.total_no_efectivo,
-       c.efectivo_esperado,
-       c.total_salidas,
-       c.efectivo_despues_salidas,
-       c.efectivo_fisico,
-       c.diferencia,
-       c.estado,
-       c.fecha_fin,
+       c.id_cierre, c.id_usuario_responsable, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
+       c.turno, c.total_ingresos, c.total_no_efectivo, c.efectivo_esperado,
+       c.total_salidas, c.efectivo_despues_salidas, c.efectivo_fisico, c.diferencia,
+       c.estado, c.fecha_fin,
        u.nombres || ' ' || u.apellidos AS responsable
      FROM cierre_caja c
      INNER JOIN usuario u ON u.id_usuario = c.id_usuario_responsable
      ORDER BY c.fecha DESC, c.id_cierre DESC`
   );
-
   return result.rows;
 };
 
@@ -150,6 +91,7 @@ export const getTotalesParaCierre = async (fecha, turno) => {
      JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
      WHERE o.fecha = $1
        AND o.id_cierre IS NULL
+       AND o.estado != 'ANULADA' -- <-- NUEVO: Excluimos anuladas del cálculo
        AND (
          (UPPER($2) = 'MAÑANA' AND (o.fecha_registro AT TIME ZONE 'America/Lima')::time <= '14:00:00'::time)
          OR

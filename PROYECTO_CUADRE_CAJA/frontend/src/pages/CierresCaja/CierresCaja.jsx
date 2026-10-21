@@ -71,8 +71,15 @@ export function CierresCaja() {
 
   const kpis = useMemo(() => {
     const totalCierres = cierresFiltrados.length;
-    const efectivoEsperadoTotal = cierresFiltrados.reduce((acc, c) => acc + (c.efectivo_esperado || 0), 0);
-    const diferenciaAcumulada = cierresFiltrados.reduce((acc, c) => acc + (c.diferencia || 0), 0);
+    // CORRECCIÓN: Usamos Number() para asegurar que sumamos números, no texto
+    const efectivoEsperadoTotal = cierresFiltrados.reduce(
+      (acc, c) => acc + Number(c.efectivo_esperado || 0),
+      0
+    );
+    const diferenciaAcumulada = cierresFiltrados.reduce(
+      (acc, c) => acc + Number(c.diferencia || 0),
+      0
+    );
 
     return {
       totalCierres,
@@ -86,10 +93,10 @@ export function CierresCaja() {
       const hoy = new Date().toLocaleDateString('en-CA');
       const res = await api.get(`/cierres-caja/pre-calculo?fecha=${hoy}&turno=${turno}`);
       const data = res.data.data;
-      setEfectivoEsperado(data.efectivo_esperado || 0);
+      setEfectivoEsperado(Number(data.efectivo_esperado || 0));
       setPreCalculo({
-        total_ingresos: data.total_ingresos || 0,
-        total_no_efectivo: data.total_no_efectivo || 0
+        total_ingresos: Number(data.total_ingresos || 0),
+        total_no_efectivo: Number(data.total_no_efectivo || 0)
       });
     } catch (err) {
       console.error('Error al calcular efectivo esperado:', err);
@@ -108,18 +115,14 @@ export function CierresCaja() {
     const nuevoTurnosDeshabilitados = { mañana: false, tarde: false };
     const nuevoMotivo = { mañana: '', tarde: '' };
 
-    // Validación por horario
     if (currentHour < 14) {
-      // Antes de las 2 PM: Mañana habilitado, Tarde deshabilitado
       nuevoTurnosDeshabilitados.tarde = true;
       nuevoMotivo.tarde = 'El turno Tarde comienza a las 2:00 PM';
     } else {
-      // Después de las 2 PM (currentHour >= 14): Mañana deshabilitado, Tarde habilitado sin límite
       nuevoTurnosDeshabilitados.mañana = true;
       nuevoMotivo.mañana = 'El turno Mañana finalizó a las 2:00 PM';
     }
 
-    // Validación de cierre duplicado (sobreescribe si ya fue cerrado hoy)
     if (cierreMañana) {
       nuevoTurnosDeshabilitados.mañana = true;
       nuevoMotivo.mañana = 'Este turno ya fue cerrado';
@@ -133,7 +136,6 @@ export function CierresCaja() {
     setTurnosDeshabilitados(nuevoTurnosDeshabilitados);
     setMotivoDeshabilitado(nuevoMotivo);
 
-    // Sugerencia de turno automática
     let turnoSugerido = '';
     if (currentHour < 14 && !nuevoTurnosDeshabilitados.mañana) {
       turnoSugerido = 'Mañana';
@@ -404,67 +406,71 @@ export function CierresCaja() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {cierresFiltrados.length > 0 ? cierresFiltrados.map((cierre) => (
-                  <tr key={cierre.id_cierre} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 font-semibold text-slate-900">
-                      {cierre.fecha ? (cierre.fecha.includes('T') ? new Date(cierre.fecha).toLocaleDateString('es-PE') : new Date(cierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')) : '-'}
-                    </td>
-                    <td className="p-4">
-                      <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold ${cierre.turno === 'Mañana'
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-indigo-50 text-indigo-700'
-                        }`}>
-                        {cierre.turno === 'Mañana' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                        {cierre.turno}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-slate-400" />
-                        <span className="font-medium text-slate-900">{cierre.responsable || 'No asignado'}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.total_ingresos)}</td>
-                    <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.efectivo_esperado)}</td>
-                    <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.efectivo_fisico)}</td>
-                    <td className="p-4 text-right">
-                      {cierre.diferencia === 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
-                          <CheckCircle className="h-3 w-3" />
-                          {formatCurrency(cierre.diferencia)}
+                {cierresFiltrados.length > 0 ? cierresFiltrados.map((cierre) => {
+                  // CORRECCIÓN: Convertimos diferencia a número para comparaciones correctas
+                  const difNum = Number(cierre.diferencia || 0);
+                  return (
+                    <tr key={cierre.id_cierre} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 font-semibold text-slate-900">
+                        {cierre.fecha ? (cierre.fecha.includes('T') ? new Date(cierre.fecha).toLocaleDateString('es-PE') : new Date(cierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')) : '-'}
+                      </td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold ${cierre.turno === 'Mañana'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-indigo-50 text-indigo-700'
+                          }`}>
+                          {cierre.turno === 'Mañana' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                          {cierre.turno}
                         </span>
-                      ) : cierre.diferencia < 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700">
-                          <AlertTriangle className="h-3 w-3" />
-                          {formatCurrency(cierre.diferencia)}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
-                          <AlertCircle className="h-3 w-3" />
-                          {formatCurrency(cierre.diferencia)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const res = await api.get(`/cierres-caja/${cierre.id_cierre}`);
-                            setSelectedCierre(res.data.data);
-                          } catch (err) {
-                            console.error("Error al traer detalle", err);
-                            setSelectedCierre(cierre);
-                          }
-                          setDrawerAbierto(true);
-                        }}
-                        className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer active:scale-95"
-                      >
-                        Ver Detalle
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-slate-400" />
+                          <span className="font-medium text-slate-900">{cierre.responsable || 'No asignado'}</span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.total_ingresos)}</td>
+                      <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.efectivo_esperado)}</td>
+                      <td className="p-4 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.efectivo_fisico)}</td>
+                      <td className="p-4 text-right">
+                        {difNum === 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
+                            <CheckCircle className="h-3 w-3" />
+                            {formatCurrency(difNum)}
+                          </span>
+                        ) : difNum < 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700">
+                            <AlertTriangle className="h-3 w-3" />
+                            {formatCurrency(difNum)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                            <AlertCircle className="h-3 w-3" />
+                            {formatCurrency(difNum)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-center">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await api.get(`/cierres-caja/${cierre.id_cierre}`);
+                              setSelectedCierre(res.data.data);
+                            } catch (err) {
+                              console.error("Error al traer detalle", err);
+                              setSelectedCierre(cierre);
+                            }
+                            setDrawerAbierto(true);
+                          }}
+                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer active:scale-95"
+                        >
+                          Ver Detalle
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }) : (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-slate-500">
                       No hay cierres de caja registrados

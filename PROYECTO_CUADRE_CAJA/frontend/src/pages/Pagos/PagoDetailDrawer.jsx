@@ -12,7 +12,9 @@ import {
   ShieldCheck,
   Image as ImageIcon,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 export function PagoDetailDrawer({ selectedPago, onClose }) {
@@ -34,7 +36,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
       setEstadoLocal(null);
       return;
     }
-    // Solo reseteamos el estado local cuando el panel se acaba de abrir (no en cada actualización de selectedPago)
     if (!justOpened.current) {
       justOpened.current = true;
       setEstadoLocal(selectedPago?.estado || 'PENDIENTE');
@@ -73,6 +74,9 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
     String(estadoActual).toUpperCase() === 'VERIFICADA' ||
     String(estadoActual).toUpperCase() === 'COMPLETADO';
 
+  // NUEVO: Detectar si la operación fue anulada
+  const esOperacionAnulada = pago.esAnulada || String(pago.estado_operacion || '').toUpperCase() === 'ANULADA';
+
   const urlEvidencia = pago.evidencia_url
     ? pago.evidencia_url.startsWith('http')
       ? pago.evidencia_url
@@ -107,9 +111,8 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
       {/* Fondo oscuro general con desenfoque */}
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
-          open ? 'opacity-100' : 'opacity-0'
-        }`}
+        className={`absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'
+          }`}
       />
 
       {/* VISOR DE EVIDENCIA EN SPLIT-SCREEN (PANEL IZQUIERDO) */}
@@ -118,7 +121,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
           className="fixed inset-y-0 left-0 z-30 flex flex-col items-center justify-center bg-slate-950/95 border-r border-slate-700 p-3 sm:p-6 backdrop-blur-md select-none w-full lg:right-[500px] lg:w-auto animate-in fade-in duration-200"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Botón flotante para cerrar el visor de imagen */}
           <button
             type="button"
             onClick={() => {
@@ -131,7 +133,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
             <X className="h-5 w-5" />
           </button>
 
-          {/* Badge de zoom superior izquierdo */}
           <button
             type="button"
             onClick={() => setZoom(!zoom)}
@@ -150,19 +151,16 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
             )}
           </button>
 
-          {/* Contenedor scrolleable que adapta la imagen al panel izquierdo */}
           <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
             <img
               src={urlEvidencia}
               alt="Evidencia del Pago"
               onClick={() => setZoom(!zoom)}
-              className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-200 ease-out ${
-                zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'
-              }`}
+              className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-200 ease-out ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'
+                }`}
             />
           </div>
 
-          {/* Texto sutil en la parte inferior */}
           <p className="mt-2 text-xs font-medium text-slate-400">
             {zoom ? 'Haz clic en la imagen para alejar' : 'Haz clic en la imagen para hacer zoom'}
           </p>
@@ -173,38 +171,34 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
       <aside
         role="dialog"
         aria-modal="true"
-        className={`absolute inset-y-0 right-0 z-30 flex w-full max-w-[500px] flex-col bg-white text-slate-900 shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`absolute inset-y-0 right-0 z-30 flex w-full max-w-[500px] flex-col bg-white text-slate-900 shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
-        {/* Cabecera del Pago */}
         <header className="border-b border-slate-100 px-6 pb-6 pt-5 sm:px-8">
           <div className="flex items-center justify-between">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
-                isVerificado
-                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
-                  : 'bg-amber-50 text-amber-700 ring-amber-600/20'
-              }`}
-            >
-              {isVerificado ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  PAGO VERIFICADO
-                </>
-              ) : (
-                <>
-                  <Clock className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  PENDIENTE DE CONCILIACIÓN
-                </>
-              )}
-            </span>
+            {/* BADGE SUPERIOR: Cambia según si la operación está anulada o no */}
+            {esOperacionAnulada ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-rose-50 text-rose-700 ring-rose-600/20">
+                <XCircle className="h-3.5 w-3.5" strokeWidth={2.5} />
+                OPERACIÓN ANULADA
+              </span>
+            ) : isVerificado ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-600/20">
+                <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.5} />
+                PAGO VERIFICADO
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-600/20">
+                <Clock className="h-3.5 w-3.5" strokeWidth={2.5} />
+                PENDIENTE DE CONCILIACIÓN
+              </span>
+            )}
 
             <button
               ref={closeRef}
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-orange"
+              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-orange cursor-pointer"
             >
               <X className="h-5 w-5" />
               <span className="sr-only">Cerrar panel</span>
@@ -224,15 +218,13 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
           <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">
             Monto de este Pago
           </p>
-          <p className="mt-1 text-4xl font-black tracking-tight text-brand-orange tabular-nums">
+          <p className={`mt-1 text-4xl font-black tracking-tight tabular-nums ${esOperacionAnulada ? 'text-slate-400 line-through' : 'text-brand-orange'}`}>
             {formatCurrency(pago.monto)}
           </p>
         </header>
 
-        {/* Contenido en Scroll */}
         <div className="flex-1 overflow-y-auto bg-slate-50/60 px-6 py-6 sm:px-8">
           <div className="flex flex-col gap-5">
-            {/* TARJETA 1: INFORMACIÓN DEL MEDIO Y REFERENCIA */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <Receipt className="h-4 w-4 text-slate-400" />
@@ -244,7 +236,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
                   <span className="text-xs text-slate-500">Medio de Pago</span>
                   <div className="flex items-center gap-2">
                     {renderMedioIcon(pago.medio_pago)}
-                    <span className="text-sm font-bold text-slate-900">{pago.medio_pago}</span>
+                    <span className={`text-sm font-bold ${esOperacionAnulada ? 'text-slate-400' : 'text-slate-900'}`}>{pago.medio_pago}</span>
                   </div>
                 </div>
 
@@ -257,14 +249,14 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
 
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <span className="text-xs text-slate-500">Comprobante Vinculado</span>
-                  <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800">
+                  <span className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ${esOperacionAnulada ? 'bg-rose-50 text-rose-700 line-through' : 'bg-slate-100 text-slate-800'}`}>
                     {pago.comprobante}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <span className="text-xs text-slate-500">Cliente</span>
-                  <span className="max-w-[230px] truncate text-right text-xs font-semibold text-slate-900">
+                  <span className={`max-w-[230px] truncate text-right text-xs font-semibold ${esOperacionAnulada ? 'text-slate-400' : 'text-slate-900'}`}>
                     {pago.cliente}
                   </span>
                 </div>
@@ -279,7 +271,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
               </div>
             </section>
 
-            {/* TARJETA 2: EVIDENCIA ADJUNTA (COMPROBANTE DIGITAL) */}
             {(pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
               <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
                 <div className="flex items-start gap-3">
@@ -312,7 +303,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
 
                 {urlEvidencia ? (
                   <div className="space-y-3">
-                    {/* Miniatura de imagen fija h-40 object-cover con botón de zoom */}
                     <div
                       onClick={() => {
                         setIsImageOpen(true);
@@ -350,7 +340,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
                         setIsImageOpen(true);
                         setZoom(false);
                       }}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 active:scale-98"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 active:scale-98 cursor-pointer"
                     >
                       <ZoomIn className="h-4 w-4 text-brand-orange" />
                       Comparar en Pantalla Dividida
@@ -370,13 +360,24 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
               </section>
             )}
 
-            {/* TARJETA 3: ESTADO DE CONCILIACIÓN */}
+            {/* TARJETA 3: ESTADO DE CONCILIACIÓN (CORREGIDA) */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <ShieldCheck className="h-4 w-4 text-slate-400" />
                 Estado de Conciliación
               </h3>
-              {isVerificado && (pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
+
+              {esOperacionAnulada ? (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mt-2">
+                  <p className="text-xs font-semibold text-rose-800 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Operación Anulada
+                  </p>
+                  <p className="text-[11px] text-rose-700 mt-1">
+                    Este pago pertenece a un comprobante que fue anulado. El dinero no afecta al cierre de caja actual.
+                  </p>
+                </div>
+              ) : isVerificado && (pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-2">
                   <p className="text-xs font-semibold text-blue-800 flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" />
@@ -397,7 +398,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
           </div>
         </div>
 
-        {/* Pie de Panel con Acciones */}
         <footer className="flex flex-col gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
           <div className="rounded-xl bg-blue-50 p-3 text-xs text-blue-800 border border-blue-200 flex items-start gap-2">
             <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -407,7 +407,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="h-11 w-full rounded-xl bg-slate-100 text-xs font-bold text-slate-700 transition hover:bg-slate-200"
+            className="h-11 w-full rounded-xl bg-slate-100 text-xs font-bold text-slate-700 transition hover:bg-slate-200 cursor-pointer"
           >
             Cerrar
           </button>
