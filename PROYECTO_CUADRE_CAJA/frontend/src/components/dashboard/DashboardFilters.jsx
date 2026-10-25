@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, Calendar, Filter, RotateCcw, ChevronDown } from 'lucide-react';
+import { DateRangePicker } from '../ui/DateRangePicker';
 
 export function DashboardFilters({ filters, onFilterChange, onReset }) {
   const [expandidoMovil, setExpandidoMovil] = useState(false);
@@ -15,8 +16,9 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
     onFilterChange({ fecha_desde: '', fecha_hasta: '' });
   };
 
-  const hayFiltrosActivos =
-    filters.search || filters.fecha_desde || filters.turno || filters.estado;
+  const hayFiltrosActivos = Boolean(
+    filters.search || filters.fecha_desde || filters.fecha_hasta || filters.turno || filters.estado
+  );
 
   return (
     <div className="bg-white rounded-2xl shadow-xs border border-gray-100 p-4 sm:p-5 mb-4 sm:mb-6">
@@ -77,24 +79,17 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
               Rango de fechas
             </label>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 sm:px-3 h-10 flex-1 min-w-0">
-                <Calendar className="text-slate-400 w-4 h-4 flex-shrink-0" />
-                <input
-                  type="date"
-                  value={filters.fecha_desde || ''}
-                  onChange={(e) => onFilterChange({ fecha_desde: e.target.value })}
-                  className="flex-1 min-w-0 border-0 bg-transparent outline-none text-xs sm:text-sm text-slate-700 focus:ring-0 cursor-pointer"
-                />
-                <span className="text-slate-400 flex-shrink-0">-</span>
-                <input
-                  type="date"
-                  value={filters.fecha_hasta || ''}
-                  onChange={(e) => onFilterChange({ fecha_hasta: e.target.value })}
-                  className="flex-1 min-w-0 border-0 bg-transparent outline-none text-xs sm:text-sm text-slate-700 focus:ring-0 cursor-pointer"
+              <div className="flex-1 min-w-[240px]">
+                <DateRangePicker
+                  fechaDesde={filters.fecha_desde}
+                  fechaHasta={filters.fecha_hasta}
+                  onChange={({ fechaDesde, fechaHasta }) =>
+                    onFilterChange({ fecha_desde: fechaDesde, fecha_hasta: fechaHasta })
+                  }
                 />
               </div>
 
-              <div className="flex items-center bg-slate-100 rounded-lg p-1 w-full sm:w-auto min-w-[140px]">
+              <div className="flex items-center bg-slate-100 rounded-lg p-1 w-full sm:w-auto min-w-[140px] h-[42px]">
                 <button
                   type="button"
                   onClick={setHoy}

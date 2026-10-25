@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator, ChevronDown, ChevronUp, X } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
 import api from '../../../lib/api';
+import { SingleDatePicker } from '../../../components/ui/SingleDatePicker';
 
 const formatPEN = (val) => {
   const num = Number(val || 0);
@@ -158,6 +159,21 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
       const ocrResult = response.data?.data || response.data;
       setOcrData(ocrResult);
       const datos = ocrResult?.datos_extraidos || {};
+
+      // --- SALVAVIDAS MATEMÁTICO ---
+      let igvFinal = datos.igv;
+      let opGravadaFinal = datos.op_gravada;
+
+      // Si el OCR falló en el IGV pero tenemos el Total y la Op. Gravada
+      if ((!igvFinal || Number(igvFinal) === 0) && datos.monto && opGravadaFinal) {
+        igvFinal = Number(datos.monto) - Number(opGravadaFinal);
+      }
+      // Si el OCR falló en la Op. Gravada pero tenemos el Total y el IGV
+      if ((!opGravadaFinal || Number(opGravadaFinal) === 0) && datos.monto && igvFinal) {
+        opGravadaFinal = Number(datos.monto) - Number(igvFinal);
+      }
+      // ------------------------------
+
       const nuevo = {
         ...formData,
         tipo_comprobante: datos.tipo_comprobante || '',
@@ -169,8 +185,9 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         cliente: datos.cliente || '',
         producto: '',
         monto: datos.monto ? String(datos.monto) : '',
-        igv: datos.igv ? String(datos.igv) : '',
-        op_gravada: datos.op_gravada ? String(datos.op_gravada) : '',
+        // Aplicamos los valores finales (con el salvavidas aplicado)
+        igv: igvFinal ? Number(igvFinal).toFixed(2) : '',
+        op_gravada: opGravadaFinal ? Number(opGravadaFinal).toFixed(2) : '',
         efectivo: datos.efectivo ? String(datos.efectivo) : '',
         moneda: datos.moneda || 'PEN',
         medio_pago: datos.medio_pago || '',
@@ -178,6 +195,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         evidencia: archivo,
         previewUrl: urlRef.current,
       };
+
       setFormData(nuevo);
       onDataChange(nuevo);
       setLoading(false);
@@ -303,9 +321,8 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                   <img
                     src={imagenPreview}
                     alt="Comprobante"
-                    className={`w-full h-auto rounded-lg border border-slate-200 object-contain transition-all ${
-                      verImagenCompleta ? 'max-h-[80vh]' : 'max-h-[200px] sm:max-h-[60vh]'
-                    }`}
+                    className={`w-full h-auto rounded-lg border border-slate-200 object-contain transition-all ${verImagenCompleta ? 'max-h-[80vh]' : 'max-h-[200px] sm:max-h-[60vh]'
+                      }`}
                   />
                   {!verImagenCompleta && (
                     <button
@@ -516,12 +533,10 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
                 Fecha *
               </label>
-              <input
-                type="date"
-                name="fecha"
+              <SingleDatePicker
                 value={formData.fecha}
-                onChange={(e) => handleChange('fecha', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                onChange={(nuevaFecha) => handleChange('fecha', nuevaFecha)}
+                placeholder="Seleccionar fecha"
               />
             </div>
 

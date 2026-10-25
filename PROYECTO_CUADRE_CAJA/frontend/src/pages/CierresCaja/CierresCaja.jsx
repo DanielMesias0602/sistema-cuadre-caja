@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../lib/api';
-import { Plus, Calendar, User, Wallet, AlertCircle, CheckCircle, RefreshCw, Search, Lock, X, Sun, Moon, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Plus, Calendar, User, Wallet, AlertCircle, CheckCircle, RefreshCw, Search, Lock, X, Sun, Moon, ArrowRight, AlertTriangle, ChevronDown } from 'lucide-react';
 import { CierreDetailDrawer } from '../../components/caja/CierreDetailDrawer';
+import { DateRangePicker } from '../../components/ui/DateRangePicker';
+import { SingleDatePicker } from '../../components/ui/SingleDatePicker';
 
 export function CierresCaja() {
   const { user } = useAuth();
@@ -22,6 +24,14 @@ export function CierresCaja() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [turnoFiltro, setTurnoFiltro] = useState('');
+
+  const hayFiltrosActivos = Boolean(busqueda || fechaDesde || fechaHasta || turnoFiltro);
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFechaDesde('');
+    setFechaHasta('');
+    setTurnoFiltro('');
+  };
 
   const [formCierre, setFormCierre] = useState({
     fecha: new Date().toLocaleDateString('en-CA'),
@@ -203,13 +213,6 @@ export function CierresCaja() {
     }
   };
 
-  const limpiarFiltros = () => {
-    setBusqueda('');
-    setFechaDesde('');
-    setFechaHasta('');
-    setTurnoFiltro('');
-  };
-
   const nombreResponsable = user ? `${user.nombres || ''} ${user.apellidos || ''}`.trim() : 'Usuario autenticado';
 
   return (
@@ -313,59 +316,53 @@ export function CierresCaja() {
 
       {/* FILTROS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Filtrar por responsable..."
-              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
 
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+          <div className="w-full lg:w-[320px] flex-shrink-0">
+            <DateRangePicker
+              fechaDesde={fechaDesde}
+              fechaHasta={fechaHasta}
+              onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                setFechaDesde(newDesde);
+                setFechaHasta(newHasta);
+              }}
             />
           </div>
 
-          <div className="relative">
-            <Calendar className="pointer-events-none absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
-            />
-          </div>
-
-          <div className="flex gap-2">
+          <div className="relative w-full lg:w-[180px] flex-shrink-0">
             <select
               value={turnoFiltro}
               onChange={(e) => setTurnoFiltro(e.target.value)}
-              className="h-10 sm:h-12 flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-3 sm:px-4 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange cursor-pointer"
+              className="w-full h-[42px] px-3 pr-9 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los turnos</option>
               <option value="Mañana">Mañana</option>
               <option value="Tarde">Tarde</option>
             </select>
-            {(busqueda || fechaDesde || fechaHasta || turnoFiltro) && (
-              <button
-                type="button"
-                onClick={limpiarFiltros}
-                className="h-10 sm:h-12 w-10 sm:w-12 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition flex-shrink-0"
-                title="Limpiar filtros"
-              >
-                <X className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
-            )}
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           </div>
+
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
+              title="Limpiar filtros"
+            >
+              <X className="h-4 w-4" />
+              <span className="lg:hidden">Limpiar filtros</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -580,16 +577,13 @@ export function CierresCaja() {
                     <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 sm:mb-2">
                       Fecha del cierre
                     </label>
-                    <input
-                      type="date"
+                    <SingleDatePicker
                       value={formCierre.fecha}
-                      max={new Date().toLocaleDateString('en-CA')}
-                      onChange={(e) => {
-                        const nuevaFecha = e.target.value;
+                      onChange={(nuevaFecha) => {
                         setFormCierre({ ...formCierre, fecha: nuevaFecha, turno: '' });
                         recalcularTurnosDisponibles(nuevaFecha);
                       }}
-                      className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      placeholder="Seleccionar fecha del cierre"
                     />
                   </div>
 

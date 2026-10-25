@@ -6,7 +6,7 @@ import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
-  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon, XCircle
+  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon, XCircle, X
 } from 'lucide-react';
 
 export function Operaciones() {
@@ -43,6 +43,13 @@ export function Operaciones() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFechaDesde('');
+    setFechaHasta('');
+    setEstadoFiltro('');
   };
 
   const formatCurrency = (val) => {
@@ -125,6 +132,7 @@ export function Operaciones() {
     return true;
   });
 
+  const hayFiltrosActivos = busqueda || fechaDesde || fechaHasta || estadoFiltro;
   const hayAnuladas = operacionesFiltradas.some(op => (op.estado || '').toUpperCase() === 'ANULADA');
 
   return (
@@ -151,19 +159,19 @@ export function Operaciones() {
 
       {/* FILTROS */}
       <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200">
-        <div className="flex flex-col lg:flex-row items-center gap-3 sm:gap-4 w-full">
-          <div className="relative w-full flex-1">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
+          <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Buscar por comprobante o cliente..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="w-full h-10 sm:h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange"
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
 
-          <div className="w-full flex-1 min-w-0">
+          <div className="w-full lg:w-[320px] flex-shrink-0">
             <DateRangePicker
               fechaDesde={fechaDesde}
               fechaHasta={fechaHasta}
@@ -174,12 +182,12 @@ export function Operaciones() {
             />
           </div>
 
-          <div className="relative w-full flex-1">
+          <div className="relative w-full lg:w-[180px] flex-shrink-0">
             <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <select
               value={estadoFiltro}
               onChange={e => setEstadoFiltro(e.target.value)}
-              className="w-full h-10 sm:h-11 pl-10 pr-9 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
+              className="w-full h-[42px] pl-10 pr-9 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los estados</option>
               <option value="PAGADA">Pagadas</option>
@@ -188,6 +196,18 @@ export function Operaciones() {
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           </div>
+
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto"
+              title="Limpiar filtros"
+            >
+              <X className="h-4 w-4" />
+              <span className="lg:hidden">Limpiar filtros</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -203,10 +223,6 @@ export function Operaciones() {
               No se encontraron operaciones con los filtros seleccionados.
             </div>
           ) : operacionesFiltradas.map((op) => {
-            const pagoConReferencia = op.pagos && op.pagos.length > 0
-              ? op.pagos.find(p => p.referencia && p.referencia !== 'None')
-              : null;
-            const referenciaFinal = pagoConReferencia?.referencia || '-';
             const esAnulada = (op.estado || '').toUpperCase() === 'ANULADA';
             const hayPagoNoEfectivo = Array.isArray(op.pagos) && op.pagos.some((p) => {
               const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();
@@ -279,6 +295,7 @@ export function Operaciones() {
 
         {/* DESKTOP: tabla */}
         <div className="hidden md:block overflow-x-auto">
+          {/* ... (La tabla de escritorio se mantiene igual) ... */}
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
@@ -307,10 +324,6 @@ export function Operaciones() {
                   </td>
                 </tr>
               ) : operacionesFiltradas.map((op) => {
-                const pagoConReferencia = op.pagos && op.pagos.length > 0
-                  ? op.pagos.find(p => p.referencia && p.referencia !== 'None')
-                  : null;
-                const referenciaFinal = pagoConReferencia?.referencia || '-';
                 const esAnulada = (op.estado || '').toUpperCase() === 'ANULADA';
                 const hayPagoNoEfectivo = Array.isArray(op.pagos) && op.pagos.some((p) => {
                   const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();

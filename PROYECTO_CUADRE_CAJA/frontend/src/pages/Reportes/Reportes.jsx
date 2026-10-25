@@ -21,9 +21,7 @@ export function Reportes() {
 
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-  
-  // NUEVO ESTADO: Para el selector de agrupación (por defecto 'day')
-  const [agruparPor, setAgruparPor] = useState('day'); 
+  const [agruparPor, setAgruparPor] = useState('day');
 
   useEffect(() => {
     cargarDatos();
@@ -66,7 +64,7 @@ export function Reportes() {
     });
   };
 
-  // --- EXPORTACIÓN TABULAR A PDF (INTACTO) ---
+  // --- EXPORTACIÓN TABULAR A PDF ---
   const exportarPDF = async () => {
     const operacionesFiltradas = operaciones.filter((op) => {
       if (fechaDesde && op.fecha < fechaDesde) return false;
@@ -237,7 +235,7 @@ export function Reportes() {
     }
   };
 
-  // --- EXPORTACIÓN A EXCEL (INTACTO) ---
+  // --- EXPORTACIÓN A EXCEL ---
   const exportarExcel = () => {
     const operacionesFiltradas = operaciones.filter((op) => {
       if (fechaDesde && op.fecha < fechaDesde) return false;
@@ -277,7 +275,7 @@ export function Reportes() {
     XLSX.writeFile(workbook, `REPORTE_OPERACIONES_${new Date().toLocaleDateString('en-CA')}.xlsx`);
   };
 
-  // --- EXPORTACIÓN PDF VISUAL (CON AGRUPACIÓN Y ANTI-DUPLICADOS) ---
+  // --- EXPORTACIÓN PDF VISUAL (CON AGRUPACIÓN Y BLOQUES GRANDES) ---
   const exportarPDFVisual = async () => {
     try {
       const operacionesFiltradas = operaciones.filter((op) => {
@@ -308,12 +306,11 @@ export function Reportes() {
         String(a.fecha || '').localeCompare(String(b.fecha || ''))
       );
 
-      // LÓGICA DE AGRUPACIÓN
       const groups = {};
       todasLasOps.forEach((op) => {
         let key = op.fecha;
         if (agruparPor === 'month') {
-          key = op.fecha.substring(0, 7); // YYYY-MM
+          key = op.fecha.substring(0, 7);
         } else if (agruparPor === 'week') {
           const d = new Date(op.fecha + 'T00:00:00');
           const day = d.getDay() || 7;
@@ -324,11 +321,12 @@ export function Reportes() {
         groups[key].push(op);
       });
 
+      const meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+
       const formatGroupTitle = (key, type) => {
         if (type === 'month') {
           const [y, m] = key.split('-');
-          const date = new Date(y, parseInt(m) - 1, 1);
-          return `MES: ${date.toLocaleString('es-PE', { month: 'long', year: 'numeric' }).toUpperCase()}`;
+          return `MES: ${meses[parseInt(m) - 1]} ${y}`;
         }
         if (type === 'week') {
           const start = new Date(key + 'T00:00:00');
@@ -338,7 +336,7 @@ export function Reportes() {
           return `SEMANA DEL ${format(start)} AL ${format(end)}`;
         }
         const [y, m, d] = key.split('-');
-        return `FECHA: ${d}/${m}/${y}`;
+        return `FECHA: ${d}/${m}/${y}  —  MES: ${meses[parseInt(m) - 1]}`;
       };
 
       const itemsToRender = [];
@@ -390,15 +388,18 @@ export function Reportes() {
       };
 
       const COLS = 3;
+      const FILAS = 3;
       const MARGIN_X = 10;
       const GAP = 3;
-      const MARGIN_TOP_BLOCKS = 26;
+      const MARGIN_TOP_BLOCKS = 32;
       const MARGIN_BOTTOM = 12;
 
       const usableWidth = pageWidth - 2 * MARGIN_X - (COLS - 1) * GAP;
       const blockWidth = usableWidth / COLS;
-      const blockHeight = 55; 
-      
+
+      const usableHeight = pageHeight - MARGIN_TOP_BLOCKS - MARGIN_BOTTOM - (FILAS - 1) * GAP;
+      const blockHeight = usableHeight / FILAS;
+
       const obtenerImagenBase64 = async (evidencia) => {
         try {
           let url = null;
@@ -447,7 +448,7 @@ export function Reportes() {
       dibujarCabecera();
       let y = MARGIN_TOP_BLOCKS;
       let col = 0;
-      let renderedCompanyEvidenceKeys = new Set(); 
+      let renderedCompanyEvidenceKeys = new Set();
 
       for (let i = 0; i < itemsToRender.length; i++) {
         const item = itemsToRender[i];
@@ -457,23 +458,26 @@ export function Reportes() {
             y += blockHeight + GAP;
             col = 0;
           }
-          if (y + 10 > pageHeight - MARGIN_BOTTOM) {
+          if (y + 15 + blockHeight > pageHeight - MARGIN_BOTTOM) {
             doc.addPage();
             dibujarCabecera();
             y = MARGIN_TOP_BLOCKS;
           }
+
           doc.setFillColor(30, 58, 138);
           doc.rect(MARGIN_X, y, pageWidth - 2 * MARGIN_X, 6, 'F');
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8);
           doc.setTextColor(255, 255, 255);
-          doc.text(item.title, MARGIN_X + 3, y + 4);
-          
+
+          // TEXTO DEL TÍTULO AZUL CENTRADO
+          doc.text(item.title, pageWidth / 2, y + 4, { align: 'center' });
+
           y += 8;
-          renderedCompanyEvidenceKeys.clear(); 
+          renderedCompanyEvidenceKeys.clear();
         } else {
           const op = item.data;
-          
+
           if (y + blockHeight > pageHeight - MARGIN_BOTTOM) {
             doc.addPage();
             dibujarCabecera();
@@ -493,24 +497,25 @@ export function Reportes() {
           const clienteOp = String(op.cliente || '-').substring(0, 30);
           const montoOp = Number(op.monto || 0).toFixed(2);
 
+          // TEXTOS COMPACTADOS PARA DEJAR ESPACIO A LA IMAGEN
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(5.5);
           doc.setTextColor(30, 58, 138);
-          doc.text(`FECHA: ${fechaOp}`, centerX, y + 4, { align: 'center' });
-          
+          doc.text(`FECHA: ${fechaOp}`, centerX, y + 3, { align: 'center' });
+
           doc.setFontSize(6);
           doc.setTextColor(15, 23, 42);
-          doc.text(comprobanteOp, centerX, y + 7.5, { align: 'center' });
+          doc.text(comprobanteOp, centerX, y + 6.5, { align: 'center' });
 
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(5);
           doc.setTextColor(100, 116, 139);
-          doc.text(`Cliente: ${clienteOp}`, centerX, y + 11, { align: 'center' });
+          doc.text(`Cliente: ${clienteOp}`, centerX, y + 10, { align: 'center' });
 
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(6);
           doc.setTextColor(30, 58, 138);
-          doc.text(`Monto: S/ ${montoOp}`, centerX, y + 14.5, { align: 'center' });
+          doc.text(`Monto: S/ ${montoOp}`, centerX, y + 13.5, { align: 'center' });
 
           const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
           const evidenciaEmpresa = evidencias.find((e) => e.tipo_evidencia === 'EMPRESA');
@@ -522,15 +527,16 @@ export function Reportes() {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(4.5);
           doc.setTextColor(100, 116, 139);
-          doc.text(`Evidencia: ${medioEvidencia} ${montoEvidencia}`, centerX, y + 17.5, { align: 'center' });
+          doc.text(`Evidencia: ${medioEvidencia} ${montoEvidencia}`, centerX, y + 16.5, { align: 'center' });
 
-          const imgY = y + 18.5;
-          const imgMaxWidth = blockWidth - 4;
-          const imgMaxHeight = blockHeight - 19;
+          // IMAGEN MÁS GRANDE (Inicia más arriba y tiene más altura)
+          const imgY = y + 17;
+          const imgMaxWidth = blockWidth - 2;
+          const imgMaxHeight = blockHeight - 17.5;
 
           if (evidenciaEmpresa) {
             const isDuplicate = renderedCompanyEvidenceKeys.has(evidenciaEmpresa.storage_key);
-            
+
             if (isDuplicate) {
               doc.setDrawColor(200, 200, 200);
               doc.setFillColor(245, 245, 245);
@@ -621,8 +627,7 @@ export function Reportes() {
       {/* Filtros de fecha y agrupación */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-3 sm:gap-4 w-full">
-          
-          {/* Rango de fechas */}
+
           <div className="flex-1 min-w-0">
             <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               Rango de fechas
@@ -639,7 +644,6 @@ export function Reportes() {
             </div>
           </div>
 
-          {/* Agrupar por */}
           <div className="w-full lg:w-56 flex-shrink-0">
             <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               Agrupar por
@@ -656,7 +660,6 @@ export function Reportes() {
             </select>
           </div>
 
-          {/* Botón Limpiar */}
           <div className="flex-shrink-0">
             <button
               type="button"

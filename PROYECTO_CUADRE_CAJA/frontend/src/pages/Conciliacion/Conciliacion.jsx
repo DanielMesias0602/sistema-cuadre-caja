@@ -6,6 +6,7 @@ import {
   Plus, Calendar, CheckCircle, AlertCircle, RefreshCw, Search,
   X, Loader2, Sun, Moon, BarChart2, AlertTriangle, FileText, Eye, Info
 } from 'lucide-react';
+import { SingleDatePicker } from '../../components/ui/SingleDatePicker'; // NUEVO IMPORT
 
 const evaluarOperacion = (opPago, opEmpresa, medioPago) => {
   if (!opPago && !opEmpresa) return { estado: 'SIN DATOS', color: 'bg-slate-100 text-slate-500 border-slate-200', icono: 'info' };
@@ -38,6 +39,12 @@ export function Conciliacion() {
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaFiltro, setFechaFiltro] = useState('');
+
+  const hayFiltrosActivos = Boolean(busqueda || fechaFiltro);
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFechaFiltro('');
+  };
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -185,15 +192,36 @@ export function Conciliacion() {
 
       {/* FILTROS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
           <div className="relative flex-1">
-            <Search className="absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
-            <input type="text" placeholder="Buscar por responsable..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-900 focus:ring-1 focus:ring-brand-orange outline-none" />
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar por responsable..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="h-[42px] w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-brand-orange/20 outline-none"
+            />
           </div>
-          <div className="relative w-full sm:w-64">
-            <Calendar className="absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
-            <input type="date" value={fechaFiltro} onChange={(e) => setFechaFiltro(e.target.value)} className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-700 focus:ring-1 focus:ring-brand-orange outline-none" />
+          <div className="w-full lg:w-64 flex-shrink-0">
+            <SingleDatePicker
+              value={fechaFiltro}
+              onChange={(nuevaFecha) => setFechaFiltro(nuevaFecha)}
+              placeholder="Filtrar por fecha"
+            />
           </div>
+
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
+              title="Limpiar filtros"
+            >
+              <X className="h-4 w-4" />
+              <span className="lg:hidden">Limpiar filtros</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -335,7 +363,15 @@ export function Conciliacion() {
 
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Fecha a Conciliar <span className="text-rose-500">*</span></label>
-                <input type="date" value={formConciliacion.fecha} onChange={(e) => { const newDate = e.target.value; setFormConciliacion({ ...formConciliacion, fecha: newDate }); calcularPreCalculo(newDate); }} className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none" />
+                {/* COMPONENTE PREMIUM APLICADO EN EL MODAL */}
+                <SingleDatePicker
+                  value={formConciliacion.fecha}
+                  onChange={(nuevaFecha) => {
+                    setFormConciliacion({ ...formConciliacion, fecha: nuevaFecha });
+                    calcularPreCalculo(nuevaFecha);
+                  }}
+                  placeholder="Seleccionar fecha a conciliar"
+                />
               </div>
 
               <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm">
@@ -440,7 +476,7 @@ export function Conciliacion() {
 
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Resultado <span className="text-rose-500">*</span></label>
-                <select value={formConciliacion.resultado} onChange={(e) => setFormConciliacion({ ...formConciliacion, resultado: e.target.value })} className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                <select value={formConciliacion.resultado} onChange={(e) => setFormConciliacion({ ...formConciliacion, resultado: e.target.value })} className="w-full h-[42px] rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-brand-orange/20 outline-none cursor-pointer">
                   <option value="CONCILIADO">CONCILIADO (Diferencia 0.00)</option>
                   <option value="CON DIFERENCIA">CON DIFERENCIA (Revisar)</option>
                 </select>
@@ -448,7 +484,7 @@ export function Conciliacion() {
 
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Observación (Opcional)</label>
-                <textarea rows={2} value={formConciliacion.observacion} onChange={(e) => setFormConciliacion({ ...formConciliacion, observacion: e.target.value })} placeholder="Detalles adicionales..." className="w-full rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+                <textarea rows={2} value={formConciliacion.observacion} onChange={(e) => setFormConciliacion({ ...formConciliacion, observacion: e.target.value })} placeholder="Detalles adicionales..." className="w-full rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-brand-orange/20 outline-none resize-none" />
               </div>
 
               <div className="pt-2 border-t border-slate-200 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
 import { Plus, Calendar, RefreshCw, Search, FileX, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { SingleDatePicker } from '../../components/ui/SingleDatePicker';
 
 export function Anulaciones() {
   const [loading, setLoading] = useState(true);
@@ -9,6 +10,12 @@ export function Anulaciones() {
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaFiltro, setFechaFiltro] = useState('');
+
+  const hayFiltrosActivos = Boolean(busqueda || fechaFiltro);
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFechaFiltro('');
+  };
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -169,26 +176,36 @@ export function Anulaciones() {
 
       {/* FILTROS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
           <div className="relative flex-1">
-            <Search className="absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Buscar por comprobante..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-900 focus:ring-1 focus:ring-brand-orange outline-none"
+              className="h-[42px] w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
-          <div className="relative w-full sm:w-64">
-            <Calendar className="absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
+          <div className="w-full lg:w-64 flex-shrink-0">
+            <SingleDatePicker
               value={fechaFiltro}
-              onChange={(e) => setFechaFiltro(e.target.value)}
-              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-700 focus:ring-1 focus:ring-brand-orange outline-none"
+              onChange={(nuevaFecha) => setFechaFiltro(nuevaFecha)}
+              placeholder="Filtrar por fecha"
             />
           </div>
+
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
+              title="Limpiar filtros"
+            >
+              <X className="h-4 w-4" />
+              <span className="lg:hidden">Limpiar filtros</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -328,12 +345,10 @@ export function Anulaciones() {
 
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">Fecha de Anulación <span className="text-rose-500">*</span></label>
-                <input
-                  type="date"
+                <SingleDatePicker
                   value={formAnulacion.fecha}
-                  onChange={(e) => setFormAnulacion({ ...formAnulacion, fecha: e.target.value })}
-                  required
-                  className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  onChange={(nuevaFecha) => setFormAnulacion({ ...formAnulacion, fecha: nuevaFecha })}
+                  placeholder="Seleccionar fecha de anulación"
                 />
               </div>
 

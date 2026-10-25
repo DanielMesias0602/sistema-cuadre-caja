@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AlertCircle, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, X } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
+import { SingleDatePicker } from '../../../components/ui/SingleDatePicker';
 
 export function Paso2RevisionOCR({ evidencia, tipoEvidencia, onNext, onBack }) {
   const [loading, setLoading] = useState(true);
@@ -332,12 +333,10 @@ export function Paso2RevisionOCR({ evidencia, tipoEvidencia, onNext, onBack }) {
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Fecha de operación
               </label>
-              <input
-                type="date"
-                name="fecha_operacion"
+              <SingleDatePicker
                 value={formData.fecha_operacion}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                onChange={(val) => setFormData((prev) => ({ ...prev, fecha_operacion: val }))}
+                placeholder="Seleccionar fecha"
               />
             </div>
 
@@ -489,12 +488,10 @@ export function Paso2RevisionOCR({ evidencia, tipoEvidencia, onNext, onBack }) {
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Fecha
               </label>
-              <input
-                type="date"
-                name="fecha"
+              <SingleDatePicker
                 value={formData.fecha}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                onChange={(val) => setFormData((prev) => ({ ...prev, fecha: val }))}
+                placeholder="Seleccionar fecha"
               />
             </div>
 

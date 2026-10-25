@@ -279,19 +279,19 @@ export function Pagos() {
 
       {/* FILTROS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-center gap-3 sm:gap-4 w-full">
-          <div className="relative w-full flex-1">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
+          <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Buscar cliente, referencia..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full h-10 sm:h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange"
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
 
-          <div className="w-full flex-1 min-w-0">
+          <div className="w-full lg:w-[320px] flex-shrink-0">
             <DateRangePicker
               fechaDesde={fechaDesde}
               fechaHasta={fechaHasta}
@@ -302,12 +302,12 @@ export function Pagos() {
             />
           </div>
 
-          <div className="relative w-full flex-1">
+          <div className="relative w-full lg:w-[200px] flex-shrink-0">
             <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <select
               value={medioFiltro}
               onChange={(e) => setMedioFiltro(e.target.value)}
-              className="w-full h-10 sm:h-11 pl-10 pr-9 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
+              className="w-full h-[42px] pl-10 pr-9 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los medios</option>
               {mediosDisponibles.map((m) => (
@@ -323,11 +323,11 @@ export function Pagos() {
             <button
               type="button"
               onClick={limpiarFiltros}
-              className="flex h-9 sm:h-11 w-full sm:w-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 cursor-pointer"
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
               title="Limpiar filtros"
             >
               <X className="h-4 w-4" />
-              <span className="sm:hidden text-xs font-semibold">Limpiar filtros</span>
+              <span className="lg:hidden">Limpiar filtros</span>
             </button>
           )}
         </div>
