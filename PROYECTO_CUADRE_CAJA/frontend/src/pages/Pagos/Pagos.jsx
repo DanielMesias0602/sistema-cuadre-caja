@@ -124,7 +124,6 @@ export function Pagos() {
     });
   }, [todosLosPagos, busqueda, fechaDesde, fechaHasta, medioFiltro]);
 
-  // KPIs CORREGIDOS: excluyen operaciones anuladas
   const { totalRecaudado, totalEfectivo, totalVirtual, cantEfectivo, cantVirtual } = useMemo(() => {
     let recaudado = 0;
     let efectivo = 0;
@@ -133,7 +132,6 @@ export function Pagos() {
     let cVi = 0;
 
     pagosFiltrados.forEach((p) => {
-      // FILTRO CLAVE: Saltar si la operación está anulada
       if (p.esAnulada) return;
 
       const m = Number(p.monto || 0);
@@ -157,7 +155,6 @@ export function Pagos() {
     };
   }, [pagosFiltrados]);
 
-  // Contador para el badge de trazabilidad
   const hayAnuladasEnFiltro = useMemo(() => {
     return pagosFiltrados.some(p => p.esAnulada);
   }, [pagosFiltrados]);
@@ -200,13 +197,14 @@ export function Pagos() {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up">
+      {/* CABECERA */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900">
             Historial de Pagos
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-xs sm:text-sm text-slate-500">
             Control, conciliación y verificación individual de todos los cobros por medio de pago.
           </p>
         </div>
@@ -216,7 +214,7 @@ export function Pagos() {
             type="button"
             onClick={cargarDatos}
             disabled={loading}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50"
+            className="inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50"
             title="Recargar datos"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -225,61 +223,63 @@ export function Pagos() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/10">
-            <Wallet className="h-6 w-6" />
+      {/* KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/10">
+            <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-500">
               Total Recaudado
             </p>
-            <p className="mt-1 text-2xl font-black text-slate-900 tabular-nums">
+            <p className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-words">
               {formatCurrency(totalRecaudado)}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
               {pagosFiltrados.filter(p => !p.esAnulada).length} {pagosFiltrados.filter(p => !p.esAnulada).length === 1 ? 'pago válido' : 'pagos válidos'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-600/10">
-            <Banknote className="h-6 w-6" />
+        <div className="flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-600/10">
+            <Banknote className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-500">
               Pagos en Efectivo
             </p>
-            <p className="mt-1 text-2xl font-black text-slate-900 tabular-nums">
+            <p className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-words">
               {formatCurrency(totalEfectivo)}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
               {cantEfectivo} {cantEfectivo === 1 ? 'cobro físico' : 'cobros físicos'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-600/10">
-            <CreditCard className="h-6 w-6" />
+        <div className="flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-600/10">
+            <CreditCard className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-500">
               Pagos Virtuales
             </p>
-            <p className="mt-1 text-2xl font-black text-slate-900 tabular-nums">
+            <p className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-words">
               {formatCurrency(totalVirtual)}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
               {cantVirtual} {cantVirtual === 1 ? 'transferencia / tarjeta' : 'transferencias / tarjetas'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
+      {/* FILTROS */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-center gap-3 sm:gap-4 w-full">
           <div className="relative w-full flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -287,11 +287,11 @@ export function Pagos() {
               placeholder="Buscar cliente, referencia..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange"
+              className="w-full h-10 sm:h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange"
             />
           </div>
 
-          <div className="w-full flex-1 min-w-[250px]">
+          <div className="w-full flex-1 min-w-0">
             <DateRangePicker
               fechaDesde={fechaDesde}
               fechaHasta={fechaHasta}
@@ -307,7 +307,7 @@ export function Pagos() {
             <select
               value={medioFiltro}
               onChange={(e) => setMedioFiltro(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
+              className="w-full h-10 sm:h-11 pl-10 pr-9 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
             >
               <option value="">Todos los medios</option>
               {mediosDisponibles.map((m) => (
@@ -323,17 +323,163 @@ export function Pagos() {
             <button
               type="button"
               onClick={limpiarFiltros}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 cursor-pointer"
+              className="flex h-9 sm:h-11 w-full sm:w-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 cursor-pointer"
               title="Limpiar filtros"
             >
               <X className="h-4 w-4" />
+              <span className="sm:hidden text-xs font-semibold">Limpiar filtros</span>
             </button>
           )}
         </div>
       </div>
 
+      {/* TABLA / CARDS */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="overflow-x-auto w-full">
+        {/* MOBILE: cards */}
+        <div className="block md:hidden">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+              <RefreshCw className="h-8 w-8 animate-spin text-brand-orange" />
+              <p className="mt-3 text-sm font-semibold text-slate-700">Cargando pagos...</p>
+            </div>
+          ) : error ? (
+            <div className="p-6 text-center">
+              <p className="text-sm font-semibold text-rose-600">{error}</p>
+              <button
+                type="button"
+                onClick={cargarDatos}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : pagosFiltrados.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400">
+                <Receipt className="h-6 w-6" />
+              </div>
+              <p className="mt-3 text-sm font-bold text-slate-800">No se encontraron pagos</p>
+              <p className="mt-1 text-xs text-slate-500 max-w-sm">
+                {hayFiltrosActivos
+                  ? 'No hay registros que coincidan con los filtros aplicados.'
+                  : 'Aún no se han registrado operaciones de pago en el sistema.'}
+              </p>
+              {hayFiltrosActivos && (
+                <button
+                  type="button"
+                  onClick={limpiarFiltros}
+                  className="mt-4 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {pagosFiltrados.map((pago) => {
+                const urlFinal = pago.evidencia_url
+                  ? pago.evidencia_url.startsWith('http')
+                    ? pago.evidencia_url
+                    : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${pago.evidencia_url}`
+                  : null;
+
+                const isVerificado =
+                  String(pago.estado).toUpperCase() === 'VERIFICADO' ||
+                  String(pago.estado).toUpperCase() === 'VERIFICADA' ||
+                  String(pago.estado).toUpperCase() === 'COMPLETADO';
+
+                return (
+                  <div
+                    key={pago.id_pago_unico}
+                    className={`p-3 space-y-2 ${pago.esAnulada ? 'bg-rose-50/30' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-xs font-semibold ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                          {pago.fecha} · {pago.hora ? pago.hora.substring(0, 5) : '00:00'}
+                        </p>
+                        <p className={`text-sm font-bold break-words ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                          {pago.comprobante}
+                        </p>
+                        <p className={`text-xs mt-0.5 break-words ${pago.esAnulada ? 'text-slate-400' : 'text-slate-600'}`}>
+                          {pago.cliente}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Registró: {pago.usuario}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className={`text-base font-bold tabular-nums ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                          {formatCurrency(pago.monto)}
+                        </p>
+                        {pago.esAnulada ? (
+                          <span className="inline-flex items-center gap-1 mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20">
+                            <XCircle className="h-3 w-3" /> Anulada
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1 mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${
+                            isVerificado
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                              : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                          }`}>
+                            {isVerificado ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                            {isVerificado ? 'Verificado' : 'Pendiente'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {renderMedioIcon(pago.medio_pago)}
+                      <span className={`text-xs font-semibold ${pago.esAnulada ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                        {pago.medio_pago}
+                      </span>
+                      {pago.totalPagosOp > 1 && (
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                          Pago {pago.pagoIndex + 1}/{pago.totalPagosOp}
+                        </span>
+                      )}
+                    </div>
+
+                    {pago.referencia && (
+                      <p className="text-[10px] text-slate-500">
+                        Ref: <span className="font-mono font-semibold text-slate-700">{pago.referencia}</span>
+                      </p>
+                    )}
+
+                    <div className="flex flex-col gap-1.5">
+                      {!(pago.medio_pago || '').toLowerCase().includes('efectivo') && urlFinal && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPago(pago);
+                            setDrawerAbierto(true);
+                          }}
+                          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-100 active:scale-98 cursor-pointer"
+                        >
+                          <Eye className="h-4 w-4" /> Ver Evidencia
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPago(pago);
+                          setDrawerAbierto(true);
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-98 cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5" /> Ver Detalle
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* DESKTOP: tabla */}
+        <div className="hidden md:block overflow-x-auto w-full">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <RefreshCw className="h-8 w-8 animate-spin text-brand-orange" />
@@ -535,21 +681,21 @@ export function Pagos() {
         </div>
 
         {!loading && pagosFiltrados.length > 0 && (
-          <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4 sm:flex-row sm:items-center sm:justify-between text-xs">
+          <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-3 sm:px-6 py-3 sm:py-4 sm:flex-row sm:items-center sm:justify-between text-[11px] sm:text-xs">
             <span className="text-slate-500">
               Mostrando <strong className="text-slate-800">{pagosFiltrados.length}</strong> de{' '}
               <strong className="text-slate-800">{todosLosPagos.length}</strong> pagos
             </span>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               {hayAnuladasEnFiltro && (
-                <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 flex items-center gap-1.5">
-                  <XCircle className="w-3.5 h-3.5" />
+                <span className="text-[10px] sm:text-[11px] font-bold text-rose-600 bg-rose-50 px-2 sm:px-2.5 py-1 rounded-lg border border-rose-200 flex items-center gap-1.5 w-fit">
+                  <XCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   Excluye {pagosFiltrados.filter(p => p.esAnulada).length} pago(s) anulado(s)
                 </span>
               )}
               <div className="flex items-center gap-2">
                 <span className="font-bold uppercase tracking-wider text-slate-500">Total Filtrado:</span>
-                <span className="text-base font-black text-slate-900 tabular-nums">
+                <span className="text-sm sm:text-base font-black text-slate-900 tabular-nums">
                   {formatCurrency(totalRecaudado)}
                 </span>
               </div>

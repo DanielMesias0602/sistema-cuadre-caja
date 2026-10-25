@@ -1,5 +1,5 @@
 // ============================================================
-// PARSER V19 - IGV CON FALLBACK MATEMATICO
+// PARSER V20 - parsearEvidencia devuelve JSON del Python sin renombrar
 // ============================================================
 
 const limpiarTexto = (texto) => String(texto || '').replace(/\[\d+\.\d+\]/g, '').replace(/\r/g, '');
@@ -15,7 +15,10 @@ const extraerJsonDelPython = (stdout) => {
   let profundidad = 0, fin = -1;
   for (let i = inicio; i < despues.length; i++) {
     if (despues[i] === '{') profundidad++;
-    else if (despues[i] === '}') { profundidad--; if (profundidad === 0) { fin = i; break; } }
+    else if (despues[i] === '}') {
+      profundidad--;
+      if (profundidad === 0) { fin = i; break; }
+    }
   }
   if (fin === -1) return null;
   try { return JSON.parse(despues.substring(inicio, fin + 1)); } catch (e) { return null; }
@@ -31,7 +34,10 @@ const quitarBloqueJson = (texto) => {
   let profundidad = 0, fin = -1;
   for (let i = inicio; i < despues.length; i++) {
     if (despues[i] === '{') profundidad++;
-    else if (despues[i] === '}') { profundidad--; if (profundidad === 0) { fin = i; break; } }
+    else if (despues[i] === '}') {
+      profundidad--;
+      if (profundidad === 0) { fin = i; break; }
+    }
   }
   if (fin === -1) return antes;
   return antes + despues.substring(fin + 1);
@@ -60,19 +66,6 @@ const extraerMonto = (texto, etiqueta) => {
   if (!match) return null;
   const num = parseFloat(match[1].replace(/,/g, ''));
   return isNaN(num) ? null : redondear(num);
-};
-
-// NUEVA: reparsea IGV del texto crudo tolerando ruido
-const reparsearIGV = (texto) => {
-  const textoLimpio = quitarBloqueJson(texto);
-  // Tolerancia: 30 caracteres entre la etiqueta y el numero (para "G" u otros)
-  const regex = /I\.?G\.?V\.?\s*S\/[\s\S]{0,30}?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})/i;
-  const match = textoLimpio.match(regex);
-  if (match) {
-    const num = parseFloat(match[1].replace(/,/g, ''));
-    if (!isNaN(num) && num > 0) return redondear(num);
-  }
-  return null;
 };
 
 const reparsearSerieNumero = (texto) => {
@@ -187,6 +180,9 @@ const parsearItemsDeSeccion = (seccion) => {
   })).filter(i => i.descripcion);
 };
 
+// ============================================================
+// COMPROBANTE
+// ============================================================
 export const parsearComprobante = (stdout) => {
   const texto = limpiarTexto(stdout);
   const jsonPython = extraerJsonDelPython(stdout);
@@ -210,20 +206,11 @@ export const parsearComprobante = (stdout) => {
     }
   }
   
-  // === IGV con 3 niveles de fallback ===
-  let igv = extraerMonto(seccionTotales, 'IGV');
-  if (igv === null) igv = reparsearIGV(texto);
-  if (igv === null && jsonPython?.igv) igv = redondear(jsonPython.igv);
+  const igv = extraerMonto(seccionTotales, 'IGV') || (jsonPython?.igv ? redondear(jsonPython.igv) : null);
   
-  // === MONTO con fallbacks ===
   let monto = extraerMonto(seccionTotales, 'Total');
   if (monto === null) monto = reparsearMonto(texto, op_gravada, igv);
   if (monto === null) monto = jsonPython?.monto ? redondear(jsonPython.monto) : null;
-  
-  // === IGV: si aun es null, calcular como monto - op_gravada ===
-  if (igv === null && monto !== null && op_gravada !== null) {
-    igv = redondear(monto - op_gravada);
-  }
   
   return {
     tipo_comprobante: extraerCampo(seccionDatos, 'Tipo') || jsonPython?.tipo_comprobante || null,
@@ -241,25 +228,32 @@ export const parsearComprobante = (stdout) => {
   };
 };
 
+// ============================================================
+// EVIDENCIA — SIN RENOMBRAR CAMPOS
+// Devuelve el JSON del Python TAL CUAL, con los nombres originales
+// (aplicacion_banco, referencia_bancaria, fecha_operacion, hora_operacion, etc.)
+// ============================================================
 export const parsearEvidencia = (stdout) => {
   const jsonPython = extraerJsonDelPython(stdout);
+  
   if (jsonPython) {
-    return {
-      monto: jsonPython.monto ? redondear(jsonPython.monto) : null,
-      nro_operacion: jsonPython.referencia_bancaria || jsonPython.numero_operacion || null,
-      fecha: jsonPython.fecha_operacion || null,
-      destinatario: jsonPython.destinatario || null,
-      banco: jsonPython.aplicacion_banco || null,
-      valido: true
-    };
+    // Devolver TAL CUAL el JSON del Python con todos los campos
+    return { ...jsonPython, valido: true };
   }
+  
+  // Fallback: si no hay JSON del Python, parsear el texto crudo (mínimo)
   const texto = limpiarTexto(stdout);
   let monto = null;
   const matchS = texto.match(/S\/\s*([\d.,]+)/);
   if (matchS) monto = redondear(parseFloat(matchS[1].replace(/,/g, '')));
+  
   return {
     monto,
-    nro_operacion: texto.match(/(?:Nro\.|Número|Código|N°)\s*(?:de\s*)?(?:operación|operacion|transacción)\s*:?\s*([a-zA-Z0-9]+)/i)?.[1]?.trim() || null,
-    fecha: null, destinatario: null, banco: null, valido: false
+    aplicacion_banco: null,
+    referencia_bancaria: null,
+    fecha_operacion: null,
+    hora_operacion: null,
+    destinatario: null,
+    valido: false
   };
 };

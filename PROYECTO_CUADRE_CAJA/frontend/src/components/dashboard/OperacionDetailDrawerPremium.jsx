@@ -21,6 +21,9 @@ import {
   Landmark,
   User,
   CheckCircle,
+  AlertTriangle,
+  XCircle,
+  Info,
 } from 'lucide-react';
 import api from '../../lib/api';
 import ocrService from '../../services/ocr.service';
@@ -41,6 +44,82 @@ function DatoOCR({ icon, label, children }) {
   );
 }
 
+// ============================================================
+// HELPERS DE VALIDACIÓN CRUZADA (NUEVO)
+// ============================================================
+const normalizarReferencia = (ref) => {
+  if (ref === null || ref === undefined) return '';
+  let s = String(ref).trim().toUpperCase();
+  // Quitar espacios, guiones y ceros iniciales
+  s = s.replace(/[\s-]/g, '');
+  s = s.replace(/^0+/, '');
+  return s;
+};
+
+const compararMontos = (montoPago, montoEvidencia) => {
+  const p = Number(montoPago);
+  const e = Number(montoEvidencia);
+  if (!Number.isFinite(p) || !Number.isFinite(e)) return false;
+  // Tolerancia de ±1 sol por redondeo
+  return Math.abs(p - e) <= 1;
+};
+
+const evaluarPago = (pago, evidenciaEmpresa) => {
+  const medio = String(pago?.medio_pago || pago?.nombre_medio || '').trim();
+  const medioLower = medio.toLowerCase();
+
+  // Efectivo no se verifica con OCR
+  if (medioLower.includes('efectivo')) {
+    return { estado: 'EFECTIVO', color: 'bg-slate-50 text-slate-700 border-slate-200', icono: 'info', mensaje: 'Se verifica en el cierre de caja' };
+  }
+
+  // Sin evidencia empresa
+  if (!evidenciaEmpresa) {
+    return { estado: 'SIN_EVIDENCIA', color: 'bg-slate-50 text-slate-700 border-slate-200', icono: 'info', mensaje: 'Sin evidencia de empresa registrada' };
+  }
+
+  // Extraer datos del OCR de la evidencia empresa
+  const datosOcr = evidenciaEmpresa.datos_ocr || {};
+  const refEmpresa = datosOcr.referencia_bancaria || datosOcr.numero_operacion || null;
+  const montoEmpresa = datosOcr.monto ?? null;
+
+  const refPago = pago?.referencia || null;
+
+  const normRefPago = normalizarReferencia(refPago);
+  const normRefEmpresa = normalizarReferencia(refEmpresa);
+
+  const refCoincide = normRefPago && normRefEmpresa && normRefPago === normRefEmpresa;
+  const montoCoincide = compararMontos(pago?.monto, montoEmpresa);
+
+  if (!normRefPago && !normRefEmpresa) {
+    return { estado: 'SIN_REFERENCIA', color: 'bg-slate-50 text-slate-700 border-slate-200', icono: 'info', mensaje: 'Sin número de operación en pago ni en evidencia' };
+  }
+
+  if (refCoincide && montoCoincide) {
+    return { estado: 'COINCIDE', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icono: 'check', mensaje: 'Monto y referencia coinciden' };
+  }
+
+  if (refCoincide || montoCoincide) {
+    return { estado: 'PARCIAL', color: 'bg-amber-50 text-amber-700 border-amber-200', icono: 'alert', mensaje: refCoincide ? 'Referencia coincide, monto difiere' : 'Monto coincide, referencia difiere' };
+  }
+
+  return { estado: 'DIFERENTE', color: 'bg-rose-50 text-rose-700 border-rose-200', icono: 'x', mensaje: 'Ni el monto ni la referencia coinciden' };
+};
+
+const BadgeEstado = ({ evaluacion }) => {
+  const IconMap = { check: CheckCircle, alert: AlertTriangle, x: XCircle, info: Info };
+  const Icon = IconMap[evaluacion.icono] || Info;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold ${evaluacion.color}`}>
+      <Icon className="h-3 w-3" />
+      {evaluacion.estado.replace('_', ' ')}
+    </span>
+  );
+};
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
 export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida }) {
   const open = op !== null;
   const lastOperation = useRef(op);
@@ -236,14 +315,18 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     ...evidenciasLocales,
   ];
 
-  const getEvidenciaUrl = (tipo) => {
-    const evidencia = [...evidencias]
-      .reverse()
-      .find((e) => e.tipo_evidencia === tipo);
+  // CAMBIO: separar evidencias por tipo para la validación cruzada
+  const evidenciaEmpresaObj = [...evidencias]
+    .reverse()
+    .find((e) => e.tipo_evidencia === 'EMPRESA');
 
-    if (!evidencia) return null;
+  const evidenciaClienteObj = [...evidencias]
+    .reverse()
+    .find((e) => e.tipo_evidencia === 'CLIENTE');
 
-    const url = evidencia.url || evidencia.url_firmada || evidencia.storage_key;
+  const getEvidenciaUrl = (evidenciaObj) => {
+    if (!evidenciaObj) return null;
+    const url = evidenciaObj.url_firmada || evidenciaObj.url || evidenciaObj.storage_key;
     if (!url) return null;
     if (/^https?:\/\//i.test(url)) return url;
     return null;
@@ -305,11 +388,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     setArchivoEmpresa(file);
 
     if (!esImagen) {
-      // PDF: sin OCR, sin visor automático
       return;
     }
 
-    // Preview local
     let dataUrl = null;
     try {
       dataUrl = await new Promise((resolve, reject) => {
@@ -319,13 +400,11 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
         reader.readAsDataURL(file);
       });
       setPreviewEmpresa(dataUrl);
-      // Abrir visor automáticamente para comparar mientras corre el OCR
       abrirVisorPreview(dataUrl);
     } catch {
       // Sin preview, no bloquea
     }
 
-    // OCR automático
     setProcesandoOcr(true);
     try {
       const response = await ocrService.procesar(file, 'TRANSFERENCIA');
@@ -353,10 +432,6 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       fileInputEmpresaRef.current.value = '';
     }
   };
-
-  // ============================================================
-  // SUBIDA CON OCR
-  // ============================================================
 
   const subirEvidenciaEmpresa = async () => {
     if (!archivoEmpresa) {
@@ -434,7 +509,6 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
           : 'Evidencia de empresa registrada. No se pudo extraer información por OCR; queda disponible para revisión manual.'
       );
 
-      // NUEVO: notificar al padre para que recargue la lista del historial
       if (typeof onEvidenciaSubida === 'function') {
         try {
           await onEvidenciaSubida(idOperacion);
@@ -453,9 +527,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     }
   };
 
-  const evidenciaEmpresaUrl = getEvidenciaUrl('EMPRESA');
-  const evidenciaClienteUrl = getEvidenciaUrl('CLIENTE');
-  const evidenciaEmpresaYaExiste = Boolean(evidenciaEmpresaUrl);
+  const evidenciaEmpresaUrl = getEvidenciaUrl(evidenciaEmpresaObj);
+  const evidenciaClienteUrl = getEvidenciaUrl(evidenciaClienteObj);
+  const evidenciaEmpresaYaExiste = Boolean(evidenciaEmpresaObj);
 
   const esArchivoPdf = (() => {
     if (!selectedImageUrl && !archivoEmpresa) return false;
@@ -804,6 +878,85 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     {errorEvidencia}
                   </p>
                 )}
+              </section>
+            )}
+
+            {/* ============================================================ */}
+            {/* NUEVA SECCIÓN: VALIDACIÓN CRUZADA DE PAGOS                     */}
+            {/* ============================================================ */}
+            {pagos.length > 0 && (
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                    <CheckCircle className="h-4 w-4" />
+                  </span>
+                  Validación de Pagos
+                </h3>
+                <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                  Comparación automática entre los pagos registrados y los datos extraídos de la evidencia de la empresa.
+                </p>
+
+                <ul className="flex flex-col gap-3">
+                  {pagos.map((pago, idx) => {
+                    const evaluacion = evaluarPago(pago, evidenciaEmpresaObj);
+                    const datosOcr = evidenciaEmpresaObj?.datos_ocr || {};
+                    const refEmpresa = datosOcr.referencia_bancaria || datosOcr.numero_operacion || null;
+                    const montoEmpresa = datosOcr.monto ?? null;
+                    const refPago = pago?.referencia || null;
+
+                    return (
+                      <li key={idx} className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {pago.medio_pago || pago.nombre_medio || 'Efectivo'}
+                            </p>
+                            <p className="text-xs text-slate-500 tabular-nums">
+                              {formatPEN(pago.monto)}
+                            </p>
+                          </div>
+                          <BadgeEstado evaluacion={evaluacion} />
+                        </div>
+
+                        {evaluacion.estado !== 'EFECTIVO' && (
+                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200">
+                            <div>
+                              <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Ref. Cliente</p>
+                              <p className="text-xs font-mono text-slate-700 break-all">
+                                {refPago || '—'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Ref. Empresa</p>
+                              <p className="text-xs font-mono text-slate-700 break-all">
+                                {refEmpresa || '—'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {evaluacion.estado === 'EFECTIVO' && (
+                          <p className="text-xs text-slate-500 mt-1">
+                            El efectivo se verifica durante el cierre de caja.
+                          </p>
+                        )}
+
+                        {evaluacion.estado !== 'EFECTIVO' && montoEmpresa != null && (
+                          <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between">
+                            <p className="text-[10px] uppercase font-bold text-slate-400">Monto evidencia empresa</p>
+                            <p className="text-xs font-semibold text-slate-700 tabular-nums">
+                              {formatPEN(montoEmpresa)}
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="mt-2 text-xs text-slate-500 italic">
+                          {evaluacion.mensaje}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
               </section>
             )}
 

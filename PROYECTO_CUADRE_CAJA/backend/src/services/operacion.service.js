@@ -19,7 +19,7 @@ export const getOperacionById = async (idOperacion) => {
   return findOperacionById(idOperacion);
 };
 
-// --- FUNCIÃ“N DE LISTADO CON ENLACES SEGUROS A OCI ---
+// --- FUNCIÓN DE LISTADO CON ENLACES SEGUROS A OCI ---
 
 export const getOperaciones = async () => {
   const operaciones = await findAllOperaciones();
@@ -44,12 +44,14 @@ export const getOperaciones = async () => {
     }));
 
     // Procesamos evidencias para generar enlaces seguros
+    // CAMBIO: en lugar de sobrescribir storage_key, agregamos url_firmada
+    // Esto permite comparar storage_key original y mostrar la imagen con url_firmada
     const evidenciasConLinks = await Promise.all((op.evidencias || []).map(async (evidencia) => {
       if (evidencia.storage_key && evidencia.storage_key !== 'None') {
         try {
           const signedUrl = await generatePreauthenticatedRequest(evidencia.storage_key, 24);
           if (signedUrl) {
-            return { ...evidencia, storage_key: signedUrl };
+            return { ...evidencia, url_firmada: signedUrl };
           }
           return evidencia;
         } catch (err) {
@@ -70,7 +72,7 @@ export const getOperaciones = async () => {
   return operacionesConLinks;
 };
 
-// --- FUNCIÃ“N TRANSACCIONAL (Para guardar todo de golpe) ---
+// --- FUNCIÓN TRANSACCIONAL (Para guardar todo de golpe) ---
 
 export const registerOperacionUnificada = async (data) => {
   const {
@@ -84,9 +86,9 @@ export const registerOperacionUnificada = async (data) => {
     ? data.evidencias
     : [];
 
-  // ValidaciÃ³n estricta: debe haber al menos un pago
+  // Validación estricta: debe haber al menos un pago
   if (!pagos || !Array.isArray(pagos) || pagos.length === 0) {
-    const error = new Error('La operaciÃ³n debe tener al menos un pago asociado');
+    const error = new Error('La operación debe tener al menos un pago asociado');
     error.statusCode = 400;
     throw error;
   }
@@ -95,14 +97,14 @@ export const registerOperacionUnificada = async (data) => {
     // 1. Crear Comprobante con datos de OCR
     const newComprobante = await createComprobante(comprobante, client);
 
-    // 2. Crear OperaciÃ³n
+    // 2. Crear Operación
     const newOperacion = await createOperacion({
       ...operacion,
       id_comprobante: newComprobante.id_comprobante,
       id_usuario: id_usuario
     }, client);
 
-    // 3. Crear Pagos con lÃ³gica de auto-verificaciÃ³n para efectivo
+    // 3. Crear Pagos con lógica de auto-verificación para efectivo
     const createdPagos = await Promise.all(
       pagos.map(async (pago) => {
         // Consultar si el medio de pago es efectivo

@@ -1,9 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 import { Search, ChevronDown, Loader2, ImageOff, X, CheckCircle, Clock, Receipt, CreditCard, Banknote, Wallet, ZoomIn, ZoomOut, User, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
 import { EvidenceCard } from './EvidenceCard';
 
 export function Evidencias() {
+  const { user } = useAuth();
+  const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
+
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,14 +44,14 @@ export function Evidencias() {
   const filtered = useMemo(() => {
     return operaciones.filter(op => {
       if (!op.evidencias || op.evidencias.length === 0) return false;
-      
+
       const q = query.toLowerCase();
-      const matchQuery = !q || 
-        (op.cliente || '').toLowerCase().includes(q) || 
+      const matchQuery = !q ||
+        (op.cliente || '').toLowerCase().includes(q) ||
         `${op.serie}-${op.numero}`.toLowerCase().includes(q);
-      
+
       const matchType = !docType || (op.tipo_comprobante || '').toUpperCase() === docType;
-      
+
       return matchQuery && matchType;
     });
   }, [operaciones, query, docType]);
@@ -67,6 +71,7 @@ export function Evidencias() {
   };
 
   const abrirEvidencia = (url) => {
+    if (!url) return;
     setSelectedImageUrl(url);
     setIsImageOpen(true);
     setZoom(false);
@@ -79,13 +84,14 @@ export function Evidencias() {
 
     for (const tipo of tiposMostrar) {
       const evidencia = evidenciasArray.find(e => e.tipo_evidencia === tipo);
-      if (evidencia && evidencia.storage_key) {
-        const url = evidencia.storage_key.startsWith('http')
-          ? evidencia.storage_key
-          : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${evidencia.storage_key}`;
+      if (evidencia) {
+        const url = evidencia.url_firmada
+          || (evidencia.storage_key?.startsWith('http') ? evidencia.storage_key : null);
+
         evidencias.push({
           tipo: tipo.charAt(0) + tipo.slice(1).toLowerCase(),
-          url: url
+          url,
+          tieneUrl: Boolean(url),
         });
       }
     }
@@ -102,11 +108,8 @@ export function Evidencias() {
       return estado === 'PENDIENTE' || estado === 'REGISTRADO';
     });
 
-    if (pagosPendientes.length === 0) {
-      return;
-    }
+    if (pagosPendientes.length === 0) return;
 
-    // UI Optimista: marcar todos como verificados localmente
     const nuevosEstados = {};
     pagosPendientes.forEach(p => {
       nuevosEstados[p.id_pago] = 'VERIFICADO';
@@ -116,7 +119,6 @@ export function Evidencias() {
     try {
       setVerificando(true);
 
-      // Hacer PUT a cada pago pendiente con el objeto completo
       const promesas = pagosPendientes.map(p =>
         api.put(`/pagos/${p.id_pago}`, {
           id_medio_pago: p.id_medio_pago || p.id_medio,
@@ -129,7 +131,6 @@ export function Evidencias() {
 
       await Promise.all(promesas);
 
-      // Recargar datos
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
       setOperaciones(Array.isArray(data) ? data : []);
@@ -137,9 +138,13 @@ export function Evidencias() {
       cerrarModal();
     } catch (err) {
       console.error('Error al verificar pagos:', err);
-      alert('Error al verificar los pagos. Por favor intenta nuevamente.');
 
-      // Revertir estado local
+      if (err.response?.status === 403) {
+        alert('No tienes permisos suficientes.\n\nSolo un Administrador puede verificar pagos.');
+      } else {
+        alert('Error al verificar los pagos. Por favor intenta nuevamente.');
+      }
+
       const revertirEstados = {};
       pagosPendientes.forEach(p => {
         revertirEstados[p.id_pago] = p.estado;
@@ -157,12 +162,8 @@ export function Evidencias() {
 
   const renderMedioIcon = (medio) => {
     const m = (medio || '').toLowerCase();
-    if (m.includes('efectivo')) {
-      return <Banknote className="h-5 w-5" />;
-    }
-    if (m.includes('tarjeta') || m.includes('pos')) {
-      return <CreditCard className="h-5 w-5" />;
-    }
+    if (m.includes('efectivo')) return <Banknote className="h-5 w-5" />;
+    if (m.includes('tarjeta') || m.includes('pos')) return <CreditCard className="h-5 w-5" />;
     return <Wallet className="h-5 w-5" />;
   };
 
@@ -187,7 +188,6 @@ export function Evidencias() {
         <p className="mt-1 text-sm text-slate-500">Visualiza todas las evidencias documentales de las operaciones registradas.</p>
       </div>
 
-      {/* Filtros */}
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -213,13 +213,12 @@ export function Evidencias() {
         </div>
       </div>
 
-      {/* Grid */}
       {filtered.length > 0 ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((op) => (
-            <EvidenceCard 
-              key={op.id_operacion} 
-              operacion={op} 
+            <EvidenceCard
+              key={op.id_operacion}
+              operacion={op}
               onImageClick={abrirEvidencia}
               onClick={() => abrirModal(op)}
             />
@@ -232,16 +231,14 @@ export function Evidencias() {
         </div>
       )}
 
-      {/* Modal Split-Screen de Conciliación */}
       {modalAbierto && selectedOp && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
+        <div className="fixed inset-0 z-50">
           <div
             onClick={cerrarModal}
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
           />
-          
-          <div className="absolute inset-0 z-30 flex flex-col sm:flex-row pointer-events-auto">
-            {/* Panel Izquierdo: Evidencias */}
+
+          <div className="absolute inset-0 z-30 flex flex-col sm:flex-row">
             <div className="flex-1 sm:w-1/2 h-[40vh] sm:h-full bg-slate-950 flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-slate-800">
                 <h2 className="text-lg font-bold text-white">Evidencias</h2>
@@ -269,22 +266,32 @@ export function Evidencias() {
 
                   return (
                     <>
-                      {/* Imagen Principal */}
                       <div
-                        onClick={() => abrirEvidencia(imagenPrincipal.url)}
-                        className="relative flex-1 flex items-center justify-center bg-slate-900 rounded-xl overflow-hidden cursor-pointer group"
+                        onClick={() => imagenPrincipal.tieneUrl && abrirEvidencia(imagenPrincipal.url)}
+                        className={`relative flex-1 flex items-center justify-center bg-slate-900 rounded-xl overflow-hidden ${
+                          imagenPrincipal.tieneUrl ? 'cursor-pointer group' : ''
+                        }`}
                       >
-                        <img
-                          src={imagenPrincipal.url}
-                          alt={imagenPrincipal.tipo}
-                          className="max-h-full max-w-full object-contain"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 group-hover:bg-slate-900/40 transition-colors">
-                          <span className="flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-md opacity-0 group-hover:opacity-100">
-                            <ZoomIn className="h-3.5 w-3.5" />
-                            Ampliar
-                          </span>
-                        </div>
+                        {imagenPrincipal.tieneUrl ? (
+                          <>
+                            <img
+                              src={imagenPrincipal.url}
+                              alt={imagenPrincipal.tipo}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 group-hover:bg-slate-900/40 transition-colors">
+                              <span className="flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-md opacity-0 group-hover:opacity-100">
+                                <ZoomIn className="h-3.5 w-3.5" />
+                                Ampliar
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-slate-500 p-6">
+                            <ImageOff className="h-10 w-10 mb-2" />
+                            <p className="text-xs text-center">Sin vista previa</p>
+                          </div>
+                        )}
                         <div className="absolute bottom-3 left-3 right-3">
                           <span className="inline-flex items-center gap-1.5 rounded-lg bg-black/60 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white">
                             {imagenPrincipal.tipo}
@@ -292,7 +299,6 @@ export function Evidencias() {
                         </div>
                       </div>
 
-                      {/* Miniaturas */}
                       {evidencias.length > 1 && (
                         <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
                           {evidencias.map((evidencia, idx) => (
@@ -306,11 +312,17 @@ export function Evidencias() {
                                   : 'border-slate-700 hover:border-slate-500'
                               }`}
                             >
-                              <img
-                                src={evidencia.url}
-                                alt={evidencia.tipo}
-                                className="w-full h-full object-cover"
-                              />
+                              {evidencia.tieneUrl ? (
+                                <img
+                                  src={evidencia.url}
+                                  alt={evidencia.tipo}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-800">
+                                  <ImageOff className="h-4 w-4 text-slate-600" />
+                                </div>
+                              )}
                               {idx === imagenPrincipalIndex && (
                                 <div className="absolute inset-0 bg-brand-orange/20" />
                               )}
@@ -324,7 +336,6 @@ export function Evidencias() {
               </div>
             </div>
 
-            {/* Panel Derecho: Datos de Pagos */}
             <div className="flex-1 sm:w-1/2 bg-white flex flex-col h-full overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0">
                 <div>
@@ -341,7 +352,6 @@ export function Evidencias() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Información del Cliente */}
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-white">
                     <User className="h-5 w-5" />
@@ -352,7 +362,6 @@ export function Evidencias() {
                   </div>
                 </div>
 
-                {/* Información de la Operación */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-slate-500">
                     <Calendar className="h-4 w-4" />
@@ -366,7 +375,6 @@ export function Evidencias() {
                   </div>
                 </div>
 
-                {/* Lista de Pagos */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 mb-3">Pagos Asociados</h3>
                   <div className="space-y-2">
@@ -410,8 +418,7 @@ export function Evidencias() {
                   </div>
                 </div>
 
-                {/* Botones de Acción */}
-                <div className="pt-4 border-t border-slate-200 flex gap-3">
+                <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
                   {(() => {
                     const pagosPendientesCount = (Array.isArray(selectedOp.pagos) ? selectedOp.pagos : []).filter(p => {
                       const est = String(p.estado || 'PENDIENTE').toUpperCase();
@@ -428,15 +435,22 @@ export function Evidencias() {
                         >
                           Cancelar
                         </button>
-                        <button
-                          type="button"
-                          onClick={handleAprobarPagos}
-                          disabled={verificando}
-                          className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-                        >
-                          <ShieldCheck className="h-5 w-5" />
-                          {verificando ? 'Verificando...' : 'Aprobar y Verificar'}
-                        </button>
+                        {esAdmin ? (
+                          <button
+                            type="button"
+                            onClick={handleAprobarPagos}
+                            disabled={verificando}
+                            className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                          >
+                            <ShieldCheck className="h-5 w-5" />
+                            {verificando ? 'Verificando...' : 'Aprobar y Verificar'}
+                          </button>
+                        ) : (
+                          <div className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-amber-50 text-sm font-bold text-amber-800 ring-1 ring-amber-200">
+                            <ShieldCheck className="h-5 w-5" />
+                            Solo un Administrador puede verificar
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
@@ -461,7 +475,6 @@ export function Evidencias() {
         </div>
       )}
 
-      {/* Lightbox */}
       {isImageOpen && selectedImageUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm"

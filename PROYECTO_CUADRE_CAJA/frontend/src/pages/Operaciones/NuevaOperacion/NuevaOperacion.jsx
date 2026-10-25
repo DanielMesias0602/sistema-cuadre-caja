@@ -80,61 +80,65 @@ function NuevaOperacionContent() {
 
   if (success) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
+      <div className="flex flex-col items-center justify-center py-20 px-4">
         <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-6">
           <CheckCircle className="w-10 h-10 text-green-600" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">¡Operación registrada!</h2>
-        <p className="text-slate-500">Redirigiendo a operaciones...</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 text-center">
+          ¡Operación registrada!
+        </h2>
+        <p className="text-slate-500 text-sm sm:text-base">Redirigiendo a operaciones...</p>
       </div>
     );
   }
 
   return (
     <ErrorBoundary>
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
         <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />
 
-        {currentStep === 1 && (
-          <Paso1Comprobante
-            datosIniciales={datos}
-            onDataChange={handlePaso1Change}
-            onNext={handlePaso1Next}
-            onBack={handleBack}
-          />
-        )}
+        <div className="mt-4 sm:mt-6">
+          {currentStep === 1 && (
+            <Paso1Comprobante
+              datosIniciales={datos}
+              onDataChange={handlePaso1Change}
+              onNext={handlePaso1Next}
+              onBack={handleBack}
+            />
+          )}
 
-        {currentStep === 2 && (
-          <Paso2Pagos
-            comprobante={datos}
-            pagosIniciales={datos.pagos}
-            onNext={handlePaso2Next}
-            onBack={handleBack}
-            onPagosChange={handlePaso2Change}
-          />
-        )}
+          {currentStep === 2 && (
+            <Paso2Pagos
+              comprobante={datos}
+              pagosIniciales={datos.pagos}
+              onNext={handlePaso2Next}
+              onBack={handleBack}
+              onPagosChange={handlePaso2Change}
+            />
+          )}
 
-        {currentStep === 3 && (
-          <Paso3EvidenciaEmpresa
-            datosIniciales={datos}
-            pagos={datos.pagos} // <-- ¡AQUÍ ESTÁ LA LÍNEA AGREGADA!
-            onDataChange={handlePaso3Change}
-            onNext={handlePaso3Next}
-            onBack={handleBack}
-          />
-        )}
+          {currentStep === 3 && (
+            <Paso3EvidenciaEmpresa
+              datosIniciales={datos}
+              pagos={datos.pagos}
+              onDataChange={handlePaso3Change}
+              onNext={handlePaso3Next}
+              onBack={handleBack}
+            />
+          )}
 
-        {currentStep === 4 && (
-          <Paso4Confirmacion
-            comprobante={datos}
-            pagos={datos.pagos}
-            evidenciaComprobante={datos.evidencia}
-            evidenciaEmpresa={datos.evidenciaEmpresa}
-            ocrEmpresa={datos.ocrEmpresa}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-          />
-        )}
+          {currentStep === 4 && (
+            <Paso4Confirmacion
+              comprobante={datos}
+              pagos={datos.pagos}
+              evidenciaComprobante={datos.evidencia}
+              evidenciaEmpresa={datos.evidenciaEmpresa}
+              ocrEmpresa={datos.ocrEmpresa}
+              onBack={handleBack}
+              onSuccess={handleSuccess}
+            />
+          )}
+        </div>
       </div>
     </ErrorBoundary>
   );

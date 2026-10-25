@@ -81,14 +81,9 @@ export function CierresCaja() {
       0
     );
 
-    return {
-      totalCierres,
-      efectivoEsperadoTotal,
-      diferenciaAcumulada
-    };
+    return { totalCierres, efectivoEsperadoTotal, diferenciaAcumulada };
   }, [cierresFiltrados]);
 
-  // ⚠️ CAMBIO 1: acepta fecha explícita para no usar "hoy" siempre
   const calcularEfectivoEsperado = async (turno, fechaSeleccionada) => {
     try {
       const fecha = fechaSeleccionada || formCierre.fecha || new Date().toLocaleDateString('en-CA');
@@ -105,7 +100,6 @@ export function CierresCaja() {
     }
   };
 
-  // ⚠️ CAMBIO 2: nueva función. Solo aplica regla de hora si la fecha es HOY
   const recalcularTurnosDisponibles = (fechaSeleccionada) => {
     const hoy = new Date().toLocaleDateString('en-CA');
     const currentHour = new Date().getHours();
@@ -141,7 +135,6 @@ export function CierresCaja() {
     setMotivoDeshabilitado(nuevoMotivo);
   };
 
-  // ⚠️ CAMBIO 3: siempre abre en paso 1 (para que el usuario elija fecha y turno)
   const abrirModal = () => {
     const hoy = new Date().toLocaleDateString('en-CA');
     setFormCierre({ fecha: hoy, turno: '', efectivoFisico: '', observaciones: '' });
@@ -166,7 +159,6 @@ export function CierresCaja() {
     setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
   };
 
-  // ⚠️ CAMBIO 4: pasa la fecha seleccionada
   const seleccionarTurno = async (turno) => {
     setFormCierre({ ...formCierre, turno });
     await calcularEfectivoEsperado(turno, formCierre.fecha);
@@ -185,7 +177,6 @@ export function CierresCaja() {
   const handleGuardar = async () => {
     setGuardando(true);
     try {
-      // ⚠️ CAMBIO 5: usa formCierre.fecha (la fecha elegida por el usuario)
       const payload = {
         fecha: formCierre.fecha,
         turno: formCierre.turno,
@@ -222,88 +213,90 @@ export function CierresCaja() {
   const nombreResponsable = user ? `${user.nombres || ''} ${user.apellidos || ''}`.trim() : 'Usuario autenticado';
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up">
+      {/* HEADER */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900">
             Cierres de Caja
           </h1>
-          <p className="mt-2 text-base text-slate-500">
+          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-500">
             Gestiona los cierres diarios de caja con arqueo y verificación de efectivo.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={cargarDatos}
             disabled={loading}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50"
+            className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50"
           >
-            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Actualizar</span>
           </button>
 
           <button
             type="button"
             onClick={abrirModal}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand-orange px-5 text-sm font-bold text-white shadow-sm shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95"
+            className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl bg-brand-orange px-4 sm:px-5 text-xs sm:text-sm font-bold text-white shadow-sm shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 flex-1 sm:flex-initial"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
             <span>Nuevo Cierre</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-600/10">
-            <Lock className="h-6 w-6" />
+      {/* KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-600/10">
+            <Lock className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Total Cierres</p>
-            <p className="mt-1 text-2xl font-black text-slate-900 tabular-nums">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-500">Total Cierres</p>
+            <p className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black text-slate-900 tabular-nums">
               {kpis.totalCierres}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
               {kpis.totalCierres === 1 ? 'turno cerrado' : 'turnos cerrados'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/10">
-            <Wallet className="h-6 w-6" />
+        <div className="flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-600/10">
+            <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Efectivo Esperado</p>
-            <p className="mt-1 text-2xl font-black text-slate-900 tabular-nums">
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-500">Efectivo Esperado</p>
+            <p className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-words">
               {formatCurrency(kpis.efectivoEsperadoTotal)}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Total del periodo
+            <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
+              Total del período
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${kpis.diferenciaAcumulada === 0
+        <div className="flex items-center gap-3 sm:gap-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+          <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${kpis.diferenciaAcumulada === 0
               ? 'bg-emerald-50 text-emerald-600 ring-emerald-600/10'
               : kpis.diferenciaAcumulada < 0
                 ? 'bg-rose-50 text-rose-600 ring-rose-600/10'
                 : 'bg-blue-50 text-blue-600 ring-blue-600/10'
             }`}>
             {kpis.diferenciaAcumulada === 0 ? (
-              <CheckCircle className="h-6 w-6" />
+              <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : kpis.diferenciaAcumulada < 0 ? (
-              <AlertTriangle className="h-6 w-6" />
+              <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : (
-              <AlertCircle className="h-6 w-6" />
+              <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Diferencia Acumulada</p>
-            <p className={`mt-1 text-2xl font-black tabular-nums ${kpis.diferenciaAcumulada === 0
+            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-500">Diferencia Acumulada</p>
+            <p className={`mt-0.5 sm:mt-1 text-lg sm:text-2xl font-black tabular-nums break-words ${kpis.diferenciaAcumulada === 0
                 ? 'text-emerald-600'
                 : kpis.diferenciaAcumulada < 0
                   ? 'text-rose-600'
@@ -311,43 +304,44 @@ export function CierresCaja() {
               }`}>
               {formatCurrency(kpis.diferenciaAcumulada)}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
               {kpis.diferenciaAcumulada === 0 ? 'Cuadrado perfecto' : kpis.diferenciaAcumulada < 0 ? 'Faltante' : 'Sobrante'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* FILTROS */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Filtrar por responsable..."
-              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-12 pr-4 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
             />
           </div>
 
           <div className="relative">
-            <Calendar className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Calendar className="pointer-events-none absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="date"
               value={fechaDesde}
               onChange={(e) => setFechaDesde(e.target.value)}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-12 pr-4 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
             />
           </div>
 
           <div className="relative">
-            <Calendar className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Calendar className="pointer-events-none absolute left-3 sm:left-4 top-1/2 h-4 w-4 sm:h-5 sm:w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="date"
               value={fechaHasta}
               onChange={(e) => setFechaHasta(e.target.value)}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-12 pr-4 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
+              className="h-10 sm:h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 sm:pl-12 pr-3 sm:pr-4 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
             />
           </div>
 
@@ -355,7 +349,7 @@ export function CierresCaja() {
             <select
               value={turnoFiltro}
               onChange={(e) => setTurnoFiltro(e.target.value)}
-              className="h-12 flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange cursor-pointer"
+              className="h-10 sm:h-12 flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-3 sm:px-4 text-xs sm:text-sm text-slate-700 transition focus:border-brand-orange focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange cursor-pointer"
             >
               <option value="">Todos los turnos</option>
               <option value="Mañana">Mañana</option>
@@ -365,24 +359,25 @@ export function CierresCaja() {
               <button
                 type="button"
                 onClick={limpiarFiltros}
-                className="h-12 w-12 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition"
+                className="h-10 sm:h-12 w-10 sm:w-12 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition flex-shrink-0"
                 title="Limpiar filtros"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             )}
           </div>
         </div>
       </div>
 
+      {/* TABLA / CARDS */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-brand-orange" />
-          <p className="mt-3 text-sm font-semibold text-slate-700">Cargando cierres de caja...</p>
+        <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center">
+          <RefreshCw className="h-7 w-7 sm:h-8 sm:w-8 animate-spin text-brand-orange" />
+          <p className="mt-3 text-xs sm:text-sm font-semibold text-slate-700">Cargando cierres de caja...</p>
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-semibold text-rose-600">{error}</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 text-center shadow-sm">
+          <p className="text-xs sm:text-sm font-semibold text-rose-600">{error}</p>
           <button
             type="button"
             onClick={cargarDatos}
@@ -393,7 +388,81 @@ export function CierresCaja() {
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* MOBILE: cards */}
+          <div className="block md:hidden divide-y divide-slate-100">
+            {cierresFiltrados.length > 0 ? cierresFiltrados.map((cierre) => {
+              const difNum = Number(cierre.diferencia || 0);
+              return (
+                <div key={cierre.id_cierre} className="p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-700">
+                        {cierre.fecha ? (cierre.fecha.includes('T') ? new Date(cierre.fecha).toLocaleDateString('es-PE') : new Date(cierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')) : '-'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <User className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                        <span className="text-sm font-bold text-slate-900 truncate">
+                          {cierre.responsable || 'No asignado'}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold flex-shrink-0 ${cierre.turno === 'Mañana'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-indigo-50 text-indigo-700'
+                      }`}>
+                      {cierre.turno === 'Mañana' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                      {cierre.turno}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <div className="bg-slate-50 rounded-lg p-2">
+                      <p className="text-slate-500 text-[9px] uppercase font-semibold">Ingresos</p>
+                      <p className="font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.total_ingresos)}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-2">
+                      <p className="text-slate-500 text-[9px] uppercase font-semibold">Efec. Esperado</p>
+                      <p className="font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.efectivo_esperado)}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-2">
+                      <p className="text-slate-500 text-[9px] uppercase font-semibold">Efec. Físico</p>
+                      <p className="font-bold text-slate-900 tabular-nums">{formatCurrency(cierre.efectivo_fisico)}</p>
+                    </div>
+                    <div className={`rounded-lg p-2 ${difNum === 0 ? 'bg-emerald-50' : difNum < 0 ? 'bg-rose-50' : 'bg-blue-50'}`}>
+                      <p className="text-[9px] uppercase font-semibold text-slate-500">Diferencia</p>
+                      <p className={`font-bold tabular-nums ${difNum === 0 ? 'text-emerald-700' : difNum < 0 ? 'text-rose-700' : 'text-blue-700'}`}>
+                        {formatCurrency(difNum)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await api.get(`/cierres-caja/${cierre.id_cierre}`);
+                        setSelectedCierre(res.data.data);
+                      } catch (err) {
+                        console.error("Error al traer detalle", err);
+                        setSelectedCierre(cierre);
+                      }
+                      setDrawerAbierto(true);
+                    }}
+                    className="w-full inline-flex items-center justify-center px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition active:scale-95"
+                  >
+                    Ver Detalle
+                  </button>
+                </div>
+              );
+            }) : (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                No hay cierres de caja registrados
+              </div>
+            )}
+          </div>
+
+          {/* DESKTOP: tabla */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
@@ -484,32 +553,31 @@ export function CierresCaja() {
         </div>
       )}
 
+      {/* MODAL NUEVO CIERRE */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 sm:p-6">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-3 sm:p-6">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
 
-            <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white relative overflow-hidden shrink-0">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 sm:p-6 text-white relative overflow-hidden shrink-0">
               <svg className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" />
               </svg>
               <div className="relative z-10 flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-bold">{pasoModal === 1 ? 'Seleccionar Turno' : 'Arqueo de Caja'}</h2>
-                  <p className="text-blue-100 text-sm mt-1">Gestiona el cierre de forma segura</p>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-bold truncate">{pasoModal === 1 ? 'Seleccionar Turno' : 'Arqueo de Caja'}</h2>
+                  <p className="text-blue-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1">Gestiona el cierre de forma segura</p>
                 </div>
-                <button onClick={cerrarModal} className="text-white hover:bg-white/20 p-2 rounded-full transition-colors">
+                <button onClick={cerrarModal} className="text-white hover:bg-white/20 p-2 rounded-full transition-colors flex-shrink-0 ml-2">
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50">
               {pasoModal === 1 ? (
-                <div className="space-y-4">
-
-                  {/* ⚠️ CAMBIO 6: NUEVO selector de fecha */}
+                <div className="space-y-3 sm:space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 sm:mb-2">
                       Fecha del cierre
                     </label>
                     <input
@@ -521,27 +589,27 @@ export function CierresCaja() {
                         setFormCierre({ ...formCierre, fecha: nuevaFecha, turno: '' });
                         recalcularTurnosDisponibles(nuevaFecha);
                       }}
-                      className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                     />
                   </div>
 
-                  <p className="text-sm text-slate-600 text-center font-medium">¿Qué turno deseas cerrar?</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <p className="text-xs sm:text-sm text-slate-600 text-center font-medium">¿Qué turno deseas cerrar?</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <button
                       type="button"
                       onClick={() => seleccionarTurno('Mañana')}
                       disabled={turnosDeshabilitados.mañana}
-                      className={`flex flex-col items-center gap-3 rounded-2xl border-2 p-6 transition-all active:scale-95 ${turnosDeshabilitados.mañana
+                      className={`flex flex-col items-center gap-2 sm:gap-3 rounded-2xl border-2 p-4 sm:p-6 transition-all active:scale-95 ${turnosDeshabilitados.mañana
                           ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
                           : 'border-blue-100 bg-white hover:border-blue-500 hover:shadow-md'
                         }`}
                     >
-                      <div className={`flex h-16 w-16 items-center justify-center rounded-full ${turnosDeshabilitados.mañana ? 'bg-slate-300 text-slate-500' : 'bg-amber-100 text-amber-600'
+                      <div className={`flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full ${turnosDeshabilitados.mañana ? 'bg-slate-300 text-slate-500' : 'bg-amber-100 text-amber-600'
                         }`}>
-                        <Sun className="h-8 w-8" />
+                        <Sun className="h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
-                      <span className="text-lg font-bold text-slate-900">Mañana</span>
-                      <span className="text-xs text-slate-500 text-center">
+                      <span className="text-base sm:text-lg font-bold text-slate-900">Mañana</span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 text-center">
                         {turnosDeshabilitados.mañana ? motivoDeshabilitado.mañana : 'Antes de las 2:00 PM'}
                       </span>
                     </button>
@@ -550,58 +618,57 @@ export function CierresCaja() {
                       type="button"
                       onClick={() => seleccionarTurno('Tarde')}
                       disabled={turnosDeshabilitados.tarde}
-                      className={`flex flex-col items-center gap-3 rounded-2xl border-2 p-6 transition-all active:scale-95 ${turnosDeshabilitados.tarde
+                      className={`flex flex-col items-center gap-2 sm:gap-3 rounded-2xl border-2 p-4 sm:p-6 transition-all active:scale-95 ${turnosDeshabilitados.tarde
                           ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
                           : 'border-blue-100 bg-white hover:border-blue-500 hover:shadow-md'
                         }`}
                     >
-                      <div className={`flex h-16 w-16 items-center justify-center rounded-full ${turnosDeshabilitados.tarde ? 'bg-slate-300 text-slate-500' : 'bg-indigo-100 text-indigo-600'
+                      <div className={`flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full ${turnosDeshabilitados.tarde ? 'bg-slate-300 text-slate-500' : 'bg-indigo-100 text-indigo-600'
                         }`}>
-                        <Moon className="h-8 w-8" />
+                        <Moon className="h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
-                      <span className="text-lg font-bold text-slate-900">Tarde</span>
-                      <span className="text-xs text-slate-500 text-center">
+                      <span className="text-base sm:text-lg font-bold text-slate-900">Tarde</span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 text-center">
                         {turnosDeshabilitados.tarde ? motivoDeshabilitado.tarde : 'A partir de las 2:00 PM'}
                       </span>
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <User className="h-4 w-4 text-blue-500" />
-                      <span>Responsable: <strong className="text-slate-900">{nombreResponsable}</strong></span>
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200 shadow-sm space-y-2 sm:space-y-3">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
+                      <User className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <span className="truncate">Responsable: <strong className="text-slate-900">{nombreResponsable}</strong></span>
                     </div>
-                    {/* ⚠️ CAMBIO 7: mostrar fecha en el paso 2 */}
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Calendar className="h-4 w-4 text-blue-500" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
+                      <Calendar className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <span>Fecha: <strong className="text-slate-900">{new Date(formCierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')}</strong></span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Calendar className="h-4 w-4 text-blue-500" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
+                      <Calendar className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <span>Turno: <strong className="text-slate-900">{formCierre.turno}</strong></span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Wallet className="h-4 w-4 text-blue-500" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
+                      <Wallet className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <span>Efectivo Esperado: <strong className="text-slate-900">{formatCurrency(efectivoEsperado)}</strong></span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Efectivo Físico</label>
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 sm:mb-2">Efectivo Físico</label>
                     <input
                       type="number"
                       value={formCierre.efectivoFisico}
                       onChange={(e) => setFormCierre({ ...formCierre, efectivoFisico: e.target.value })}
                       placeholder="0.00"
-                      className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all tabular-nums"
+                      className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all tabular-nums"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Diferencia</label>
-                    <div className={`h-12 w-full rounded-xl border px-4 flex items-center text-sm font-bold tabular-nums ${calcularDiferencia() === 0
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 sm:mb-2">Diferencia</label>
+                    <div className={`h-10 sm:h-12 w-full rounded-xl border px-3 sm:px-4 flex items-center text-xs sm:text-sm font-bold tabular-nums ${calcularDiferencia() === 0
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                         : calcularDiferencia() < 0
                           ? 'bg-rose-50 border-rose-200 text-rose-700'
@@ -612,30 +679,30 @@ export function CierresCaja() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Observaciones</label>
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 sm:mb-2">Observaciones</label>
                     <textarea
                       value={formCierre.observaciones}
                       onChange={(e) => setFormCierre({ ...formCierre, observaciones: e.target.value })}
                       placeholder="Observaciones adicionales..."
                       rows={2}
-                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-white shrink-0 flex flex-col sm:flex-row gap-3">
+            <div className="p-3 sm:p-4 border-t border-slate-200 bg-white shrink-0 flex flex-col sm:flex-row gap-2 sm:gap-3">
               {pasoModal === 1 ? (
-                <button type="button" onClick={cerrarModal} className="w-full h-11 rounded-xl bg-slate-100 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors">
+                <button type="button" onClick={cerrarModal} className="w-full h-10 sm:h-11 rounded-xl bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors">
                   Cancelar
                 </button>
               ) : (
                 <>
-                  <button type="button" onClick={() => setPasoModal(1)} disabled={guardando} className="w-full sm:w-1/3 h-11 rounded-xl bg-slate-100 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors disabled:opacity-50">
+                  <button type="button" onClick={() => setPasoModal(1)} disabled={guardando} className="w-full sm:w-1/3 h-10 sm:h-11 rounded-xl bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors disabled:opacity-50">
                     Atrás
                   </button>
-                  <button type="button" onClick={abrirConfirmacion} disabled={guardando || !formCierre.efectivoFisico} className="w-full sm:w-2/3 h-11 rounded-xl bg-blue-600 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+                  <button type="button" onClick={abrirConfirmacion} disabled={guardando || !formCierre.efectivoFisico} className="w-full sm:w-2/3 h-10 sm:h-11 rounded-xl bg-blue-600 text-xs sm:text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
                     Guardar Cierre
                   </button>
                 </>
@@ -645,41 +712,42 @@ export function CierresCaja() {
         </div>
       )}
 
+      {/* MODAL CONFIRMACIÓN */}
       {confirmacionAbierta && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
-                <AlertTriangle className="h-6 w-6" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-3 sm:p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 p-4 sm:p-6">
+            <div className="flex items-center gap-3 mb-3 sm:mb-4">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600 flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">¿Confirmar cierre de turno?</h3>
-                <p className="text-sm text-slate-500">Esta acción no se puede deshacer</p>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">¿Confirmar cierre de turno?</h3>
+                <p className="text-[11px] sm:text-sm text-slate-500">Esta acción no se puede deshacer</p>
               </div>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 mb-6">
-              <p className="text-sm text-slate-700">
+            <div className="bg-slate-50 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+              <p className="text-xs sm:text-sm text-slate-700">
                 Estás a punto de cerrar el turno <strong className="text-slate-900">{formCierre.turno}</strong> del <strong className="text-slate-900">{new Date(formCierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')}</strong> como <strong className="text-slate-900">{nombreResponsable}</strong>.
               </p>
-              <p className="text-sm text-slate-700 mt-2">
+              <p className="text-xs sm:text-sm text-slate-700 mt-2">
                 Efectivo esperado: <strong className="text-slate-900">{formatCurrency(efectivoEsperado)}</strong>
               </p>
-              <p className="text-sm text-slate-700">
+              <p className="text-xs sm:text-sm text-slate-700">
                 Efectivo físico: <strong className="text-slate-900">{formatCurrency(Number(formCierre.efectivoFisico))}</strong>
               </p>
-              <p className="text-sm text-slate-700">
+              <p className="text-xs sm:text-sm text-slate-700">
                 Diferencia: <strong className={`${calcularDiferencia() === 0 ? 'text-emerald-600' : calcularDiferencia() < 0 ? 'text-rose-600' : 'text-blue-600'
                   }`}>{formatCurrency(calcularDiferencia())}</strong>
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setConfirmacionAbierta(false)}
                 disabled={guardando}
-                className="h-11 flex-1 rounded-xl bg-slate-100 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50"
+                className="h-10 sm:h-11 flex-1 rounded-xl bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -687,7 +755,7 @@ export function CierresCaja() {
                 type="button"
                 onClick={handleGuardar}
                 disabled={guardando}
-                className="h-11 flex-1 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="h-10 sm:h-11 flex-1 rounded-xl bg-emerald-600 text-xs sm:text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {guardando ? (
                   <>

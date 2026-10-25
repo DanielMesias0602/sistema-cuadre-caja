@@ -57,7 +57,6 @@ export function Indicadores() {
 
   const COLORS = ['#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
 
-  // Calcular porcentajes
   const totalOps = Number(data.operaciones_registradas || 0);
   const opsConEvidencia = Number(data.ops_con_evidencia || 0);
   const opsVerificadas = Number(data.ops_verificadas || 0);
@@ -138,96 +137,121 @@ export function Indicadores() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <RefreshCw className="h-8 w-8 animate-spin text-brand-orange" />
-        <p className="mt-3 text-sm font-semibold text-slate-700">Cargando 20 indicadores...</p>
+      <div className="flex flex-col items-center justify-center py-16 sm:py-20">
+        <RefreshCw className="h-7 w-7 sm:h-8 sm:w-8 animate-spin text-brand-orange" />
+        <p className="mt-3 text-xs sm:text-sm font-semibold text-slate-700">Cargando 20 indicadores...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto w-full space-y-6">
+    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up">
       {/* HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Indicadores del Sistema</h1>
-          <p className="mt-2 text-base text-slate-500">Panel de control con 20 métricas clave organizadas por categoría.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900">Indicadores del Sistema</h1>
+          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-500">Panel de control con 20 métricas clave organizadas por categoría.</p>
         </div>
-        <button onClick={cargarDatos} disabled={loading} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer">
-          <RefreshCw className="h-5 w-5" /> Actualizar
+        <button
+          onClick={cargarDatos}
+          disabled={loading}
+          className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer self-start sm:self-auto"
+        >
+          <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" /> Actualizar
         </button>
       </div>
 
-      {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 sm:p-4 text-xs sm:text-sm text-rose-800">{error}</div>}
 
-      {/* GRÁFICOS (arriba, destacados) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-brand-orange" /> Tendencia de Operaciones
+      {/* GRÁFICOS */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+        {/* Tendencia de Operaciones */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-6 shadow-sm">
+          <h3 className="text-sm sm:text-lg font-bold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-brand-orange" /> Tendencia de Operaciones
           </h3>
-          <div className="h-64 w-full">
+          <div className="h-56 sm:h-64 w-full">
             {datosTendencia.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={datosTendencia}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
                   <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
-                  <Bar dataKey="cantidad" name="Operaciones" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cantidad" name="Operaciones" fill="#ea580c" radius={[4, 4, 0, 0]} maxBarSize={50} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : <div className="h-full flex items-center justify-center text-slate-400">No hay datos</div>}
+            ) : <div className="h-full flex items-center justify-center text-slate-400 text-xs sm:text-sm">No hay datos</div>}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-emerald-600" /> Distribución por Medio de Pago
+        {/* Distribución por Medio de Pago */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-6 shadow-sm">
+          <h3 className="text-sm sm:text-lg font-bold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" /> Distribución por Medio de Pago
           </h3>
-          <div className="h-64 w-full">
+          <div className="h-56 sm:h-64 w-full">
             {datosMedios.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={datosMedios} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie
+                    data={datosMedios}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={40}
+                    outerRadius={60}
+                    paddingAngle={2}
+                    dataKey="value"
+                    labelLine={false}
+                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                  >
                     {datosMedios.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => `S/ ${Number(value).toFixed(2)}`} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                  <Tooltip
+                    formatter={(value) => `S/ ${Number(value).toFixed(2)}`}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                  />
+                  <Legend
+                    layout="horizontal"
+                    verticalAlign="bottom"
+                    align="center"
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
-            ) : <div className="h-full flex items-center justify-center text-slate-400">No hay datos</div>}
+            ) : <div className="h-full flex items-center justify-center text-slate-400 text-xs sm:text-sm">No hay datos</div>}
           </div>
         </div>
       </div>
 
-      {/* 5 CATEGORÍAS CON 4 INDICADORES CADA UNA = 20 INDICADORES */}
+      {/* 5 CATEGORÍAS × 4 INDICADORES */}
       {categorias.map((cat, catIdx) => {
         const CatIcon = cat.icono;
         return (
-          <div key={catIdx} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${colorClasses[cat.color]}`}>
-                <CatIcon className="h-5 w-5" />
+          <div key={catIdx} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-6 shadow-sm">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
+              <span className={`flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg flex-shrink-0 ${colorClasses[cat.color]}`}>
+                <CatIcon className="h-4 w-4 sm:h-5 sm:w-5" />
               </span>
-              {cat.titulo}
+              <span className="truncate">{cat.titulo}</span>
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
               {cat.items.map((item, idx) => {
                 const ItemIcon = item.icono;
                 const itemColor = item.color || cat.color;
                 return (
-                  <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 hover:bg-slate-50 transition-colors">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colorClasses[itemColor]}`}>
-                        <ItemIcon className="h-4 w-4" />
+                  <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50/50 p-2.5 sm:p-4 hover:bg-slate-50 transition-colors min-w-0">
+                    <div className="flex items-start justify-between mb-1.5 sm:mb-2">
+                      <div className={`flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg flex-shrink-0 ${colorClasses[itemColor]}`}>
+                        <ItemIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </div>
                     </div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-tight">
+                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-tight">
                       {item.titulo}
                     </p>
-                    <p className="mt-1.5 text-lg font-black text-slate-900 tabular-nums break-words">
+                    <p className="mt-1 sm:mt-1.5 text-[13px] sm:text-lg font-black text-slate-900 tabular-nums break-words">
                       {item.valor}
                     </p>
                   </div>

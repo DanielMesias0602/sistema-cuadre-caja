@@ -53,7 +53,7 @@ export function Dashboard() {
       const horaRegistro = typeof horaRegistroRaw === 'string' ? horaRegistroRaw : '00:00';
       const [horas, minutos, segundos] = horaRegistro.split(':').map(Number);
       const horaDecimal = horas + minutos / 60 + segundos / 3600;
-      
+
       if (filters.turno === 'Mañana' && horaDecimal >= 14) return false;
       if (filters.turno === 'Tarde' && (horaDecimal < 14 || horaDecimal >= 20)) return false;
     }
@@ -64,7 +64,7 @@ export function Dashboard() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <DashboardHeader user={user} />
 
@@ -113,31 +113,29 @@ export function Dashboard() {
           <span className="text-gray-500 font-semibold text-sm">Cargando métricas del Dashboard...</span>
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-            {/* Table & Payments Column */}
-            <div className="xl:col-span-8 space-y-6">
-              <OperacionesRecientesTable
-                operaciones={filteredOps}
-                selectedOpId={selectedOp?.id_operacion}
-                onSelectOp={(op) => {
-                  setSelectedOp(op);
-                  setDrawerAbierto(true);
-                }}
-              />
-              <PagosPorMedioSection filteredOps={filteredOps} />
-            </div>
-
-            {/* Detail Drawer Column */}
-            <div className="xl:col-span-4 xl:sticky xl:top-24">
-              {drawerAbierto && (
-                <OperacionDetailDrawer
-                  selectedOp={selectedOp}
-                  onClose={() => setDrawerAbierto(false)}
-                />
-              )}
-            </div>
+        <div className={`grid grid-cols-1 gap-6 items-start ${drawerAbierto ? 'xl:grid-cols-12' : 'xl:grid-cols-1'}`}>
+          {/* Table & Payments Column */}
+          <div className={`space-y-6 ${drawerAbierto ? 'xl:col-span-8' : 'xl:col-span-1'}`}>
+            <OperacionesRecientesTable
+              operaciones={filteredOps}
+              selectedOpId={selectedOp?.id_operacion}
+              onSelectOp={(op) => {
+                setSelectedOp(op);
+                setDrawerAbierto(true);
+              }}
+            />
+            <PagosPorMedioSection filteredOps={filteredOps} />
           </div>
+
+          {/* Detail Drawer Column */}
+          {drawerAbierto && (
+            <div className="xl:col-span-4 xl:sticky xl:top-24 animate-fade-in">
+              <OperacionDetailDrawer
+                selectedOp={selectedOp}
+                onClose={() => setDrawerAbierto(false)}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

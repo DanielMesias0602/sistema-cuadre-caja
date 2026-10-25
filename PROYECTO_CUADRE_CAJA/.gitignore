@@ -10,3 +10,8 @@ coverage/
 Thumbs.db
 tmp/
 database/backup_pre_auditoria.dump
+
+__pycache__/
+*.bak
+revision_*.txt
+REVISION_*.txt

@@ -53,10 +53,10 @@ def detect_bank(lines):
     # PRIMERO: si es extracto de la empresa, es del banco BCP
     if es_extracto_bancario_empresa(lines):
         return 'BCP'
-    
+
     # SEGUNDO: si NO es extracto, usar logos/textos (Yape, BBVA, etc)
     full_text = ' '.join(lines).lower()
-    
+
     if 'cuenta independencia bbva' in full_text: return 'BBVA'
     if 'bbva' in full_text: return 'BBVA'
     if 'yapeaste' in full_text: return 'YAPE'
@@ -65,11 +65,30 @@ def detect_bank(lines):
     if 'scotiabank' in full_text: return 'SCOTIABANK'
     if 'banbif' in full_text: return 'BANBIF'
     if 'plin' in full_text: return 'PLIN'
-    
+
     if 'envío a contactos' in full_text or 'envio a contactos' in full_text: return 'BBVA'
     if 'cuentas de ahorro' in full_text and '**** 5010' in full_text: return 'BCP'
     if 'yape' in full_text: return 'YAPE'
-    
+
+    return None
+
+def detect_bank_source(lines):
+    """
+    NUEVO: indica de donde salio el banco.
+      - 'formato_extracto' : se infirio por el formato (Detalle de movimiento + Cuenta Corriente)
+      - 'texto'            : se leyo directamente del texto (Yape, BBVA, BCP, etc)
+      - None               : no se detecto
+    """
+    if es_extracto_bancario_empresa(lines):
+        full_text = ' '.join(lines).lower()
+        # Si el texto tambien dice BBVA/YAPE/INTERBANK, preferir el texto
+        for bank in ['bbva', 'yape', 'interbank', 'scotiabank', 'banbif', 'plin']:
+            if bank in full_text:
+                return 'texto'
+        return 'formato_extracto'
+
+    if detect_bank(lines):
+        return 'texto'
     return None
 
 def detect_transfer_status(lines):
@@ -223,7 +242,7 @@ def extract_recipient(lines):
         'sucursal agencia', 'sucursal', 'tipo de canal', 'categoría del establecimiento',
         'categoria del establecimiento'
     ]
-    
+
     def _normalizar(t):
         """Quita tildes, mojibake y caracteres raros para comparar de forma robusta"""
         t = t.lower()
@@ -238,7 +257,7 @@ def extract_recipient(lines):
         t = re.sub(r'[^a-z0-9 ]', '', t)
         t = re.sub(r'\s+', ' ', t).strip()
         return t
-    
+
     def _es_etiqueta(t):
         t_norm = _normalizar(t)
         # Filtrar "envio a contactos" (cualquier variacion con/sin tildes o mojibake)
@@ -249,13 +268,13 @@ def extract_recipient(lines):
             if _normalizar(et) in t_norm:
                 return True
         return False
-    
+
     def _es_nombre_valido(t):
         if not re.search(r'[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}', t): return False
         if re.search(r'\d{2,}', t): return False
         if _es_etiqueta(t): return False
         return True
-    
+
     for i, line in enumerate(lines):
         if 'enviado a' in line.lower():
             partes = []
@@ -266,7 +285,7 @@ def extract_recipient(lines):
                 c = normalize_text(lines[i + 1])
                 if c and _es_nombre_valido(c): partes.append(c)
             if partes: return ' '.join(partes)
-    
+
     for i, line in enumerate(lines):
         if line.lower().startswith('contacto'):
             partes = []
@@ -279,53 +298,7 @@ def extract_recipient(lines):
                     partes.append(c)
                     if len(partes) >= 3: break
             if partes: return ' '.join(partes)
-    
-    for i, line in enumerate(lines):
-        if 'destinatario' in line.lower() and ':' in line:
-            partes = line.split(':', 1)
-            if len(partes) > 1 and partes[1].strip(): return partes[1].strip()
-    return None
-    ETIQUETAS_PARADA = [
-        'cuenta de origen', 'cuenta independencia', 'tipo de operación', 'tipo de operacion',
-        'número de operación', 'numero de operacion', 'comisión', 'comision',
-        'entidad de destino', 'salir', 'importe enviado', 'importe',
-        'envío a contactos', 'envío a contactos ', 'envio a contactos', 'envio a contactos ',
-        'envió a contactos', 'envió a contactos ',
-        'monto', 'fecha', 'compartir', 'descargar', 'seguro',
-        'oncorespaldo', 'tarjetas', 'cuenta corriente', 'cuentas de ahorro',
-        'datos de la operación', 'datos de la operacion', 'datos del canal',
-        'sucursal agencia', 'sucursal', 'tipo de canal', 'categoría del establecimiento',
-        'categoria del establecimiento'
-    ]
-    def _es_etiqueta(t):
-        return any(et in t for et in ETIQUETAS_PARADA)
-    def _es_nombre_valido(t):
-        if not re.search(r'[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}', t): return False
-        if re.search(r'\d{2,}', t): return False
-        if _es_etiqueta(t): return False
-        return True
-    for i, line in enumerate(lines):
-        if 'enviado a' in line.lower():
-            partes = []
-            if i > 0:
-                c = normalize_text(lines[i - 1])
-                if c and _es_nombre_valido(c): partes.append(c)
-            if i + 1 < len(lines):
-                c = normalize_text(lines[i + 1])
-                if c and _es_nombre_valido(c): partes.append(c)
-            if partes: return ' '.join(partes)
-    for i, line in enumerate(lines):
-        if line.lower().startswith('contacto'):
-            partes = []
-            for j in range(i + 1, min(i + 10, len(lines))):
-                c = normalize_text(lines[j])
-                if not c: continue
-                if partes and _es_etiqueta(c): break
-                if _es_etiqueta(c): continue
-                if _es_nombre_valido(c):
-                    partes.append(c)
-                    if len(partes) >= 3: break
-            if partes: return ' '.join(partes)
+
     for i, line in enumerate(lines):
         if 'destinatario' in line.lower() and ':' in line:
             partes = line.split(':', 1)
@@ -352,6 +325,11 @@ def extract_recipient_yape_fallback(lines):
     return None
 
 def extract_destination_account(lines):
+    # FIX: si es extracto bancario de la empresa, NO existe "cuenta destino" separada.
+    # La unica cuenta visible es la de la empresa (cuenta_movimiento).
+    if es_extracto_bancario_empresa(lines):
+        return None
+
     for i, line in enumerate(lines):
         if '*' in line:
             numeros = re.findall(r'\d+', line)
@@ -465,6 +443,7 @@ def extract_transfer_data(lines):
     data = {
         'tipo_evidencia': 'TRANSFERENCIA',
         'aplicacion_banco': detect_bank(lines),
+        'banco_detectado_por': detect_bank_source(lines),
         'estado_transferencia': detect_transfer_status(lines),
         'monto': None, 'moneda': None,
         'fecha_operacion': None, 'hora_operacion': None,
@@ -520,7 +499,9 @@ def extract_transfer_data(lines):
     movement_account = extract_movement_account(lines)
     if movement_account:
         data['cuenta_movimiento'] = movement_account
-        if not data['cuenta_destino']:
+        # FIX: solo copiar a cuenta_destino si NO es extracto bancario de la empresa
+        # (en un extracto, la unica cuenta es la de la empresa y NO hay "destino")
+        if not data['cuenta_destino'] and not es_extracto_bancario_empresa(lines):
             data['cuenta_destino'] = movement_account['numero']
 
     description = extract_description(lines)
@@ -560,6 +541,7 @@ def print_extracted_data(data):
     print()
     print_field('Tipo de evidencia', data.get('tipo_evidencia'))
     print_field('Aplicación / banco', data.get('aplicacion_banco'))
+    print_field('Banco detectado por', data.get('banco_detectado_por'))
     print_field('Estado de transferencia', data.get('estado_transferencia'))
     if data.get('monto') is not None: print_field('Monto', f"S/ {data['monto']:.2f}")
     print_field('Moneda', data.get('moneda'))

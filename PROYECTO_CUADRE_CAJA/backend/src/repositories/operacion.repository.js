@@ -11,9 +11,9 @@ export const createOperacion = async ({
 }, client = null) => {
   const executor = client ?? { query };
   const result = await executor.query(
-    `INSERT INTO operacion 
-       (id_usuario, id_cierre, id_comprobante, fecha, monto, estado, observacion) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7) 
+    `INSERT INTO operacion
+       (id_usuario, id_cierre, id_comprobante, fecha, monto, estado, observacion)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id_operacion, id_usuario, id_cierre, id_comprobante, TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, monto, estado, observacion, fecha_registro`,
     [id_usuario, id_cierre, id_comprobante, fecha, monto, estado, observacion]
   );
@@ -85,11 +85,16 @@ export const findAllOperaciones = async () => {
          '[]'::jsonb
        ) AS pagos,
        -- Subconsulta independiente para evidencias (evita producto cartesiano)
+       -- CAMBIO: ahora trae datos_ocr, texto_ocr, id_evidencia, fecha_evidencia
        COALESCE(
          (SELECT jsonb_agg(
            jsonb_build_object(
+             'id_evidencia', e.id_evidencia,
              'tipo_evidencia', e.tipo_evidencia,
-             'storage_key', e.storage_key
+             'storage_key', e.storage_key,
+             'fecha_evidencia', TO_CHAR(e.fecha_evidencia, 'YYYY-MM-DD'),
+             'texto_ocr', e.texto_ocr,
+             'datos_ocr', e.datos_ocr
            )
          ) FROM evidencia e
          WHERE e.id_operacion = o.id_operacion),
