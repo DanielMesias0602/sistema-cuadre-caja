@@ -291,7 +291,7 @@ export function Reportes() {
     XLSX.writeFile(workbook, `REPORTE_OPERACIONES_${new Date().toLocaleDateString('en-CA')}.xlsx`);
   };
 
-  // --- EXPORTACIÓN PDF VISUAL CON EVIDENCIAS ---
+  // --- EXPORTACIÓN PDF VISUAL CON EVIDENCIAS (GRID 3x3) ---
   const exportarPDFVisual = async () => {
     try {
       const operacionesFiltradas = operaciones.filter((op) => {
@@ -300,21 +300,38 @@ export function Reportes() {
         return true;
       });
 
-      const opsConEvidencia = operacionesFiltradas.filter(op => {
+      // Incluir operaciones con pago no efectivo aunque no tengan evidencia
+      // (para que salgan con placeholder "pendiente").
+      const opsRelevantes = operacionesFiltradas.filter((op) => {
+        const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+        const tienePagoNoEfectivo = pagos.some((p) => {
+          const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();
+          return medio !== '' && !medio.includes('efectivo');
+        });
         const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
-        return evidencias.some(e => e.tipo_evidencia === 'EMPRESA');
-      }).slice(0, 10);
+        const tieneEvidenciaEmpresa = evidencias.some(
+          (e) => e.tipo_evidencia === 'EMPRESA'
+        );
+        return tienePagoNoEfectivo || tieneEvidenciaEmpresa;
+      });
 
-      if (opsConEvidencia.length === 0) {
-        alert('No hay operaciones con evidencia de empresa para exportar.');
+      if (opsRelevantes.length === 0) {
+        alert(
+          'No hay operaciones con pago no efectivo ni evidencias de empresa para exportar.'
+        );
         return;
       }
+
+      // Orden ascendente por fecha. Sin agrupar por fecha → flujo continuo.
+      const todasLasOps = [...opsRelevantes].sort((a, b) =>
+        String(a.fecha || '').localeCompare(String(b.fecha || ''))
+      );
 
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
-      // 1. Cargar Logo (JPEG Seguro)
+      // 1. Cargar logo
       let logoBase64 = null;
       try {
         const logoUrl = `${import.meta.env.BASE_URL}logo-finito.png`;
@@ -328,180 +345,336 @@ export function Reportes() {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
+        canvas.getContext('2d').drawImage(img, 0, 0);
         logoBase64 = canvas.toDataURL('image/jpeg', 0.9);
       } catch (e) {
         console.warn('No se pudo cargar el logo:', e);
       }
 
-      // 2. Cabecera
-      if (logoBase64) {
-        doc.addImage(logoBase64, 'JPEG', 14, 10, 20, 8);
-      }
+      // 2. Cabecera (se redibuja en cada página)
+      const dibujarCabecera = () => {
+        if (logoBase64) {
+          doc.addImage(logoBase64, 'JPEG', 10, 8, 16, 6.5);
+        }
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(15, 23, 42);
-      doc.text('DISTRIBUIDORA DE CERÁMICA Y ACABADOS S.A.C.', pageWidth / 2, 20, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.text(
+          'DISTRIBUIDORA DE CERÁMICA Y ACABADOS S.A.C.',
+          pageWidth / 2,
+          12,
+          { align: 'center' }
+        );
 
-      doc.setFontSize(12);
-      doc.setTextColor(30, 58, 138); // AZUL PREMIUM
-      doc.text('REPORTE DE CONCILIACIÓN VISUAL', pageWidth / 2, 26, { align: 'center' });
+        doc.setFontSize(9);
+        doc.setTextColor(30, 58, 138);
+        doc.text('REPORTE DE CONCILIACIÓN VISUAL', pageWidth / 2, 18, {
+          align: 'center',
+        });
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Generado el: ${new Date().toLocaleDateString('es-PE')} | Filtro: ${fechaDesde || 'Inicio'} al ${fechaHasta || 'Fin'}`, pageWidth / 2, 32, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          `Generado el: ${new Date().toLocaleDateString('es-PE')} | Filtro: ${fechaDesde || 'Inicio'
+          } al ${fechaHasta || 'Fin'}`,
+          pageWidth / 2,
+          23,
+          { align: 'center' }
+        );
+      };
 
-      let y = 42;
+      // 3. Grid 3×3 = 9 bloques por página
+      const COLS = 3;
+      const FILAS = 3;
+      const POR_PAGINA = COLS * FILAS;
+      const MARGIN_X = 10;
+      const GAP = 3;
+      // Márgenes ajustados (antes 30 y 15) → más altura por bloque
+      const MARGIN_TOP_BLOCKS = 26;
+      const MARGIN_BOTTOM = 12;
 
-      // 3. Agrupar por Fechas
-      const agrupadasPorFecha = opsConEvidencia.reduce((acc, op) => {
-        if (!acc[op.fecha]) acc[op.fecha] = [];
-        acc[op.fecha].push(op);
-        return acc;
-      }, {});
+      const usableWidth = pageWidth - 2 * MARGIN_X - (COLS - 1) * GAP;
+      const blockWidth = usableWidth / COLS;
 
-      const fechasOrdenadas = Object.keys(agrupadasPorFecha).sort();
+      const usableHeight =
+        pageHeight - MARGIN_TOP_BLOCKS - MARGIN_BOTTOM - (FILAS - 1) * GAP;
+      const blockHeight = usableHeight / FILAS;
 
-      for (const fecha of fechasOrdenadas) {
-        const opsDelDia = agrupadasPorFecha[fecha];
-        
-        // Verificar espacio para el encabezado
-        if (y + 30 > pageHeight - 20) { doc.addPage(); y = 20; }
+      // 4. Helper para obtener imagen respetando bucket privado
+      const obtenerImagenBase64 = async (evidencia) => {
+        try {
+          let url = null;
 
-        let colIndex = 0;
-        let maxHeightFila = 0;
-        let startY = y;
+          // Prioridad 1: storage_key ya es URL firmada (backend la sobrescribe)
+          if (
+            evidencia.storage_key &&
+            /^https?:\/\//i.test(evidencia.storage_key)
+          ) {
+            url = evidencia.storage_key;
+          }
+          // Prioridad 2: url_firmada explícita
+          else if (evidencia.url_firmada) {
+            url = evidencia.url_firmada;
+          }
+          // Prioridad 3: url genérica
+          else if (evidencia.url) {
+            url = evidencia.url;
+          }
+          // Prioridad 4: pedir al backend
+          else if (evidencia.id_evidencia) {
+            try {
+              const detalle = await api.get(
+                `/evidencias/${evidencia.id_evidencia}`
+              );
+              const data = detalle.data?.data || detalle.data;
 
-        for (const op of opsDelDia) {
-          const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
-          const evidenciaEmpresa = evidencias.find(e => e.tipo_evidencia === 'EMPRESA');
-          if (!evidenciaEmpresa) continue;
+              if (
+                data?.storage_key &&
+                /^https?:\/\//i.test(data.storage_key)
+              ) {
+                url = data.storage_key;
+              } else {
+                url = data?.url_firmada || data?.url || null;
+              }
+            } catch (e) {
+              console.warn(
+                `No se pudo obtener URL firmada para evidencia ${evidencia.id_evidencia}:`,
+                e.message
+              );
+            }
+          }
 
-          // Calcular posición de la columna
-          const gap = 4;
-          const colWidth = (pageWidth - 28 - (gap * 2)) / 3;
-          const xPos = 14 + (colIndex * (colWidth + gap));
-          const centerX = xPos + (colWidth / 2);
+          if (!url) {
+            console.warn(
+              'Sin URL para evidencia:',
+              evidencia.id_evidencia,
+              evidencia.storage_key
+            );
+            return null;
+          }
 
-          // Altura fija del cuadro
-          const alturaBloque = 120; 
+          const respuesta = await fetch(url);
+          if (!respuesta.ok) {
+            console.warn('Fetch de imagen falló con status:', respuesta.status);
+            return null;
+          }
 
-          // Dibujar el cuadro azul
-          doc.setDrawColor(30, 58, 138);
-          doc.setLineWidth(0.4);
-          doc.roundedRect(xPos, startY, colWidth, alturaBloque, 2, 2, 'D');
+          const blob = await respuesta.blob();
+          const base64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
 
-          // --- DIBUJAR TEXTOS (usando startY en lugar de currentY) ---
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.setTextColor(30, 58, 138);
-          doc.text(`FECHA: ${fecha}`, centerX, startY + 6, { align: 'center' });
+          const img = new Image();
+          img.src = base64;
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+          });
 
-          doc.setFontSize(8);
-          doc.setTextColor(15, 23, 42);
-          doc.text(`${op.tipo_comprobante} ${op.serie}-${op.numero}`, centerX, startY + 14, { align: 'center' });
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          return canvas.toDataURL('image/jpeg', 0.85);
+        } catch (e) {
+          console.warn('Error cargando imagen:', e);
+          return null;
+        }
+      };
 
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7);
-          doc.setTextColor(100, 116, 139);
-          doc.text(`Cliente: ${op.cliente?.substring(0, 20) || '-'}`, centerX, startY + 20, { align: 'center' });
+      dibujarCabecera();
+      let currentPage = 0;
 
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(30, 58, 138);
-          doc.text(`Monto: S/ ${Number(op.monto || 0).toFixed(2)}`, centerX, startY + 26, { align: 'center' });
+      // 5. Loop principal: flujo continuo en grid 3×3
+      for (let i = 0; i < todasLasOps.length; i++) {
+        const op = todasLasOps[i];
+        const page = Math.floor(i / POR_PAGINA);
+        const posInPage = i % POR_PAGINA;
+        const col = posInPage % COLS;
+        const fila = Math.floor(posInPage / COLS);
 
-          // Etiqueta de evidencia
-          const pagoEvidencia = op.pagos.find(p => !(p.medio_pago || '').toLowerCase().includes('efectivo'));
-          const medioEvidencia = pagoEvidencia?.medio_pago || 'Transferencia';
-          const montoEvidencia = pagoEvidencia ? `S/ ${Number(pagoEvidencia.monto).toFixed(2)}` : '';
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6);
-          doc.setTextColor(100, 116, 139);
-          doc.text(`Evidencia: ${medioEvidencia} ${montoEvidencia}`, centerX, startY + 32, { align: 'center' });
+        if (page > currentPage) {
+          doc.addPage();
+          dibujarCabecera();
+          currentPage = page;
+        }
 
-          // --- DIBUJAR IMAGEN ---
-          try {
-            const imageUrl = evidenciaEmpresa.storage_key.startsWith('http')
-              ? evidenciaEmpresa.storage_key
-              : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${evidenciaEmpresa.storage_key}`;
-            
-            const imgResponse = await fetch(imageUrl);
-            const imgBlob = await imgResponse.blob();
-            const imgBase64 = await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result);
-              reader.readAsDataURL(imgBlob);
+        const xPos = MARGIN_X + col * (blockWidth + GAP);
+        const yPos = MARGIN_TOP_BLOCKS + fila * (blockHeight + GAP);
+        const centerX = xPos + blockWidth / 2;
+
+        // Marco
+        doc.setDrawColor(30, 58, 138);
+        doc.setLineWidth(0.25);
+        doc.roundedRect(xPos, yPos, blockWidth, blockHeight, 1.5, 1.5, 'D');
+
+        // Datos
+        const fechaOp = op.fecha || '-';
+        const comprobanteOp = `${op.tipo_comprobante || ''} ${op.serie || ''
+          }-${op.numero || ''}`.trim();
+        const clienteOp = String(op.cliente || '-').substring(0, 30);
+        const montoOp = Number(op.monto || 0).toFixed(2);
+
+        // FECHA
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5.5);
+        doc.setTextColor(30, 58, 138);
+        doc.text(`FECHA: ${fechaOp}`, centerX, yPos + 4, { align: 'center' });
+
+        // COMPROBANTE
+        doc.setFontSize(6);
+        doc.setTextColor(15, 23, 42);
+        doc.text(comprobanteOp, centerX, yPos + 7.5, { align: 'center' });
+
+        // CLIENTE
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Cliente: ${clienteOp}`, centerX, yPos + 11, {
+          align: 'center',
+        });
+
+        // MONTO
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(30, 58, 138);
+        doc.text(`Monto: S/ ${montoOp}`, centerX, yPos + 14.5, {
+          align: 'center',
+        });
+
+        // Etiqueta evidencia
+        const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
+        const evidenciaEmpresa = evidencias.find(
+          (e) => e.tipo_evidencia === 'EMPRESA'
+        );
+
+        const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+        const pagoEvidencia = pagos.find(
+          (p) =>
+            !String(p.medio_pago || p.nombre_medio || '')
+              .toLowerCase()
+              .includes('efectivo')
+        );
+        const medioEvidencia =
+          pagoEvidencia?.medio_pago ||
+          pagoEvidencia?.nombre_medio ||
+          'Transferencia';
+        const montoEvidencia = pagoEvidencia
+          ? `S/ ${Number(pagoEvidencia.monto).toFixed(2)}`
+          : '';
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(4.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          `Evidencia: ${medioEvidencia} ${montoEvidencia}`,
+          centerX,
+          yPos + 17.5,
+          { align: 'center' }
+        );
+
+        // Área de imagen (más grande que antes: empieza más arriba y ocupa más alto)
+        const imgY = yPos + 18.5;
+        const imgMaxWidth = blockWidth - 4;
+        const imgMaxHeight = blockHeight - 19;
+
+        if (evidenciaEmpresa) {
+          const base64 = await obtenerImagenBase64(evidenciaEmpresa);
+
+          if (base64) {
+            const img = new Image();
+            img.src = base64;
+            await new Promise((resolve) => {
+              img.onload = resolve;
             });
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            img.crossOrigin = 'Anonymous';
-            img.src = imgBase64;
-            await new Promise((resolve) => { img.onload = resolve; });
-
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            const safeBase64 = canvas.toDataURL('image/jpeg', 0.9);
-            
-            // Ajustar imagen dentro del cuadro
-            const imgY = startY + 38;
-            const imgWidth = colWidth - 4;
-            const imgHeight = 80; // Altura fija para todas las imágenes
-            
-            const ratio = Math.min(imgWidth / img.width, imgHeight / img.height);
+            const ratio = Math.min(
+              imgMaxWidth / img.width,
+              imgMaxHeight / img.height
+            );
             const finalWidth = img.width * ratio;
             const finalHeight = img.height * ratio;
-            const xCentro = xPos + (colWidth / 2) - (finalWidth / 2);
-            
-            doc.addImage(safeBase64, 'JPEG', xCentro, imgY, finalWidth, finalHeight);
-          } catch (e) {
-            console.error('Error al cargar imagen:', e);
+            const xImg = xPos + blockWidth / 2 - finalWidth / 2;
+
+            doc.addImage(base64, 'JPEG', xImg, imgY, finalWidth, finalHeight);
+          } else {
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.setTextColor(150, 150, 150);
-            doc.text('Imagen no disponible', centerX, startY + 60, { align: 'center' });
+            doc.setFontSize(5);
+            doc.setTextColor(180, 83, 9);
+            doc.text(
+              'Imagen no disponible',
+              centerX,
+              imgY + imgMaxHeight / 2,
+              { align: 'center' }
+            );
           }
+        } else {
+          // Placeholder "pendiente"
+          doc.setDrawColor(217, 119, 6);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(
+            xPos + 3,
+            imgY,
+            blockWidth - 6,
+            imgMaxHeight,
+            1,
+            1,
+            'D'
+          );
 
-          // Actualizar altura máxima de la fila
-          const alturaTotal = alturaBloque; // Usamos la altura fija
-          if (alturaTotal > maxHeightFila) maxHeightFila = alturaTotal;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(5.5);
+          doc.setTextColor(180, 83, 9);
+          doc.text(
+            'Evidencia empresa',
+            centerX,
+            imgY + imgMaxHeight / 2 - 3,
+            { align: 'center' }
+          );
+          doc.text(
+            'PENDIENTE',
+            centerX,
+            imgY + imgMaxHeight / 2 + 1,
+            { align: 'center' }
+          );
 
-          // Avanzar columna
-          colIndex++;
-          if (colIndex === 3) {
-            y = startY + maxHeightFila + 10;
-            colIndex = 0;
-            maxHeightFila = 0;
-            startY = y;
-            if (y + 30 > pageHeight - 20) { doc.addPage(); y = 20; }
-          }
-        }
-        
-        // Si quedaron elementos en la fila parcial
-        if (colIndex > 0) {
-          y = startY + maxHeightFila + 10;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(4);
+          doc.text(
+            'Se puede subir después',
+            centerX,
+            imgY + imgMaxHeight / 2 + 5,
+            { align: 'center' }
+          );
         }
       }
 
       // Footer
       const pageCount = doc.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
+      for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p);
+        doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(148, 163, 184);
-        doc.text(`Página ${i} de ${pageCount} | Sistema de Cuadre de Caja - FINITO`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text(
+          `Página ${p} de ${pageCount} | Sistema de Cuadre de Caja - FINITO`,
+          pageWidth / 2,
+          pageHeight - 6,
+          { align: 'center' }
+        );
       }
 
-      doc.save(`REPORTE_CONCILIACION_VISUAL_${new Date().toLocaleDateString('en-CA')}.pdf`);
+      doc.save(
+        `REPORTE_CONCILIACION_VISUAL_${new Date().toLocaleDateString(
+          'en-CA'
+        )}.pdf`
+      );
     } catch (err) {
-      console.error("Error al generar PDF visual:", err);
+      console.error('Error al generar PDF visual:', err);
       alert(`Hubo un error al generar el PDF visual: ${err.message}`);
     }
   };
@@ -566,10 +739,10 @@ export function Reportes() {
           disabled={loading}
           className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-64"
         >
-          <img 
-            src={`${import.meta.env.BASE_URL}pdf-icon.png`} 
-            alt="PDF background" 
-            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none" 
+          <img
+            src={`${import.meta.env.BASE_URL}pdf-icon.png`}
+            alt="PDF background"
+            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none"
           />
           <div className="relative z-10 flex flex-col justify-between h-full">
             <div>
@@ -590,10 +763,10 @@ export function Reportes() {
           disabled={loading}
           className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-64"
         >
-          <img 
-            src={`${import.meta.env.BASE_URL}excel-icon.png`} 
-            alt="Excel background" 
-            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none" 
+          <img
+            src={`${import.meta.env.BASE_URL}excel-icon.png`}
+            alt="Excel background"
+            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none"
           />
           <div className="relative z-10 flex flex-col justify-between h-full">
             <div>
@@ -614,10 +787,10 @@ export function Reportes() {
           disabled={loading}
           className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 to-violet-700 p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-64"
         >
-          <img 
-            src={`${import.meta.env.BASE_URL}aura-icon.png`} 
-            alt="Aura background" 
-            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none" 
+          <img
+            src={`${import.meta.env.BASE_URL}aura-icon.png`}
+            alt="Aura background"
+            className="absolute -right-12 -bottom-12 w-72 h-72 object-contain opacity-30 rotate-12 pointer-events-none"
           />
           <div className="relative z-10 flex flex-col justify-between h-full">
             <div>

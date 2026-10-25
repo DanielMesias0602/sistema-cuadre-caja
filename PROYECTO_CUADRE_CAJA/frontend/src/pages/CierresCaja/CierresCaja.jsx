@@ -24,6 +24,7 @@ export function CierresCaja() {
   const [turnoFiltro, setTurnoFiltro] = useState('');
 
   const [formCierre, setFormCierre] = useState({
+    fecha: new Date().toLocaleDateString('en-CA'),
     turno: '',
     efectivoFisico: '',
     observaciones: ''
@@ -71,7 +72,6 @@ export function CierresCaja() {
 
   const kpis = useMemo(() => {
     const totalCierres = cierresFiltrados.length;
-    // CORRECCIÓN: Usamos Number() para asegurar que sumamos números, no texto
     const efectivoEsperadoTotal = cierresFiltrados.reduce(
       (acc, c) => acc + Number(c.efectivo_esperado || 0),
       0
@@ -88,10 +88,11 @@ export function CierresCaja() {
     };
   }, [cierresFiltrados]);
 
-  const calcularEfectivoEsperado = async (turno) => {
+  // ⚠️ CAMBIO 1: acepta fecha explícita para no usar "hoy" siempre
+  const calcularEfectivoEsperado = async (turno, fechaSeleccionada) => {
     try {
-      const hoy = new Date().toLocaleDateString('en-CA');
-      const res = await api.get(`/cierres-caja/pre-calculo?fecha=${hoy}&turno=${turno}`);
+      const fecha = fechaSeleccionada || formCierre.fecha || new Date().toLocaleDateString('en-CA');
+      const res = await api.get(`/cierres-caja/pre-calculo?fecha=${fecha}&turno=${turno}`);
       const data = res.data.data;
       setEfectivoEsperado(Number(data.efectivo_esperado || 0));
       setPreCalculo({
@@ -104,71 +105,71 @@ export function CierresCaja() {
     }
   };
 
-  const abrirModal = async () => {
-    const currentHour = new Date().getHours();
+  // ⚠️ CAMBIO 2: nueva función. Solo aplica regla de hora si la fecha es HOY
+  const recalcularTurnosDisponibles = (fechaSeleccionada) => {
     const hoy = new Date().toLocaleDateString('en-CA');
+    const currentHour = new Date().getHours();
+    const esHoy = fechaSeleccionada === hoy;
 
-    const cierresHoy = cierres.filter(c => c.fecha === hoy);
-    const cierreMañana = cierresHoy.find(c => c.turno === 'Mañana');
-    const cierreTarde = cierresHoy.find(c => c.turno === 'Tarde');
+    const cierresFecha = cierres.filter(c => c.fecha === fechaSeleccionada);
+    const cierreManana = cierresFecha.find(c => c.turno === 'Mañana');
+    const cierreTarde = cierresFecha.find(c => c.turno === 'Tarde');
 
-    const nuevoTurnosDeshabilitados = { mañana: false, tarde: false };
+    const nuevoDeshabilitados = { mañana: false, tarde: false };
     const nuevoMotivo = { mañana: '', tarde: '' };
 
-    if (currentHour < 14) {
-      nuevoTurnosDeshabilitados.tarde = true;
-      nuevoMotivo.tarde = 'El turno Tarde comienza a las 2:00 PM';
-    } else {
-      nuevoTurnosDeshabilitados.mañana = true;
-      nuevoMotivo.mañana = 'El turno Mañana finalizó a las 2:00 PM';
+    if (esHoy) {
+      if (currentHour < 14) {
+        nuevoDeshabilitados.tarde = true;
+        nuevoMotivo.tarde = 'El turno Tarde comienza a las 2:00 PM';
+      } else {
+        nuevoDeshabilitados.mañana = true;
+        nuevoMotivo.mañana = 'El turno Mañana finalizó a las 2:00 PM';
+      }
     }
 
-    if (cierreMañana) {
-      nuevoTurnosDeshabilitados.mañana = true;
+    if (cierreManana) {
+      nuevoDeshabilitados.mañana = true;
       nuevoMotivo.mañana = 'Este turno ya fue cerrado';
     }
-
     if (cierreTarde) {
-      nuevoTurnosDeshabilitados.tarde = true;
+      nuevoDeshabilitados.tarde = true;
       nuevoMotivo.tarde = 'Este turno ya fue cerrado';
     }
 
-    setTurnosDeshabilitados(nuevoTurnosDeshabilitados);
+    setTurnosDeshabilitados(nuevoDeshabilitados);
     setMotivoDeshabilitado(nuevoMotivo);
+  };
 
-    let turnoSugerido = '';
-    if (currentHour < 14 && !nuevoTurnosDeshabilitados.mañana) {
-      turnoSugerido = 'Mañana';
-    } else if (currentHour >= 14 && !nuevoTurnosDeshabilitados.tarde) {
-      turnoSugerido = 'Tarde';
-    }
-
-    setFormCierre({ turno: turnoSugerido, efectivoFisico: '', observaciones: '' });
+  // ⚠️ CAMBIO 3: siempre abre en paso 1 (para que el usuario elija fecha y turno)
+  const abrirModal = () => {
+    const hoy = new Date().toLocaleDateString('en-CA');
+    setFormCierre({ fecha: hoy, turno: '', efectivoFisico: '', observaciones: '' });
     setEfectivoEsperado(0);
     setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
-
-    if (turnoSugerido) {
-      setPasoModal(2);
-      setModalAbierto(true);
-      await calcularEfectivoEsperado(turnoSugerido);
-    } else {
-      setPasoModal(1);
-      setModalAbierto(true);
-    }
+    recalcularTurnosDisponibles(hoy);
+    setPasoModal(1);
+    setModalAbierto(true);
   };
 
   const cerrarModal = () => {
     setModalAbierto(false);
     setPasoModal(1);
     setConfirmacionAbierta(false);
-    setFormCierre({ turno: '', efectivoFisico: '', observaciones: '' });
+    setFormCierre({
+      fecha: new Date().toLocaleDateString('en-CA'),
+      turno: '',
+      efectivoFisico: '',
+      observaciones: ''
+    });
     setEfectivoEsperado(0);
     setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
   };
 
+  // ⚠️ CAMBIO 4: pasa la fecha seleccionada
   const seleccionarTurno = async (turno) => {
     setFormCierre({ ...formCierre, turno });
-    await calcularEfectivoEsperado(turno);
+    await calcularEfectivoEsperado(turno, formCierre.fecha);
     setPasoModal(2);
   };
 
@@ -184,8 +185,9 @@ export function CierresCaja() {
   const handleGuardar = async () => {
     setGuardando(true);
     try {
+      // ⚠️ CAMBIO 5: usa formCierre.fecha (la fecha elegida por el usuario)
       const payload = {
-        fecha: new Date().toLocaleDateString('en-CA'),
+        fecha: formCierre.fecha,
         turno: formCierre.turno,
         total_ingresos: preCalculo.total_ingresos,
         total_no_efectivo: preCalculo.total_no_efectivo,
@@ -407,7 +409,6 @@ export function CierresCaja() {
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {cierresFiltrados.length > 0 ? cierresFiltrados.map((cierre) => {
-                  // CORRECCIÓN: Convertimos diferencia a número para comparaciones correctas
                   const difNum = Number(cierre.diferencia || 0);
                   return (
                     <tr key={cierre.id_cierre} className="hover:bg-slate-50 transition-colors">
@@ -505,6 +506,25 @@ export function CierresCaja() {
             <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
               {pasoModal === 1 ? (
                 <div className="space-y-4">
+
+                  {/* ⚠️ CAMBIO 6: NUEVO selector de fecha */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Fecha del cierre
+                    </label>
+                    <input
+                      type="date"
+                      value={formCierre.fecha}
+                      max={new Date().toLocaleDateString('en-CA')}
+                      onChange={(e) => {
+                        const nuevaFecha = e.target.value;
+                        setFormCierre({ ...formCierre, fecha: nuevaFecha, turno: '' });
+                        recalcularTurnosDisponibles(nuevaFecha);
+                      }}
+                      className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
                   <p className="text-sm text-slate-600 text-center font-medium">¿Qué turno deseas cerrar?</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
@@ -552,6 +572,11 @@ export function CierresCaja() {
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <User className="h-4 w-4 text-blue-500" />
                       <span>Responsable: <strong className="text-slate-900">{nombreResponsable}</strong></span>
+                    </div>
+                    {/* ⚠️ CAMBIO 7: mostrar fecha en el paso 2 */}
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      <span>Fecha: <strong className="text-slate-900">{new Date(formCierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')}</strong></span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <Calendar className="h-4 w-4 text-blue-500" />
@@ -635,7 +660,7 @@ export function CierresCaja() {
 
             <div className="bg-slate-50 rounded-xl p-4 mb-6">
               <p className="text-sm text-slate-700">
-                Estás a punto de cerrar el turno <strong className="text-slate-900">{formCierre.turno}</strong> como <strong className="text-slate-900">{nombreResponsable}</strong>.
+                Estás a punto de cerrar el turno <strong className="text-slate-900">{formCierre.turno}</strong> del <strong className="text-slate-900">{new Date(formCierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')}</strong> como <strong className="text-slate-900">{nombreResponsable}</strong>.
               </p>
               <p className="text-sm text-slate-700 mt-2">
                 Efectivo esperado: <strong className="text-slate-900">{formatCurrency(efectivoEsperado)}</strong>

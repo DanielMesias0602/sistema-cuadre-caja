@@ -36,9 +36,7 @@ export const create = async (req, res, next) => {
 
   try {
     if (!req.file) {
-      const error = new Error(
-        'El archivo de evidencia es obligatorio'
-      );
+      const error = new Error('El archivo de evidencia es obligatorio');
       error.statusCode = 400;
       throw error;
     }
@@ -64,10 +62,7 @@ export const create = async (req, res, next) => {
     if (esImagen) {
       optimizedFilePath = `${tempFilePath}-optimized.jpg`;
 
-      await optimizarImagen(
-        tempFilePath,
-        optimizedFilePath
-      );
+      await optimizarImagen(tempFilePath, optimizedFilePath);
 
       archivoParaSubir = optimizedFilePath;
       contentType = 'image/jpeg';
@@ -76,15 +71,43 @@ export const create = async (req, res, next) => {
 
     const nombreBase = path.parse(req.file.filename).name;
 
-objectName =
-  `evidencias/operacion-${idOperacion}/` +
-  `${Date.now()}-${nombreBase}${extension}`;
+    objectName =
+      `evidencias/operacion-${idOperacion}/` +
+      `${Date.now()}-${nombreBase}${extension}`;
 
     await uploadObject({
       objectName,
       filePath: archivoParaSubir,
       contentType
     });
+
+    // --- NUEVO: parsear datos_ocr (viene como string JSON desde el frontend) ---
+    let datosOcrStr = null;
+
+    if (req.body.datos_ocr) {
+      try {
+        const parsed =
+          typeof req.body.datos_ocr === 'string'
+            ? JSON.parse(req.body.datos_ocr)
+            : req.body.datos_ocr;
+
+        // Se guarda como string JSON para que la columna JSONB
+        // lo reciba de forma segura y consistente.
+        datosOcrStr = JSON.stringify(parsed);
+      } catch (parseError) {
+        console.warn(
+          'datos_ocr inválido, se ignora:',
+          parseError.message
+        );
+        datosOcrStr = null;
+      }
+    }
+
+    const textoOcr =
+      typeof req.body.texto_ocr === 'string' &&
+        req.body.texto_ocr.trim() !== ''
+        ? req.body.texto_ocr
+        : null;
 
     try {
       const evidencia = await registerEvidencia({
@@ -93,15 +116,17 @@ objectName =
         tipo_evidencia: req.body.tipo_evidencia,
         storage_key: objectName,
         fecha_evidencia: req.body.fecha_evidencia,
-        observacion: req.body.observacion ?? null
+        observacion: req.body.observacion ?? null,
+        texto_ocr: textoOcr,
+        datos_ocr: datosOcrStr
       });
 
       return res.status(201).json({
         status: 'ok',
-        message: 'Evidencia cargada, optimizada y registrada correctamente',
+        message:
+          'Evidencia cargada, optimizada y registrada correctamente',
         data: evidencia
       });
-
     } catch (error) {
       try {
         await deleteObject(objectName);
@@ -114,17 +139,15 @@ objectName =
 
       throw error;
     }
-
   } catch (error) {
     next(error);
-
   } finally {
     if (tempFilePath) {
-      await fs.unlink(tempFilePath).catch(() => {});
+      await fs.unlink(tempFilePath).catch(() => { });
     }
 
     if (optimizedFilePath) {
-      await fs.unlink(optimizedFilePath).catch(() => {});
+      await fs.unlink(optimizedFilePath).catch(() => { });
     }
   }
 };
@@ -144,7 +167,6 @@ export const getById = async (req, res, next) => {
       status: 'ok',
       data: evidencia
     });
-
   } catch (error) {
     next(error);
   }
@@ -160,7 +182,6 @@ export const getByOperacion = async (req, res, next) => {
       status: 'ok',
       data: evidencias
     });
-
   } catch (error) {
     next(error);
   }
@@ -173,7 +194,9 @@ export const uploadOnly = async (req, res, next) => {
 
   try {
     if (!req.file) {
-      const error = new Error('El archivo de evidencia es obligatorio');
+      const error = new Error(
+        'El archivo de evidencia es obligatorio'
+      );
       error.statusCode = 400;
       throw error;
     }
@@ -202,17 +225,16 @@ export const uploadOnly = async (req, res, next) => {
       contentType
     });
 
-    // CORREGIDO: Ahora devuelve 201 (Creado) igual que el resto de tu API
     return res.status(201).json({
       status: 'ok',
       message: 'Archivo subido a OCI exitosamente',
-      data: { storage_key: objectName } 
+      data: { storage_key: objectName }
     });
-
   } catch (error) {
     next(error);
   } finally {
-    if (tempFilePath) await fs.unlink(tempFilePath).catch(() => {});
-    if (optimizedFilePath) await fs.unlink(optimizedFilePath).catch(() => {});
+    if (tempFilePath) await fs.unlink(tempFilePath).catch(() => { });
+    if (optimizedFilePath)
+      await fs.unlink(optimizedFilePath).catch(() => { });
   }
 };

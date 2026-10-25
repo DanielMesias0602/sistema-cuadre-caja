@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../lib/api';
 import {
   Plus,
@@ -7,16 +7,144 @@ import {
   RefreshCw,
   Search,
   X,
-  FileText,
   AlertTriangle,
   CheckCircle,
   Eye,
   Loader2,
-  Clock,
   Sun,
   Moon,
-  Info
+  Info,
+  ChevronDown
 } from 'lucide-react';
+
+const DEFAULT_COMPROBANTE_TEXT = 'Sin comprobante asociado';
+
+// Componente Combobox para buscar comprobantes
+function ComprobanteCombobox({ comprobantes, value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(DEFAULT_COMPROBANTE_TEXT);
+  const wrapperRef = useRef(null);
+
+  // Manejar clic fuera para cerrar
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+        // Si no se ha seleccionado nada, restaurar el texto por defecto
+        if (!value) {
+          setSearchTerm(DEFAULT_COMPROBANTE_TEXT);
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef, value]);
+
+  // Sincronizar el texto mostrado cuando cambia el valor externo
+  useEffect(() => {
+    if (value) {
+      const found = comprobantes.find(c => c.id_comprobante === value);
+      if (found) {
+        setSearchTerm(`${found.tipo_comprobante} ${found.serie}-${found.numero}`);
+      }
+    } else {
+      setSearchTerm(DEFAULT_COMPROBANTE_TEXT);
+    }
+  }, [value, comprobantes]);
+
+  const filtered = useMemo(() => {
+    // Si el texto es el por defecto, mostrar todos
+    if (!searchTerm || searchTerm === DEFAULT_COMPROBANTE_TEXT) {
+      return comprobantes;
+    }
+    const term = searchTerm.toLowerCase();
+    return comprobantes.filter(c => 
+      `${c.tipo_comprobante} ${c.serie}-${c.numero}`.toLowerCase().includes(term) ||
+      (c.cliente || '').toLowerCase().includes(term) ||
+      String(c.monto).includes(term)
+    );
+  }, [searchTerm, comprobantes]);
+
+  const handleSelect = (c) => {
+    onChange(c ? c.id_comprobante : '');
+    if (c) {
+      setSearchTerm(`${c.tipo_comprobante} ${c.serie}-${c.numero}`);
+    } else {
+      setSearchTerm(DEFAULT_COMPROBANTE_TEXT);
+    }
+    setIsOpen(false);
+  };
+
+  const handleFocus = (e) => {
+    // Si el texto es el por defecto, seleccionarlo todo para que el usuario escriba directo
+    if (searchTerm === DEFAULT_COMPROBANTE_TEXT) {
+      e.target.select();
+    }
+    setIsOpen(true);
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={handleFocus}
+          placeholder="Buscar por N°, cliente o monto..."
+          className="w-full h-12 rounded-xl border border-slate-300 bg-white pl-4 pr-10 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+        />
+        {value ? (
+          <button 
+            type="button" 
+            onClick={() => handleSelect(null)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
+        )}
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+          <button
+            type="button"
+            onClick={() => handleSelect(null)}
+            className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-100"
+          >
+            Ninguno (Sin comprobante asociado)
+          </button>
+          
+          {filtered.length > 0 ? (
+            filtered.map(c => (
+              <button
+                key={c.id_comprobante}
+                type="button"
+                onClick={() => handleSelect(c)}
+                className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 border-b border-slate-50 flex flex-col gap-0.5 last:border-0"
+              >
+                <div className="flex justify-between items-center w-full">
+                  <span className="font-bold text-slate-900">{c.tipo_comprobante} {c.serie}-{c.numero}</span>
+                  <span className="font-black text-brand-orange">S/ {Number(c.monto).toFixed(2)}</span>
+                </div>
+                <span className="text-xs text-slate-500 truncate">{c.cliente || 'Sin cliente'}</span>
+              </button>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-sm text-slate-500 text-center">
+              No se encontraron resultados para "{searchTerm}"
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SalidasCaja() {
   const [loading, setLoading] = useState(true);
@@ -35,14 +163,16 @@ export function SalidasCaja() {
   const [exitoModal, setExitoModal] = useState(null);
 
   // Datos para los selects del Modal
-  const [cierresHoy, setCierresHoy] = useState([]);
+  const [cierresDisponibles, setCierresDisponibles] = useState([]);
   const [cargandoCierres, setCargandoCierres] = useState(false);
   const [tiposSalida, setTiposSalida] = useState([]);
+  const [comprobantes, setComprobantes] = useState([]);
 
   // Estado del Formulario
   const [formSalida, setFormSalida] = useState({
     id_cierre: '',
     id_tipo_salida: '',
+    id_comprobante: '',
     monto: '',
     motivo: '',
     observacion: ''
@@ -79,44 +209,55 @@ export function SalidasCaja() {
     }
   };
 
-  const cargarTiposSalida = async () => {
+  const cargarCatalogos = async () => {
     try {
-      const res = await api.get('/tipos-salida');
-      const data = res.data?.data || res.data;
-      if (Array.isArray(data) && data.length > 0) {
-        setTiposSalida(data);
-      } else {
-        // Fallback robusto con catálogo maestro
-        setTiposSalida([
-          { id_tipo_salida: 1, nombre: 'Gasto de caja' },
-          { id_tipo_salida: 2, nombre: 'Agua / Servicios' },
-          { id_tipo_salida: 3, nombre: 'Planilla' },
-          { id_tipo_salida: 4, nombre: 'Otros gastos operativos' }
-        ]);
+      // 1. Tipos de salida
+      const resTipos = await api.get('/tipos-salida');
+      const dataTipos = resTipos.data?.data || resTipos.data;
+      const tipos = (Array.isArray(dataTipos) && dataTipos.length > 0) 
+        ? dataTipos 
+        : [
+            { id_tipo_salida: 1, nombre: 'Gasto de caja' },
+            { id_tipo_salida: 2, nombre: 'Agua / Servicios' },
+            { id_tipo_salida: 3, nombre: 'Planilla' },
+            { id_tipo_salida: 4, nombre: 'Otros gastos' }
+          ];
+      
+      setTiposSalida(tipos);
+
+      // 2. Comprobantes (Operaciones) para asociar opcionalmente
+      const resOps = await api.get('/operaciones');
+      const dataOps = resOps.data?.data || resOps.data;
+      if (Array.isArray(dataOps)) {
+        setComprobantes(dataOps.filter(op => op.estado !== 'ANULADA'));
       }
     } catch {
-      // Fallback si no está disponible el endpoint
+      // Fallbacks
       setTiposSalida([
         { id_tipo_salida: 1, nombre: 'Gasto de caja' },
         { id_tipo_salida: 2, nombre: 'Agua / Servicios' },
         { id_tipo_salida: 3, nombre: 'Planilla' },
-        { id_tipo_salida: 4, nombre: 'Otros gastos operativos' }
+        { id_tipo_salida: 4, nombre: 'Otros gastos' }
       ]);
     }
   };
 
   useEffect(() => {
     cargarDatos();
-    cargarTiposSalida();
+    cargarCatalogos();
   }, []);
 
   const abrirModalRegistro = async () => {
     setModalAbierto(true);
     setErrorModal(null);
     setExitoModal(null);
+    
+    const tipoGasto = tiposSalida.find(t => t.nombre.toLowerCase().includes('gasto')) || tiposSalida[0];
+
     setFormSalida({
       id_cierre: '',
-      id_tipo_salida: '',
+      id_tipo_salida: tipoGasto ? tipoGasto.id_tipo_salida : 1,
+      id_comprobante: '',
       monto: '',
       motivo: '',
       observacion: ''
@@ -124,30 +265,24 @@ export function SalidasCaja() {
 
     try {
       setCargandoCierres(true);
-      const hoy = new Date().toLocaleDateString('en-CA');
       const res = await api.get('/cierres-caja');
       const data = res.data?.data || res.data;
       const todosCierres = Array.isArray(data) ? data : [];
-      // Filtramos los cierres del día de hoy cuyo estado NO sea 'CERRADO'
-      const filtradosHoy = todosCierres.filter(
-        (c) => c.fecha === hoy && String(c.estado || '').toUpperCase() !== 'CERRADO'
+      
+      const abiertos = todosCierres.filter(
+        (c) => String(c.estado || '').toUpperCase() !== 'CERRADO'
       );
-      setCierresHoy(filtradosHoy);
+      setCierresDisponibles(abiertos);
 
-      if (filtradosHoy.length > 0) {
+      if (abiertos.length > 0) {
         setFormSalida((prev) => ({
           ...prev,
-          id_cierre: String(filtradosHoy[0].id_cierre)
-        }));
-      } else {
-        setFormSalida((prev) => ({
-          ...prev,
-          id_cierre: ''
+          id_cierre: String(abiertos[0].id_cierre)
         }));
       }
     } catch (err) {
-      console.error('Error al cargar cierres del día:', err);
-      setCierresHoy([]);
+      console.error('Error al cargar cierres:', err);
+      setCierresDisponibles([]);
     } finally {
       setCargandoCierres(false);
     }
@@ -170,11 +305,6 @@ export function SalidasCaja() {
       return;
     }
 
-    if (!formSalida.id_tipo_salida) {
-      setErrorModal('Debes seleccionar un tipo de salida.');
-      return;
-    }
-
     const montoNum = Number(formSalida.monto);
     if (!montoNum || montoNum <= 0) {
       setErrorModal('El monto debe ser un número positivo mayor a 0.');
@@ -191,10 +321,12 @@ export function SalidasCaja() {
       const payload = {
         id_cierre: Number(formSalida.id_cierre),
         id_tipo_salida: Number(formSalida.id_tipo_salida),
+        id_comprobante: formSalida.id_comprobante ? Number(formSalida.id_comprobante) : null,
         fecha: new Date().toLocaleDateString('en-CA'),
         monto: montoNum,
         motivo: formSalida.motivo.trim(),
-        observacion: formSalida.observacion.trim() || null
+        observacion: formSalida.observacion.trim() || null,
+        storage_key: null
       };
 
       await api.post('/salidas-caja', payload);
@@ -461,28 +593,18 @@ export function SalidasCaja() {
       {modalAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 sm:p-6">
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header del Modal */}
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white relative overflow-hidden shrink-0">
-              <svg className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" />
-              </svg>
               <div className="relative z-10 flex justify-between items-center">
                 <div>
                   <h2 className="text-xl font-bold">Registrar Salida de Caja</h2>
-                  <p className="text-blue-100 text-sm mt-1">Registra egresos con cargo al turno de hoy</p>
+                  <p className="text-blue-100 text-sm mt-1">Registra egresos con cargo al turno</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={cerrarModal}
-                  disabled={guardando}
-                  className="text-white hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
-                >
+                <button type="button" onClick={cerrarModal} disabled={guardando} className="text-white hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            {/* Contenido del Formulario */}
             <form onSubmit={handleGuardarSalida} className="p-6 overflow-y-auto flex-1 bg-slate-50 space-y-4">
               {errorModal && (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 flex items-start gap-3">
@@ -501,26 +623,26 @@ export function SalidasCaja() {
                 </div>
               )}
 
-              {/* Selector de Cierre del Día */}
+              {/* Selector de Cierre */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Cierre de Caja (Turno de hoy) <span className="text-rose-500">*</span>
+                  Cierre de Caja <span className="text-rose-500">*</span>
                 </label>
                 {cargandoCierres ? (
                   <div className="flex items-center gap-2 text-sm text-slate-500 py-2">
                     <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
                     Cargando turnos disponibles...
                   </div>
-                ) : cierresHoy.length > 0 ? (
+                ) : cierresDisponibles.length > 0 ? (
                   <select
                     value={formSalida.id_cierre}
                     onChange={(e) => setFormSalida({ ...formSalida, id_cierre: e.target.value })}
                     required
-                    className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                    className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
                   >
-                    {cierresHoy.map((c) => (
+                    {cierresDisponibles.map((c) => (
                       <option key={c.id_cierre} value={c.id_cierre}>
-                        Turno {c.turno} (ID #{c.id_cierre}) - Efectivo disponible: {formatCurrency(c.efectivo_esperado - (c.total_salidas || 0))}
+                        Cierre #{c.id_cierre} - Turno {c.turno} ({formatearFecha(c.fecha)}) - Disp: {formatCurrency(c.efectivo_esperado - (c.total_salidas || 0))}
                       </option>
                     ))}
                   </select>
@@ -528,30 +650,23 @@ export function SalidasCaja() {
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs font-medium text-amber-800 flex items-start gap-2.5">
                     <Info className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                     <span>
-                      No hay turnos abiertos para registrar salidas. Debe esperar al siguiente turno o día.
+                      No hay turnos abiertos. Dirígete a <strong>Cierres de Caja</strong> y crea un "Nuevo Cierre" para iniciar el turno antes de registrar salidas.
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Selector de Tipo de Salida */}
+              {/* Selector de Comprobante (Combobox Mejorado) */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Tipo de Salida <span className="text-rose-500">*</span>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
+                  <Search className="h-4 w-4 text-slate-500" />
+                  Comprobante Asociado (Opcional)
                 </label>
-                <select
-                  value={formSalida.id_tipo_salida}
-                  onChange={(e) => setFormSalida({ ...formSalida, id_tipo_salida: e.target.value })}
-                  required
-                  className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer"
-                >
-                  <option value="">Selecciona un tipo de salida...</option>
-                  {tiposSalida.map((t) => (
-                    <option key={t.id_tipo_salida} value={t.id_tipo_salida}>
-                      {t.nombre}
-                    </option>
-                  ))}
-                </select>
+                <ComprobanteCombobox 
+                  comprobantes={comprobantes}
+                  value={formSalida.id_comprobante}
+                  onChange={(id) => setFormSalida({ ...formSalida, id_comprobante: id })}
+                />
               </div>
 
               {/* Monto */}
@@ -567,7 +682,7 @@ export function SalidasCaja() {
                   value={formSalida.monto}
                   onChange={(e) => setFormSalida({ ...formSalida, monto: e.target.value })}
                   placeholder="0.00"
-                  className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all tabular-nums"
+                  className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all tabular-nums"
                 />
               </div>
 
@@ -581,8 +696,8 @@ export function SalidasCaja() {
                   required
                   value={formSalida.motivo}
                   onChange={(e) => setFormSalida({ ...formSalida, motivo: e.target.value })}
-                  placeholder="Ej: Pago de agua de mesa, compra de útiles..."
-                  className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Ej: Compra de agua de mesa, útiles de limpieza..."
+                  className="w-full h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
               </div>
 
@@ -596,7 +711,7 @@ export function SalidasCaja() {
                   value={formSalida.observacion}
                   onChange={(e) => setFormSalida({ ...formSalida, observacion: e.target.value })}
                   placeholder="Información adicional o justificación..."
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
                 />
               </div>
 
@@ -612,7 +727,7 @@ export function SalidasCaja() {
                 </button>
                 <button
                   type="submit"
-                  disabled={guardando || cierresHoy.length === 0}
+                  disabled={guardando || cierresDisponibles.length === 0}
                   className="h-11 flex-1 rounded-xl bg-brand-orange text-sm font-bold text-white shadow-md shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {guardando ? (

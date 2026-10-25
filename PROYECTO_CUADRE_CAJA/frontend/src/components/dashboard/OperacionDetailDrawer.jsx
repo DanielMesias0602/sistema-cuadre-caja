@@ -45,7 +45,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
 
   const pagosList = Array.isArray(selectedOp.pagos) ? selectedOp.pagos : (Array.isArray(selectedOp.payments) ? selectedOp.payments : []);
   
-  // Validación segura por si los items vienen como string JSON de PostgreSQL
   let itemsList = [];
   try {
     if (selectedOp.items) {
@@ -57,11 +56,106 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
     console.error("Error parseando items:", e);
   }
 
-  // Obtener datos del comprobante (a veces vienen en la raíz, a veces en .comprobante)
   const dataComprobante = selectedOp.comprobante || selectedOp;
 
+  // Imprime SOLO el panel #operacion-print-area en UNA página A5 horizontal.
+  // El @page vive en index.css (estático) para que Chrome lo respete.
+  const handlePrint = () => {
+    const printArea = document.getElementById('operacion-print-area');
+    if (!printArea) {
+      window.print();
+      return;
+    }
+
+    // 1. Clonar el recibo
+    const clone = printArea.cloneNode(true);
+    clone.id = 'operacion-print-clone';
+    clone.querySelectorAll('button').forEach((b) => b.remove());
+
+    // 2. Quitar restricciones de altura/overflow
+    clone.querySelectorAll('[class*="max-h-"]').forEach((el) => {
+      [...el.classList].forEach((c) => {
+        if (c.includes('max-h-')) el.classList.remove(c);
+      });
+    });
+    clone.querySelectorAll('[class*="overflow-"]').forEach((el) => {
+      [...el.classList].forEach((c) => {
+        if (c.includes('overflow-')) el.classList.remove(c);
+      });
+    });
+
+    // 3. Limpiar padding/borde/sombra del contenedor clonado
+    clone.style.padding = '0';
+    clone.style.boxShadow = 'none';
+    clone.style.border = 'none';
+    clone.style.maxHeight = 'none';
+    clone.style.overflow = 'visible';
+
+    // 4. Contenedor temporal
+    const tempContainer = document.createElement('div');
+    tempContainer.id = 'temp-print-root';
+    tempContainer.style.cssText = 'display: none; background: white;';
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
+
+    // 5. CSS de impresión (sin @page — ese vive en index.css)
+    const style = document.createElement('style');
+    style.id = 'temp-print-style';
+    style.textContent = `
+      @media print {
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+        body > *:not(#temp-print-root) {
+          display: none !important;
+        }
+        #temp-print-root {
+          display: flex !important;
+          justify-content: center !important;
+          align-items: flex-start !important;
+          width: 100% !important;
+          height: auto !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: white !important;
+        }
+        #operacion-print-clone {
+          width: 100% !important;
+          max-width: 190mm !important;
+          padding: 0 !important;
+          margin: 0 auto !important;
+          background: white !important;
+        }
+        #operacion-print-clone * {
+          visibility: visible !important;
+          max-height: none !important;
+          overflow: visible !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        #operacion-print-clone button {
+          display: none !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.getElementById('temp-print-root')?.remove();
+        document.getElementById('temp-print-style')?.remove();
+      }, 500);
+    }, 200);
+  };
+
   return (
-    <div className="bg-white rounded-2xl shadow-xs border border-gray-100 p-5 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto">
+    <div
+      id="operacion-print-area"
+      className="bg-white rounded-2xl shadow-xs border border-gray-100 p-5 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto"
+    >
       {/* BLOQUE A: INFORMACIÓN DE LA OPERACIÓN */}
       <div className="pb-4 border-b border-gray-100">
         <div className="flex items-start justify-between gap-2">
@@ -79,7 +173,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
+                className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition print:hidden"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -133,7 +227,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         </div>
       </div>
 
-      {/* BLOQUE NUEVO: TABLA DE PRODUCTOS (ITEMS) */}
+      {/* BLOQUE: TABLA DE PRODUCTOS (ITEMS) */}
       {itemsList.length > 0 && (
         <div className="bg-slate-50 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">
@@ -201,11 +295,11 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         )}
       </div>
 
-      {/* BLOQUE G: ACCIONES */}
-      <div className="flex items-center gap-3 pt-2">
+      {/* BLOQUE G: ACCIONES (oculto al imprimir) */}
+      <div className="flex items-center gap-3 pt-2 print:hidden">
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={handlePrint}
           className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-xs text-slate-800 transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <Printer className="w-4 h-4 text-slate-500" />

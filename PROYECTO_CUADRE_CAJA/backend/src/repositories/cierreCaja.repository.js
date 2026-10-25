@@ -27,23 +27,65 @@ export const createCierreCaja = async ({
   return result.rows[0];
 };
 
+
 export const findParticipantesCierre = async (idCierre) => {
   const result = await query(
-    `SELECT
-       u.id_usuario,
-       u.nombres || ' ' || u.apellidos AS nombre_completo,
-       MIN(o.fecha_registro) AS primera_operacion,
-       MAX(o.fecha_registro) AS ultima_operacion,
-       COUNT(o.id_operacion) AS total_operaciones
-     FROM operacion o
-     JOIN usuario u ON u.id_usuario = o.id_usuario
-     WHERE o.id_cierre = $1
-     GROUP BY u.id_usuario, u.nombres, u.apellidos
-     ORDER BY primera_operacion ASC`,
+    `WITH operaciones_usuario AS (
+       SELECT
+         o.id_usuario,
+         u.nombres || ' ' || u.apellidos AS nombre_completo,
+         MIN(o.fecha_registro) AS primera_operacion,
+         MAX(o.fecha_registro) AS ultima_operacion,
+         COUNT(o.id_operacion)::int AS total_operaciones,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN COALESCE(o.estado, '') <> 'ANULADA'
+               THEN o.monto
+               ELSE 0
+             END
+           ),
+           0
+         ) AS total_ventas
+       FROM operacion o
+       JOIN usuario u ON u.id_usuario = o.id_usuario
+       WHERE o.id_cierre = $1
+       GROUP BY
+         o.id_usuario,
+         u.nombres,
+         u.apellidos
+     ),
+     efectivo_usuario AS (
+       SELECT
+         o.id_usuario,
+         COALESCE(SUM(p.monto), 0) AS efectivo_vendido
+       FROM operacion o
+       JOIN pago p ON p.id_operacion = o.id_operacion
+       JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+       WHERE o.id_cierre = $1
+         AND COALESCE(o.estado, '') <> 'ANULADA'
+         AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
+         AND mp.es_efectivo = TRUE
+       GROUP BY o.id_usuario
+     )
+     SELECT
+       ou.id_usuario,
+       ou.nombre_completo,
+       ou.primera_operacion,
+       ou.ultima_operacion,
+       ou.total_operaciones,
+       ou.total_ventas,
+       COALESCE(eu.efectivo_vendido, 0) AS efectivo_vendido
+     FROM operaciones_usuario ou
+     LEFT JOIN efectivo_usuario eu
+       ON eu.id_usuario = ou.id_usuario
+     ORDER BY ou.primera_operacion ASC`,
     [idCierre]
   );
+
   return result.rows;
 };
+
 
 export const findCierreCajaById = async (idCierre) => {
   const result = await query(
@@ -81,23 +123,49 @@ export const findCierresCaja = async () => {
   return result.rows;
 };
 
+// FIX: usa comprobante.hora para el cálculo del turno (cuando la operación
+// se registró hoy pero la boleta es de otro día)
 export const getTotalesParaCierre = async (fecha, turno) => {
   const result = await query(
     `SELECT
        COALESCE(SUM(p.monto), 0) as total_ingresos,
        COALESCE(SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END), 0) as total_no_efectivo
      FROM operacion o
+     JOIN comprobante c ON c.id_comprobante = o.id_comprobante
      JOIN pago p ON p.id_operacion = o.id_operacion
      JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
      WHERE o.fecha = $1
        AND o.id_cierre IS NULL
-       AND o.estado != 'ANULADA' -- <-- NUEVO: Excluimos anuladas del cálculo
+       AND o.estado != 'ANULADA'
+       AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') -- FIX CRÍTICO: Excluir pagos anulados
        AND (
-         (UPPER($2) = 'MAÑANA' AND (o.fecha_registro AT TIME ZONE 'America/Lima')::time <= '14:00:00'::time)
+         (UPPER($2) = 'MAÑANA' AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '14:00:00'::time)
          OR
-         (UPPER($2) = 'TARDE' AND (o.fecha_registro AT TIME ZONE 'America/Lima')::time > '14:00:00'::time AND (o.fecha_registro AT TIME ZONE 'America/Lima')::time <= '20:00:00'::time)
+         (UPPER($2) = 'TARDE' AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) > '14:00:00'::time
+           AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '20:00:00'::time)
        )`,
     [fecha, turno]
   );
   return result.rows[0];
+};
+
+export const contarOperacionesSinEvidenciaEmpresa = async (idCierre) => {
+  const result = await query(
+    `SELECT COUNT(DISTINCT o.id_operacion)::int AS total
+     FROM operacion o
+     JOIN pago p ON p.id_operacion = o.id_operacion
+     JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+     WHERE o.id_cierre = $1
+       AND COALESCE(o.estado, '') <> 'ANULADA'
+       AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
+       AND mp.es_efectivo = FALSE
+       AND NOT EXISTS (
+         SELECT 1 FROM evidencia e
+         WHERE e.id_operacion = o.id_operacion
+           AND e.tipo_evidencia = 'EMPRESA'
+       )`,
+    [idCierre]
+  );
+
+  return result.rows[0]?.total || 0;
 };

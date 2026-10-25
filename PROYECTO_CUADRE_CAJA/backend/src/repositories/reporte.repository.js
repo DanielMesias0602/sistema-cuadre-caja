@@ -116,7 +116,24 @@ export const findOperacionesReport = async (filters) => {
        COUNT(DISTINCT vp.id_verificacion)::INTEGER AS total_verificaciones,
        CASE WHEN a.id_anulacion IS NULL THEN FALSE ELSE TRUE END AS anulada,
        (SELECT COUNT(*) FROM nota_credito nc2 WHERE nc2.id_comprobante_original = o.id_comprobante)::INTEGER AS total_notas_credito,
-       (SELECT COALESCE(SUM(nc2.monto), 0) FROM nota_credito nc2 WHERE nc2.id_comprobante_original = o.id_comprobante) AS total_notas_credito_monto
+       (SELECT COALESCE(SUM(nc2.monto), 0) FROM nota_credito nc2 WHERE nc2.id_comprobante_original = o.id_comprobante) AS total_notas_credito_monto,
+       -- NUEVO: operación requiere verificación si tiene pago no efectivo sin evidencia EMPRESA
+       CASE
+         WHEN EXISTS (
+           SELECT 1 FROM pago p2
+           INNER JOIN medio_pago mp2 ON mp2.id_medio_pago = p2.id_medio_pago
+           WHERE p2.id_operacion = o.id_operacion
+             AND mp2.es_efectivo = FALSE
+             AND COALESCE(p2.estado, '') NOT IN ('ANULADO', 'ANULADA')
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM evidencia e2
+           WHERE e2.id_operacion = o.id_operacion
+             AND e2.tipo_evidencia = 'EMPRESA'
+         )
+         THEN TRUE
+         ELSE FALSE
+       END AS requiere_verificacion
      FROM operacion o
      INNER JOIN comprobante c
        ON c.id_comprobante = o.id_comprobante
@@ -413,10 +430,6 @@ export const findConciliacionReport = async (filters) => {
     dateFilter.params
   );
 
-  // La conciliación es diaria y puede abarcar operaciones provenientes de
-  // distintos cierres. Por eso NO se filtran los cierres por cc.fecha.
-  // Se obtienen los cierres realmente involucrados mediante los detalles
-  // de la conciliación.
   const cierres = await query(
     `SELECT DISTINCT
        cc.id_cierre,
@@ -466,9 +479,6 @@ export const findDashboardReport = async (filters) => {
   const fechaHasta = filters.fecha_hasta || null;
   const params = [fechaDesde, fechaHasta];
 
-  // ---------------------------------------------------------
-  // 1. RESÚMEN
-  // ---------------------------------------------------------
   const resumen = await query(
     `WITH operaciones_filtradas AS (
        SELECT o.id_operacion, o.monto
@@ -517,9 +527,6 @@ export const findDashboardReport = async (filters) => {
     params
   );
 
-  // ---------------------------------------------------------
-  // 2. OPERACIONES
-  // ---------------------------------------------------------
   const operaciones = await query(
     `SELECT
        COUNT(*)::INTEGER AS total_operaciones,
@@ -547,9 +554,6 @@ export const findDashboardReport = async (filters) => {
     params
   );
 
-  // ---------------------------------------------------------
-  // 3. PAGOS
-  // ---------------------------------------------------------
   const pagos = await query(
     `SELECT
        COUNT(*)::INTEGER AS total_pagos,
@@ -564,9 +568,6 @@ export const findDashboardReport = async (filters) => {
     params
   );
 
-  // ---------------------------------------------------------
-  // 4. RESULTADO FINAL
-  // ---------------------------------------------------------
   return {
     resumen: resumen.rows[0],
     operaciones: operaciones.rows[0],
@@ -579,9 +580,6 @@ export const findDashboardReport = async (filters) => {
   };
 };
 
-// ============================================================
-// NUEVA FUNCIÓN: 20 INDICADORES EMPRESARIALES
-// ============================================================
 export const findIndicadoresCompletos = async (filters) => {
   const fechaDesde = filters.fecha_desde || null;
   const fechaHasta = filters.fecha_hasta || null;
@@ -589,11 +587,11 @@ export const findIndicadoresCompletos = async (filters) => {
 
   const result = await query(
     `WITH ops AS (
-       SELECT o.*, c.cliente, c.vendedor, cc.turno 
-       FROM operacion o 
+       SELECT o.*, c.cliente, c.vendedor, cc.turno
+       FROM operacion o
        JOIN comprobante c ON c.id_comprobante = o.id_comprobante
        LEFT JOIN cierre_caja cc ON cc.id_cierre = o.id_cierre
-       WHERE ($1::date IS NULL OR o.fecha >= $1::date) 
+       WHERE ($1::date IS NULL OR o.fecha >= $1::date)
          AND ($2::date IS NULL OR o.fecha <= $2::date)
      ),
      pagos AS (
@@ -601,40 +599,31 @@ export const findIndicadoresCompletos = async (filters) => {
        FROM pago p
        JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
        JOIN operacion o ON o.id_operacion = p.id_operacion
-       WHERE ($1::date IS NULL OR o.fecha >= $1::date) 
+       WHERE ($1::date IS NULL OR o.fecha >= $1::date)
          AND ($2::date IS NULL OR o.fecha <= $2::date)
      ),
      cierres AS (
        SELECT * FROM cierre_caja cc
-       WHERE ($1::date IS NULL OR cc.fecha >= $1::date) 
+       WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
          AND ($2::date IS NULL OR cc.fecha <= $2::date)
      )
      SELECT
-       -- Categoría 1: Ventas
        (SELECT COALESCE(SUM(monto), 0) FROM ops WHERE estado != 'ANULADA') AS ventas_totales,
        (SELECT COUNT(*)::INT FROM ops WHERE estado != 'ANULADA') AS operaciones_registradas,
        (SELECT COUNT(*)::INT FROM ops WHERE estado = 'ANULADA') AS operaciones_anuladas,
        (SELECT COALESCE(AVG(monto), 0) FROM ops WHERE estado != 'ANULADA') AS ticket_promedio,
-       
-       -- Categoría 2: Medios de Pago
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = TRUE AND estado_op != 'ANULADA') AS monto_efectivo,
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = FALSE AND estado_op != 'ANULADA') AS monto_virtual,
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE medio_pago ILIKE '%tarjeta%' AND estado_op != 'ANULADA') AS monto_tarjeta,
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE (medio_pago ILIKE '%yape%' OR medio_pago ILIKE '%transfer%') AND estado_op != 'ANULADA') AS monto_yape_transf,
-       
-       -- Categoría 3: Caja
        (SELECT COALESCE(SUM(diferencia), 0) FROM cierres) AS diferencia_acumulada,
        (SELECT COUNT(*)::INT FROM cierres WHERE diferencia <> 0) AS cierres_con_diferencia,
        (SELECT COUNT(*)::INT FROM cierres) AS total_cierres,
        (SELECT COALESCE(SUM(total_salidas), 0) FROM cierres) AS total_salidas,
-       
-       -- Categoría 4: Calidad y Trazabilidad
        (SELECT COUNT(DISTINCT o.id_operacion)::INT FROM ops o JOIN evidencia e ON e.id_operacion = o.id_operacion WHERE o.estado != 'ANULADA') AS ops_con_evidencia,
        (SELECT COUNT(DISTINCT o.id_operacion)::INT FROM ops o JOIN pago p ON p.id_operacion = o.id_operacion JOIN verificacion_pago vp ON vp.id_pago = p.id_pago WHERE o.estado != 'ANULADA') AS ops_verificadas,
        (SELECT COUNT(*)::INT FROM pagos WHERE fecha_modificacion IS NOT NULL) AS pagos_corregidos,
        (SELECT COUNT(*)::INT FROM pagos WHERE referencia_bancaria IS NOT NULL AND es_efectivo = FALSE) AS pagos_con_referencia,
-       
-       -- Categoría 5: Operativas
        (SELECT COUNT(*)::INT FROM ops WHERE turno = 'Mañana' AND estado != 'ANULADA') AS ops_manana,
        (SELECT COUNT(*)::INT FROM ops WHERE turno = 'Tarde' AND estado != 'ANULADA') AS ops_tarde,
        (SELECT COALESCE(SUM(monto), 0) FROM nota_credito WHERE ($1::date IS NULL OR fecha >= $1::date) AND ($2::date IS NULL OR fecha <= $2::date)) AS total_notas_credito,

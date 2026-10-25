@@ -28,19 +28,22 @@ export function Operaciones() {
     cargarOperaciones();
   }, []);
 
-  const cargarOperaciones = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/operaciones');
-      const data = res.data?.data || res.data;
-      setOperaciones(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudo cargar el historial de operaciones.');
-    } finally {
-      setLoading(false);
-    }
-  };
+const cargarOperaciones = async () => {
+  try {
+    setLoading(true);
+    const res = await api.get('/operaciones');
+    const data = res.data?.data || res.data;
+    const lista = Array.isArray(data) ? data : [];
+    setOperaciones(lista);
+    return lista;
+  } catch (err) {
+    console.error(err);
+    setError('No se pudo cargar el historial de operaciones.');
+    return [];
+  } finally {
+    setLoading(false);
+  }
+};
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);
@@ -225,6 +228,16 @@ export function Operaciones() {
                 const referenciaFinal = pagoConReferencia?.referencia || '-';
                 const esAnulada = (op.estado || '').toUpperCase() === 'ANULADA';
 
+                // NUEVO: Detectar si falta evidencia de empresa
+                const hayPagoNoEfectivo = Array.isArray(op.pagos) && op.pagos.some((p) => {
+                  const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();
+                  return medio !== '' && !medio.includes('efectivo');
+                });
+                const tieneEvidenciaEmpresa = Array.isArray(op.evidencias) && op.evidencias.some(
+                  (e) => e.tipo_evidencia === 'EMPRESA'
+                );
+                const evidenciaEmpresaPendiente = hayPagoNoEfectivo && !tieneEvidenciaEmpresa && !esAnulada;
+
                 return (
                   <tr key={op.id_operacion} className={`hover:bg-slate-50 transition-colors group ${esAnulada ? 'bg-rose-50/30' : ''}`}>
                     <td className="p-4 whitespace-nowrap">
@@ -266,6 +279,14 @@ export function Operaciones() {
                             <span className={`text-xs font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>S/ {parseFloat(pago.monto).toFixed(2)}</span>
                           </div>
                         )) : <span className="text-xs text-slate-400">-</span>}
+
+                        {/* NUEVO: Badge evidencia empresa pendiente */}
+                        {evidenciaEmpresaPendiente && (
+                          <span className="inline-flex items-center gap-1 mt-1 w-fit rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 border border-amber-200">
+                            <Clock className="w-3 h-3" />
+                            Evidencia empresa pendiente
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -297,7 +318,6 @@ export function Operaciones() {
 
         {operacionesFiltradas.length > 0 && (
           <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-4">
-            {/* TRAZABILIDAD: Nota explicativa */}
             {hayAnuladas && (
               <span className="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
@@ -318,7 +338,19 @@ export function Operaciones() {
         )}
       </div>
 
-      <OperacionDetailDrawerPremium op={drawerAbierto ? selectedOp : null} onClose={() => setDrawerAbierto(false)} />
+      <OperacionDetailDrawerPremium
+  op={drawerAbierto ? selectedOp : null}
+  onClose={() => setDrawerAbierto(false)}
+  onEvidenciaSubida={async (idOperacion) => {
+    const lista = await cargarOperaciones();
+    const opActualizada = lista.find(
+      (o) => Number(o.id_operacion) === Number(idOperacion)
+    );
+    if (opActualizada) {
+      setSelectedOp(opActualizada);
+    }
+  }}
+/>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import './AppLayout.css';
 import { useAuth } from '../hooks/useAuth';
 import { useRol } from '../context/RolContext';
+import { TurnoAlertBanner } from '../components/layout/TurnoAlertBanner';
 import {
   Menu,
   X,
@@ -31,7 +32,6 @@ function AppLayout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Validación segura: Si isAdmin es una función, la ejecutamos. Si es un booleano, lo usamos directo.
   const userIsAdmin = typeof isAdmin === 'function' ? isAdmin() : !!isAdmin;
 
   const menuItems = [
@@ -57,7 +57,6 @@ function AppLayout() {
       { path: '/reportes', label: 'Reportes', icon: BarChart2 },
       { path: '/indicadores', label: 'Indicadores', icon: TrendingUp },
     ]},
-    // Sección exclusiva para Administradores
     ...(userIsAdmin ? [{
       section: 'Administración', items: [
         { path: '/usuarios', label: 'Usuarios', icon: Users },
@@ -167,7 +166,6 @@ function AppLayout() {
           </div>
 
           <div className="app-header-user">
-            {/* AQUÍ ESTÁ EL CAMBIO: Nombre completo y condición */}
             <div className="user-info text-right">
               <span className="font-bold text-slate-800 block text-sm">
                 {user?.nombres ? `${user.nombres} ${user.apellidos}` : (user?.usuario || 'Usuario')}
@@ -184,6 +182,7 @@ function AppLayout() {
         </header>
 
         <main className="app-content">
+          <TurnoAlertBanner />
           <Outlet />
         </main>
       </div>

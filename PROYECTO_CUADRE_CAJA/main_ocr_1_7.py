@@ -1,0 +1,966 @@
+﻿import json
+import re
+import sys
+
+from paddleocr import PaddleOCR
+
+
+# ============================================================
+# UTILIDADES
+# ============================================================
+
+def buscar_patron(texto_completo, patron, grupo=1):
+    coincidencia = re.search(
+        patron,
+        texto_completo,
+        flags=re.IGNORECASE
+    )
+
+    if not coincidencia:
+        return None
+
+    return coincidencia.group(grupo).strip()
+
+
+def normalizar_monto(valor):
+    if valor is None:
+        return None
+
+    valor = str(valor).strip()
+
+    valor = valor.replace("S/.", "")
+    valor = valor.replace("S/", "")
+    valor = valor.replace("S0/", "")
+    valor = valor.replace(" ", "")
+
+    # 1,472.00
+    if "," in valor and "." in valor:
+
+        # Si el punto aparece despues de la coma,
+        # asumimos formato internacional: 1,472.00
+        if valor.rfind(".") > valor.rfind(","):
+            valor = valor.replace(",", "")
+
+        # 1.472,00
+        else:
+            valor = valor.replace(".", "")
+            valor = valor.replace(",", ".")
+
+    # 1472,00
+    elif "," in valor:
+        valor = valor.replace(",", ".")
+
+    try:
+        return float(valor)
+
+    except ValueError:
+        return None
+
+
+def es_numero(valor):
+    if not valor:
+        return False
+
+    return re.fullmatch(
+        r"\d+(?:[.,]\d+)?",
+        valor.strip()
+    ) is not None
+
+
+def es_monto_decimal(valor):
+    """
+    Reconoce:
+
+    30.00
+    1472.00
+    1,472.00
+    1.472,00
+    """
+
+    if not valor:
+        return False
+
+    valor = valor.strip()
+
+    patrones = [
+        # 30.00
+        r"\d+\.\d{2}",
+
+        # 1,472.00
+        r"\d{1,3}(?:,\d{3})+\.\d{2}",
+
+        # 1.472,00
+        r"\d{1,3}(?:\.\d{3})+,\d{2}",
+
+        # 1472,00
+        r"\d+,\d{2}"
+    ]
+
+    return any(
+        re.fullmatch(patron, valor)
+        for patron in patrones
+    )
+
+
+def limpiar_texto(texto):
+    return re.sub(
+        r"\s+",
+        " ",
+        texto.strip()
+    )
+
+
+def es_linea_administrativa(texto):
+
+    if not texto:
+        return False
+
+    patrones = [
+        r"^OP\.?\s*GRAVADA",
+        r"^I\.?\s*G\.?\s*V\.?",
+        r"^TOTAL",
+        r"^SUB\s*-?\s*TOTAL",
+        r"^EFECTIVO",
+        r"^FORMA\s+DE\s+PAGO",
+        r"^SON\s*:",
+        r"^RUC",
+        r"^R\.U\.C\.",
+        r"^RUC/PASAPORTE",
+        r"^NOMBRE\s*:",
+        r"^DIRECCION\s*:",
+        r"^VENDEDOR",
+        r"^CLIENTE\s*:",
+        r"^CONSULTAS",
+        r"^PEDIDOS",
+        r"^PUNTO\s+DE\s+VENTA",
+        r"^DNI/OTROS",
+        r"^MUCHAS\s+GRACIAS",
+        r"^UNA\s+VEZ",
+        r"^REPRESENTACION",
+        r"^ESTA\s+PUEDE",
+        r"^HTTP",
+        r"^HTTPS",
+        r"^DESCUENTO",
+        r"^DSCTO",
+        r"^ANTICIPO",
+        r"^SALDO",
+        r"^VUELTO",
+        r"^CAMBIO",
+        r"^REDONDEO",
+        r"^GRACIAS\s+POR"
+    ]
+
+    return any(
+        re.search(
+            patron,
+            texto,
+            flags=re.IGNORECASE
+        )
+        for patron in patrones
+    )
+
+
+def es_unidad(texto):
+    """
+    Detecta lineas que son solo una unidad de medida con su cantidad.
+
+    Ej: '120CAJAS', '2 UND', '50 KG', '10 PZAS'
+    """
+
+    if not texto:
+        return False
+
+    return re.fullmatch(
+        r"\d+\s*"
+        r"(?:CAJAS?|UND?|UNID|PZAS?|PZA|PIEZAS?|KG|GR|GRS|MT|MTS|M2|M3|LT|LTS|ML|PULG|PIES?)",
+        texto.strip(),
+        flags=re.IGNORECASE
+    ) is not None
+
+
+# ============================================================
+# ESTRATEGIA 1: TODO EN UNA LINEA
+# ============================================================
+
+def _estrategia_producto_compacto(lineas, inicio_busqueda):
+    """
+    Formato:
+      <cantidad> <descripcion> <precio> <total>     (todo en una linea)
+
+    Ej: "2 CEMENTO SOL 18.50 37.00"
+    """
+
+    productos = []
+
+    patron_producto_completo = re.compile(
+        r"^\s*"
+        r"(\d+(?:[.,]\d+)?)"
+        r"\s+"
+        r"(.+?)"
+        r"\s+"
+        r"(\d{1,3}(?:,\d{3})*\.\d{2})"
+        r"\s+"
+        r"(\d{1,3}(?:,\d{3})*\.\d{2})"
+        r"\s*$",
+        flags=re.IGNORECASE
+    )
+
+    for linea in lineas[inicio_busqueda:]:
+
+        coincidencia = patron_producto_completo.match(linea)
+
+        if not coincidencia:
+            continue
+
+        cantidad = normalizar_monto(coincidencia.group(1))
+        descripcion = coincidencia.group(2).strip()
+        precio_unitario = normalizar_monto(coincidencia.group(3))
+        total_producto = normalizar_monto(coincidencia.group(4))
+
+        if (
+            descripcion
+            and cantidad is not None
+            and precio_unitario is not None
+            and total_producto is not None
+        ):
+            productos.append({
+                "descripcion": descripcion,
+                "cantidad": cantidad,
+                "precio_unitario": precio_unitario,
+                "total": total_producto
+            })
+
+    return productos
+
+
+# ============================================================
+# ESTRATEGIA 2: CANTIDAD SOLA + DESCRIPCION + PRECIO + TOTAL
+# ============================================================
+
+def _estrategia_cantidad_sola(lineas, inicio_busqueda):
+    """
+    Formato:
+      <cantidad>           (linea sola)
+      <descripcion>
+      <precio>
+      <total>
+      <descripcion restante opcional>
+
+    Ej:
+      2
+      CEMENTO SOL
+      18.50
+      37.00
+    """
+
+    productos = []
+    indice = inicio_busqueda
+
+    while indice < len(lineas):
+
+        linea = lineas[indice]
+
+        if not re.fullmatch(r"\d+(?:[.,]\d+)?", linea):
+            indice += 1
+            continue
+
+        cantidad = normalizar_monto(linea)
+
+        if cantidad is None:
+            indice += 1
+            continue
+
+        if cantidad <= 0 or cantidad > 10000:
+            indice += 1
+            continue
+
+        descripcion_partes = []
+        precio_unitario = None
+        total_producto = None
+
+        siguiente = indice + 1
+
+        while siguiente < len(lineas):
+
+            candidato = lineas[siguiente]
+
+            if not candidato:
+                siguiente += 1
+                continue
+
+            if es_linea_administrativa(candidato):
+                break
+
+            if es_monto_decimal(candidato):
+
+                valor = normalizar_monto(candidato)
+
+                if precio_unitario is None:
+                    precio_unitario = valor
+                    siguiente += 1
+                    continue
+
+                if total_producto is None:
+                    total_producto = valor
+                    siguiente += 1
+                    continue
+
+            if not es_numero(candidato):
+                descripcion_partes.append(candidato)
+
+            siguiente += 1
+
+            if (
+                precio_unitario is not None
+                and total_producto is not None
+                and siguiente < len(lineas)
+            ):
+                proximo = lineas[siguiente]
+
+                if re.fullmatch(r"\d+(?:[.,]\d+)?", proximo):
+                    break
+
+                if es_linea_administrativa(proximo):
+                    break
+
+        descripcion = limpiar_texto(" ".join(descripcion_partes))
+
+        if (
+            descripcion
+            and precio_unitario is not None
+            and total_producto is not None
+        ):
+            productos.append({
+                "descripcion": descripcion,
+                "cantidad": cantidad,
+                "precio_unitario": precio_unitario,
+                "total": total_producto
+            })
+
+            indice = siguiente
+            continue
+
+        indice += 1
+
+    return productos
+
+
+# ============================================================
+# ESTRATEGIA 3: CANTIDAD + DESCRIPCION EN MISMA LINEA
+# ============================================================
+
+def _estrategia_linea_cantidad_descripcion(lineas, inicio_busqueda):
+    """
+    Formato (caso BE03-00002937):
+
+      <cantidad> <descripcion>      (misma linea)
+      <precio unitario>
+      <total>
+      [<unidad>]
+
+    Ej:
+      61.92 LPY66024 FLOOR TILE
+      36.81
+      2,279.00
+      120CAJAS
+    """
+
+    productos = []
+    indice = inicio_busqueda
+
+    # Cantidad + texto libre en la misma linea.
+    # La descripcion debe contener al menos una letra
+    # (para no confundir con lineas solo numericas).
+    patron_inicio = re.compile(
+        r"^\s*(\d+(?:[.,]\d+)?)\s+(.+?)\s*$",
+        flags=re.IGNORECASE
+    )
+
+    # Patron para detectar una linea administrativa "real":
+    # debe tener ":" o un monto con decimales. Las palabras
+    # sueltas del encabezado ("TOTAL", "PRECIO", "DESCRIPCION")
+    # NO son administrativas reales.
+    patron_admin_real = re.compile(
+        r":\s*\d|\d+[.,]\d+",
+        flags=re.IGNORECASE
+    )
+
+    while indice < len(lineas):
+
+        linea = lineas[indice]
+
+        coincidencia = patron_inicio.match(linea)
+
+        if not coincidencia:
+
+            # Solo terminar si es una linea administrativa REAL
+            # (pie de boleta con montos). Las palabras sueltas del
+            # encabezado no rompen el bucle.
+            if (
+                es_linea_administrativa(linea)
+                and patron_admin_real.search(linea)
+            ):
+                break
+
+            indice += 1
+            continue
+
+        cantidad = normalizar_monto(coincidencia.group(1))
+        descripcion_base = coincidencia.group(2).strip()
+
+        # Validaciones para evitar falsos positivos
+        if cantidad is None or cantidad <= 0 or cantidad > 10000:
+            indice += 1
+            continue
+
+        if not descripcion_base or len(descripcion_base) < 3:
+            indice += 1
+            continue
+
+        # Debe tener al menos una letra
+        if not re.search(r"[A-Za-z]", descripcion_base):
+            indice += 1
+            continue
+
+        # Si es unidad disfrazada (ej. "120CAJAS"), no es descripcion
+        if es_unidad(linea):
+            indice += 1
+            continue
+
+        precio_unitario = None
+        total_producto = None
+
+        siguiente = indice + 1
+        intentos = 0
+
+        while siguiente < len(lineas) and intentos < 6:
+
+            intentos += 1
+            candidato = lineas[siguiente]
+
+            if not candidato:
+                siguiente += 1
+                continue
+
+            if (
+                es_linea_administrativa(candidato)
+                and patron_admin_real.search(candidato)
+            ):
+                break
+
+            if es_monto_decimal(candidato):
+
+                valor = normalizar_monto(candidato)
+
+                if precio_unitario is None:
+                    precio_unitario = valor
+                    siguiente += 1
+                    continue
+
+                if total_producto is None:
+                    total_producto = valor
+                    siguiente += 1
+                    break
+
+            # Si es unidad, la ignoramos pero seguimos buscando
+            if es_unidad(candidato):
+                siguiente += 1
+                continue
+
+            # Si aparece una linea con cantidad+descripcion,
+            # es el siguiente producto. Cortamos aqui.
+            if patron_inicio.match(candidato):
+                break
+
+            # Otro texto: lo anexamos a la descripcion
+            if (
+                not es_numero(candidato)
+                and re.search(r"[A-Za-z]", candidato)
+                and len(candidato) >= 3
+                and not es_unidad(candidato)
+            ):
+                descripcion_base = f"{descripcion_base} {candidato}"
+
+            siguiente += 1
+
+        if precio_unitario is not None:
+
+            if total_producto is None:
+                total_producto = round(
+                    cantidad * precio_unitario,
+                    2
+                )
+
+            productos.append({
+                "descripcion": limpiar_texto(descripcion_base),
+                "cantidad": cantidad,
+                "precio_unitario": precio_unitario,
+                "total": total_producto
+            })
+
+        indice = siguiente
+
+    return productos
+
+# ============================================================
+# ORQUESTADOR: PRUEBA LAS 3 ESTRATEGIAS EN ORDEN
+# ============================================================
+
+def extraer_productos(textos):
+
+    lineas = [
+        limpiar_texto(texto)
+        for texto in textos
+        if limpiar_texto(texto)
+    ]
+
+    # --------------------------------------------------------
+    # BUSCAR INICIO DEL DETALLE (linea con "CANT")
+    # --------------------------------------------------------
+
+    indice_detalle = None
+
+    for indice, linea in enumerate(lineas):
+
+        if re.search(
+            r"\bCANT\.?\b",
+            linea,
+            flags=re.IGNORECASE
+        ):
+            indice_detalle = indice
+            break
+
+    inicio_busqueda = (
+        indice_detalle + 1
+        if indice_detalle is not None
+        else 0
+    )
+
+    # --------------------------------------------------------
+    # INTENTO 1: TODO EN UNA LINEA
+    # --------------------------------------------------------
+
+    productos = _estrategia_producto_compacto(
+        lineas,
+        inicio_busqueda
+    )
+
+    if productos:
+        return productos
+
+    # --------------------------------------------------------
+    # INTENTO 2: CANTIDAD SOLA EN SU LINEA
+    # --------------------------------------------------------
+
+    productos = _estrategia_cantidad_sola(
+        lineas,
+        inicio_busqueda
+    )
+
+    if productos:
+        return productos
+
+    # --------------------------------------------------------
+    # INTENTO 3: CANTIDAD + DESCRIPCION EN MISMA LINEA
+    # --------------------------------------------------------
+
+    productos = _estrategia_linea_cantidad_descripcion(
+        lineas,
+        inicio_busqueda
+    )
+
+    return productos
+
+
+# ============================================================
+# HELPERS DE EXTRACCION TOLERANTE (NUEVOS)
+# ============================================================
+
+def extraer_monto_tolerante(texto, etiqueta):
+    """
+    Busca la etiqueta y captura el primer monto con 2 decimales que aparezca
+    en los siguientes 30 caracteres. Tolera ruido como 'G', saltos de linea, etc.
+    """
+    regex = re.compile(
+        etiqueta + r"[\s\S]{0,30}?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})",
+        flags=re.IGNORECASE
+    )
+    coincidencia = regex.search(texto)
+    if coincidencia:
+        return normalizar_monto(coincidencia.group(1))
+    return None
+
+
+def extraer_cliente(texto_completo):
+    """
+    Busca CLIENTE o NOMBRE y captura el nombre real.
+    Tolera: valor en misma linea con ':', valor en siguiente linea,
+    ruido como 'oda' intercalado, multiples lineas.
+    """
+    PALABRAS_RUIDO = [
+        'representacion', 'impresa', 'comprobante', 'electronico',
+        'documento', 'consulta', 'gracias', 'pedidos', 'aceptan',
+        'cambios', 'devoluciones', 'punto de venta', 'detalle de productos',
+        'forma de pago', 'total', 'subtotal', 'direccion', 'ruc', 'dni',
+        'otros', 'fecha', 'hora', 'vendedor', 'tipo', 'serie', 'numero',
+        'null', 'undefined', 'true', 'false', 'none'
+    ]
+
+    lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
+
+    for i, linea in enumerate(lineas):
+        linea_upper = linea.upper()
+        if 'CLIENTE' in linea_upper or 'NOMBRE' in linea_upper:
+            # Caso 1: misma linea con ':'
+            if ':' in linea:
+                partes = linea.split(':', 1)
+                if len(partes) > 1:
+                    valor = partes[1].strip()
+                    if len(valor) >= 4 and re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{4,}", valor):
+                        if not any(p in valor.lower() for p in PALABRAS_RUIDO):
+                            return valor
+
+            # Caso 2: buscar en las siguientes 5 lineas
+            for j in range(i + 1, min(i + 6, len(lineas))):
+                linea_j = lineas[j]
+                linea_j_upper = linea_j.upper()
+                linea_j_lower = linea_j.lower()
+
+                # Si llegamos a otra etiqueta, parar
+                if re.match(r"^(DIRECCION|DNI|RUC|TOTAL|IGV|OP\.|EFECTIVO|VENDEDOR|TIPO|SERIE|NUMERO)", linea_j_upper):
+                    break
+
+                # Filtrar ruido
+                if any(p == linea_j_lower for p in PALABRAS_RUIDO):
+                    continue
+                if len(linea_j) < 4:
+                    continue
+                if not re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{4,}", linea_j):
+                    continue
+                if re.search(r"\d{2,}", linea_j):
+                    continue
+
+                # Limpiar y retornar
+                limpio = re.sub(r"[^a-zA-ZÁÉÍÓÚáéíóúÑñ\s.]", "", linea_j).strip()
+                if len(limpio) >= 4:
+                    return limpio
+
+    return None
+
+
+def extraer_serie_numero(texto_completo):
+    """
+    Tolera N°, No, Nº, y formatos con/sin guion.
+    """
+    patrones = [
+        r"N[o°º]?\s*([A-Z]{2}\d{2,4})\s*-\s*(\d{6,})",
+        r"N[o°º]?\s*([A-Z]{2}\d{2,4})\s+(\d{6,})",
+        r"([A-Z]{2}\d{2,4})-(\d{6,})",
+    ]
+    for patron in patrones:
+        coincidencia = re.search(patron, texto_completo, flags=re.IGNORECASE)
+        if coincidencia:
+            return coincidencia.group(1).upper(), coincidencia.group(2)
+    return None, None
+
+
+# ============================================================
+# EXTRACCION DEL COMPROBANTE
+# ============================================================
+
+def extraer_datos_comprobante(textos):
+
+    texto_completo = "\n".join(textos)
+
+    resultado = {
+        "tipo_comprobante": None,
+        "serie": None,
+        "numero": None,
+        "fecha": None,
+        "hora": None,
+        "vendedor": None,
+        "cliente": None,
+        "productos": [],
+        "igv": None,
+        "op_gravada": None,
+        "efectivo": None,
+        "total": None,
+        "moneda": "PEN",
+        "requiere_revision": True,
+        "requiere_confirmacion": True
+    }
+
+    # ========================================================
+    # TIPO
+    # ========================================================
+
+    if re.search(
+        r"FACTURA\s+ELECTR[ÓO]NICA",
+        texto_completo,
+        flags=re.IGNORECASE
+    ):
+        resultado["tipo_comprobante"] = "FACTURA"
+
+    elif re.search(
+        r"BOLETA\s+DE\s+VENTA",
+        texto_completo,
+        flags=re.IGNORECASE
+    ):
+        resultado["tipo_comprobante"] = "BOLETA"
+
+    # ========================================================
+    # SERIE Y NUMERO (tolerante)
+    # ========================================================
+
+    serie, numero = extraer_serie_numero(texto_completo)
+    if serie:
+        resultado["serie"] = serie
+    if numero:
+        resultado["numero"] = numero
+
+    # ========================================================
+    # FECHA (tolerante a multilineas)
+    # ========================================================
+
+    fecha = buscar_patron(
+        texto_completo,
+        r"FECHA\s+DE\s+EMISI[ÓO]N[\s\S]{0,60}?(\d{2}/\d{2}/\d{4})"
+    )
+
+    if fecha:
+        resultado["fecha"] = fecha
+
+    # ========================================================
+    # HORA
+    # ========================================================
+
+    hora = buscar_patron(
+        texto_completo,
+        r"HORA\s*:\s*"
+        r"(\d{2}:\d{2}:\d{2})"
+    )
+
+    if hora:
+        resultado["hora"] = hora
+
+    # ========================================================
+    # VENDEDOR
+    # ========================================================
+
+    vendedor = buscar_patron(
+        texto_completo,
+        r"VENDEDOR\s*"
+        r"(?:\(\s*A\s*\)|A)?"
+        r"\s*:\s*"
+        r"([^\r\n]+)"
+    )
+
+    if vendedor:
+        vendedor = limpiar_texto(vendedor)
+        if vendedor:
+            resultado["vendedor"] = vendedor
+
+    # ========================================================
+    # CLIENTE (nuevo - tolerante)
+    # ========================================================
+
+    cliente = extraer_cliente(texto_completo)
+    if cliente:
+        resultado["cliente"] = cliente
+
+    # ========================================================
+    # IGV (tolerante a ruido)
+    # ========================================================
+
+    igv = extraer_monto_tolerante(
+        texto_completo,
+        r"I\.?\s*G\.?\s*V\.?\s*S[/|]\s*:?"
+    )
+
+    if igv is not None:
+        resultado["igv"] = igv
+
+    # ========================================================
+    # OP. GRAVADA (nuevo)
+    # ========================================================
+
+    op_gravada = extraer_monto_tolerante(
+        texto_completo,
+        r"OP\.?\s*GRAVADA\s*S[/|]\s*:?"
+    )
+
+    if op_gravada is not None:
+        resultado["op_gravada"] = op_gravada
+
+    # ========================================================
+    # TOTAL (tolerante)
+    # ========================================================
+
+    total = extraer_monto_tolerante(
+        texto_completo,
+        r"TOTAL\s*S[/|]\s*:?"
+    )
+
+    if total is not None:
+        resultado["total"] = total
+
+    # ========================================================
+    # EFECTIVO (tolerante)
+    # ========================================================
+
+    efectivo = extraer_monto_tolerante(
+        texto_completo,
+        r"EFECTIVO\s*S[/|]\s*:?"
+    )
+
+    if efectivo is not None:
+        resultado["efectivo"] = efectivo
+
+    # ========================================================
+    # FALLBACK MATEMATICO
+    # ========================================================
+
+    igv = resultado["igv"]
+    op_gravada = resultado["op_gravada"]
+    total = resultado["total"]
+
+    if op_gravada is not None and igv is not None and total is None:
+        resultado["total"] = round(op_gravada + igv, 2)
+    elif op_gravada is not None and total is not None and igv is None:
+        resultado["igv"] = round(total - op_gravada, 2)
+    elif igv is not None and total is not None and op_gravada is None:
+        resultado["op_gravada"] = round(total - igv, 2)
+
+    # ========================================================
+    # PRODUCTOS (orquesta las 3 estrategias)
+    # ========================================================
+
+    resultado["productos"] = extraer_productos(textos)
+
+    return resultado
+
+
+# ============================================================
+# MOSTRAR RESULTADOS
+# ============================================================
+
+def mostrar_resultado(datos):
+
+    print()
+    print("=== DATOS DEL COMPROBANTE ===")
+
+    print(f"Tipo: {datos['tipo_comprobante']}")
+    print(f"Serie: {datos['serie']}")
+    print(f"Número: {datos['numero']}")
+    print(f"Fecha: {datos['fecha']}")
+    print(f"Hora: {datos['hora']}")
+    print(f"Vendedor: {datos['vendedor']}")
+    print(f"Cliente: {datos['cliente']}")
+
+    print()
+    print("=== DETALLE DE PRODUCTOS ===")
+
+    if not datos["productos"]:
+        print("No se detectaron productos estructurados.")
+    else:
+        for indice, producto in enumerate(datos["productos"], start=1):
+            print(f"Producto {indice}")
+            print(f"Descripción: {producto['descripcion']}")
+            print(f"Cantidad: {producto['cantidad']}")
+            print(f"Precio unitario: S/ {producto['precio_unitario']:.2f}")
+            print(f"Total: S/ {producto['total']:.2f}")
+            print()
+
+    print("=== TOTALES ===")
+
+    if datos["op_gravada"] is not None:
+        print(f"Op. Gravada: S/ {datos['op_gravada']:.2f}")
+    else:
+        print("Op. Gravada: None")
+
+    if datos["igv"] is not None:
+        print(f"IGV: S/ {datos['igv']:.2f}")
+    else:
+        print("IGV: None")
+
+    if datos["efectivo"] is not None:
+        print(f"Efectivo: S/ {datos['efectivo']:.2f}")
+    else:
+        print("Efectivo: None")
+
+    if datos["total"] is not None:
+        print(f"Total: S/ {datos['total']:.2f}")
+    else:
+        print("Total: None")
+
+    print(f"Moneda: {datos['moneda']}")
+
+    print()
+    print("=== ESTADO DE EXTRACCIÓN ===")
+    print(f"Requiere revisión: {datos['requiere_revision']}")
+    print(f"Requiere confirmación: {datos['requiere_confirmacion']}")
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+
+    if len(sys.argv) != 2:
+        print("Uso: python app/main.py <ruta_imagen>")
+        raise SystemExit(1)
+
+    image_path = sys.argv[1]
+
+    print("Iniciando PaddleOCR...")
+
+    ocr = PaddleOCR(
+        lang="es",
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False
+    )
+
+    print(f"Procesando imagen: {image_path}")
+
+    results = ocr.predict(image_path)
+
+    textos = []
+    puntajes = []
+
+    for result in results:
+        data = result.json["res"]
+        textos.extend(data.get("rec_texts", []))
+        puntajes.extend(data.get("rec_scores", []))
+
+    print("OCR ejecutado correctamente.")
+
+    # ========================================================
+    # TEXTO DETECTADO
+    # ========================================================
+
+    print()
+    print("=== TEXTO DETECTADO ===")
+
+    for texto, puntaje in zip(textos, puntajes):
+        print(f"[{puntaje:.2f}] {texto}")
+
+    # ========================================================
+    # EXTRACCION ESTRUCTURADA
+    # ========================================================
+
+    datos = extraer_datos_comprobante(textos)
+    mostrar_resultado(datos)
+
+    # JSON final para que el Node.js lo capture
+    print()
+    print("DATOS EXTRAIDOS:")
+    print(json.dumps(datos, ensure_ascii=False, default=str))
+
+    print()
+    print("=== FIN OCR ===")
+
+
+if __name__ == "__main__":
+    main()

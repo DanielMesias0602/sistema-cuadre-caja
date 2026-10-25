@@ -29,17 +29,37 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
 
+  // Efecto 1: maneja open/close, reset, body overflow y estado inicial.
+  // NO depende de isImageOpen para evitar re-ejecuciones al abrir el visor.
   useEffect(() => {
     if (!open) {
       setIsImageOpen(false);
       setZoom(false);
       setEstadoLocal(null);
+      justOpened.current = false;
       return;
     }
+
     if (!justOpened.current) {
       justOpened.current = true;
       setEstadoLocal(selectedPago?.estado || 'PENDIENTE');
     }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      justOpened.current = false;
+    };
+  }, [open, selectedPago]);
+
+  // Efecto 2: maneja la tecla ESC. Depende de isImageOpen para decidir
+  // si cierra el visor o el drawer completo.
+  useEffect(() => {
+    if (!open) return;
+
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (isImageOpen) {
@@ -50,16 +70,10 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
         }
       }
     };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+
     document.addEventListener('keydown', onKey);
-    closeRef.current?.focus();
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKey);
-      justOpened.current = false;
-    };
-  }, [open, selectedPago, onClose, isImageOpen]);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, isImageOpen, onClose]);
 
   if (!pago) return null;
 
@@ -74,7 +88,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
     String(estadoActual).toUpperCase() === 'VERIFICADA' ||
     String(estadoActual).toUpperCase() === 'COMPLETADO';
 
-  // NUEVO: Detectar si la operación fue anulada
   const esOperacionAnulada = pago.esAnulada || String(pago.estado_operacion || '').toUpperCase() === 'ANULADA';
 
   const urlEvidencia = pago.evidencia_url
@@ -106,19 +119,23 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
     );
   };
 
+  const abrirVisor = () => {
+    setIsImageOpen(true);
+    setZoom(false);
+  };
+
   return (
     <div className={`fixed inset-0 z-50 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
-      {/* Fondo oscuro general con desenfoque */}
+      {/* Fondo oscuro */}
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'
-          }`}
+        className={`absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`}
       />
 
-      {/* VISOR DE EVIDENCIA EN SPLIT-SCREEN (PANEL IZQUIERDO) */}
+      {/* VISOR DE EVIDENCIA EN SPLIT-SCREEN (z-[60] para estar por encima del aside) */}
       {isImageOpen && urlEvidencia && (
         <div
-          className="fixed inset-y-0 left-0 z-30 flex flex-col items-center justify-center bg-slate-950/95 border-r border-slate-700 p-3 sm:p-6 backdrop-blur-md select-none w-full lg:right-[500px] lg:w-auto animate-in fade-in duration-200"
+          className="fixed inset-y-0 left-0 z-[60] flex flex-col items-center justify-center bg-slate-950/95 border-r border-slate-700 p-3 sm:p-6 backdrop-blur-md select-none w-full lg:right-[500px] lg:w-auto animate-in fade-in duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -127,7 +144,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
               setIsImageOpen(false);
               setZoom(false);
             }}
-            className="absolute top-4 right-4 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-slate-800/90 text-white shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-slate-700 active:scale-95"
+            className="absolute top-4 right-4 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-slate-800/90 text-white shadow-xl backdrop-blur-md transition hover:scale-110 hover:bg-slate-700 active:scale-95 cursor-pointer"
             title="Cerrar visor de evidencia"
           >
             <X className="h-5 w-5" />
@@ -136,7 +153,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
           <button
             type="button"
             onClick={() => setZoom(!zoom)}
-            className="absolute top-4 left-4 z-40 flex items-center gap-2 rounded-full bg-slate-800/90 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xl backdrop-blur-md transition hover:bg-slate-700"
+            className="absolute top-4 left-4 z-40 flex items-center gap-2 rounded-full bg-slate-800/90 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xl backdrop-blur-md transition hover:bg-slate-700 cursor-pointer"
           >
             {zoom ? (
               <>
@@ -156,8 +173,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
               src={urlEvidencia}
               alt="Evidencia del Pago"
               onClick={() => setZoom(!zoom)}
-              className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-200 ease-out ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'
-                }`}
+              className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-200 ease-out ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`}
             />
           </div>
 
@@ -167,16 +183,14 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
         </div>
       )}
 
-      {/* PANEL LATERAL DE DETALLES DEL PAGO (LADO DERECHO - ASIDE) */}
+      {/* PANEL LATERAL DE DETALLES DEL PAGO (LADO DERECHO) */}
       <aside
         role="dialog"
         aria-modal="true"
-        className={`absolute inset-y-0 right-0 z-30 flex w-full max-w-[500px] flex-col bg-white text-slate-900 shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'
-          }`}
+        className={`absolute inset-y-0 right-0 z-30 flex w-full max-w-[500px] flex-col bg-white text-slate-900 shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
         <header className="border-b border-slate-100 px-6 pb-6 pt-5 sm:px-8">
           <div className="flex items-center justify-between">
-            {/* BADGE SUPERIOR: Cambia según si la operación está anulada o no */}
             {esOperacionAnulada ? (
               <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-rose-50 text-rose-700 ring-rose-600/20">
                 <XCircle className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -304,10 +318,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
                 {urlEvidencia ? (
                   <div className="space-y-3">
                     <div
-                      onClick={() => {
-                        setIsImageOpen(true);
-                        setZoom(false);
-                      }}
+                      onClick={abrirVisor}
                       className="group relative h-40 w-full cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-2xs"
                       title="Clic para abrir panel comparativo a la izquierda"
                     >
@@ -336,10 +347,7 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsImageOpen(true);
-                        setZoom(false);
-                      }}
+                      onClick={abrirVisor}
                       className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 active:scale-98 cursor-pointer"
                     >
                       <ZoomIn className="h-4 w-4 text-brand-orange" />
@@ -360,7 +368,6 @@ export function PagoDetailDrawer({ selectedPago, onClose }) {
               </section>
             )}
 
-            {/* TARJETA 3: ESTADO DE CONCILIACIÓN (CORREGIDA) */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <ShieldCheck className="h-4 w-4 text-slate-400" />

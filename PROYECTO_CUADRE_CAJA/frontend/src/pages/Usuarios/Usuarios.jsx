@@ -34,7 +34,7 @@ export function Usuarios() {
     condicion_personal: 'PRAC.'
   });
 
-  // NUEVO: Estados para el modal de CAMBIAR CONTRASEÑA
+  // Estados para el modal de CAMBIAR CONTRASEÑA
   const [modalPasswordOpen, setModalPasswordOpen] = useState(false);
   const [usuarioPassword, setUsuarioPassword] = useState(null);
   const [nuevaPassword, setNuevaPassword] = useState('');
@@ -110,7 +110,6 @@ export function Usuarios() {
     }
   };
 
-  // NUEVO: Abrir modal de contraseña
   const abrirModalPassword = (usuario) => {
     setUsuarioPassword(usuario);
     setNuevaPassword('');
@@ -119,7 +118,6 @@ export function Usuarios() {
     setMenuAbierto(null);
   };
 
-  // NUEVO: Guardar contraseña
   const handleGuardarPassword = async (e) => {
     e.preventDefault();
     if (nuevaPassword.length < 8) {
@@ -201,8 +199,8 @@ export function Usuarios() {
 
       {error && <div className="p-4 bg-red-50 text-red-700 rounded-xl text-base">{error}</div>}
 
-      {/* TABLA PREMIUM */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200">
+      {/* TABLA PREMIUM — solo desktop (md+) */}
+      <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200">
         <div className="overflow-x-auto overflow-y-visible rounded-3xl">
           <table className="w-full text-left text-sm min-w-[800px]">
             <thead className="bg-slate-50/80 text-slate-500 border-b border-slate-200">
@@ -236,8 +234,8 @@ export function Usuarios() {
                   </td>
                   <td className="py-4 px-6">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${u.rol_nombre === 'ADMINISTRADOR' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                        u.rol_nombre === 'RESPONSABLE DE CAJA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          'bg-blue-50 text-blue-700 border-blue-200'
+                      u.rol_nombre === 'RESPONSABLE DE CAJA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        'bg-blue-50 text-blue-700 border-blue-200'
                       }`}>
                       {u.rol_nombre === 'ADMINISTRADOR' ? <Shield className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                       {u.rol_nombre}
@@ -267,7 +265,7 @@ export function Usuarios() {
                           <Pencil className="w-4 h-4 text-blue-500" /> Editar Datos
                         </button>
                         <button
-                          onClick={() => abrirModalPassword(u)} // <-- CAMBIO AQUÍ
+                          onClick={() => abrirModalPassword(u)}
                           className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                         >
                           <Key className="w-4 h-4 text-orange-500" /> Cambiar Contraseña
@@ -298,6 +296,104 @@ export function Usuarios() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* CARDS — solo móvil (<md) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 text-center text-slate-500 text-base">
+            Cargando directorio...
+          </div>
+        ) : usuariosFiltrados.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 text-center text-slate-500 text-base">
+            No se encontraron usuarios.
+          </div>
+        ) : usuariosFiltrados.map(u => (
+          <div key={u.id_usuario} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+            <div className="flex items-start gap-3">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${u.estado ? 'bg-orange-100 text-brand-orange' : 'bg-slate-100 text-slate-400'}`}>
+                {getInitials(u.nombres, u.apellidos)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-900 text-base leading-tight break-words">
+                  {u.nombres} {u.apellidos}
+                </div>
+                <div className="text-brand-orange font-medium text-sm mt-0.5">
+                  @{u.usuario}
+                </div>
+              </div>
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setMenuAbierto(menuAbierto === u.id_usuario ? null : u.id_usuario)}
+                  className={`p-2 rounded-xl transition ${menuAbierto === u.id_usuario ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+
+                {menuAbierto === u.id_usuario && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setMenuAbierto(null)}
+                    />
+                    <div
+                      className="absolute right-0 top-12 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-50 py-2 animate-fade-in-down"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => abrirModalEditar(u)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <Pencil className="w-4 h-4 text-blue-500" /> Editar Datos
+                      </button>
+                      <button
+                        onClick={() => abrirModalPassword(u)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <Key className="w-4 h-4 text-orange-500" /> Cambiar Contraseña
+                      </button>
+                      <button
+                        onClick={() => handleToggleEstado(u.id_usuario, u.estado)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        {u.estado ? <><UserX className="w-4 h-4 text-red-500" /> Desactivar</> : <><UserCheck className="w-4 h-4 text-emerald-500" /> Activar</>}
+                      </button>
+
+                      {!u.estado && (
+                        <>
+                          <div className="h-px bg-slate-100 my-1"></div>
+                          <button
+                            onClick={() => { setUserToDelete(u); setMenuAbierto(null); }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-bold"
+                          >
+                            <Trash2 className="w-4 h-4" /> Eliminar Cuenta
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${u.rol_nombre === 'ADMINISTRADOR' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                u.rol_nombre === 'RESPONSABLE DE CAJA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  'bg-blue-50 text-blue-700 border-blue-200'
+                }`}>
+                {u.rol_nombre === 'ADMINISTRADOR' ? <Shield className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                {u.rol_nombre}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-600">
+                {u.condicion_personal}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${u.estado ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${u.estado ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                {u.estado ? 'ACTIVO' : 'INACTIVO'}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* MODAL CREAR USUARIO */}
@@ -432,7 +528,7 @@ export function Usuarios() {
         </div>
       )}
 
-      {/* NUEVO: MODAL CAMBIAR CONTRASEÑA */}
+      {/* MODAL CAMBIAR CONTRASEÑA */}
       {modalPasswordOpen && usuarioPassword && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in-up max-h-[90vh] flex flex-col">

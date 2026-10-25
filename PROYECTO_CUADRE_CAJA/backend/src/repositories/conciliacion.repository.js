@@ -20,7 +20,6 @@ export const findConciliacionById = async (idConciliacion) => {
   return result.rows[0] ?? null;
 };
 
-// NUEVA FUNCIÓN: Buscar por fecha para evitar duplicados
 export const findConciliacionByFecha = async (fecha) => {
   const result = await query(
     `SELECT id_conciliacion FROM conciliacion WHERE fecha = $1`, [fecha]
@@ -30,8 +29,8 @@ export const findConciliacionByFecha = async (fecha) => {
 
 export const findAllConciliaciones = async () => {
   const result = await query(
-    `SELECT 
-       c.id_conciliacion, c.id_usuario, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha, 
+    `SELECT
+       c.id_conciliacion, c.id_usuario, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
        c.diferencia_detectada AS diferencia, c.resultado, c.observacion, c.fecha_registro,
        u.nombres || ' ' || u.apellidos AS usuario
      FROM conciliacion c
@@ -45,6 +44,61 @@ export const findCierresByFecha = async (fecha) => {
   const result = await query(
     `SELECT id_cierre, turno, total_ingresos, total_no_efectivo, efectivo_esperado, total_salidas, efectivo_fisico, diferencia, estado
      FROM cierre_caja WHERE fecha = $1 ORDER BY turno ASC`, [fecha]
+  );
+  return result.rows;
+};
+
+export const contarOperacionesSinEvidenciaEmpresaPorFecha = async (fecha) => {
+  const result = await query(
+    `SELECT COUNT(DISTINCT o.id_operacion)::int AS total
+     FROM operacion o
+     JOIN pago p ON p.id_operacion = o.id_operacion
+     JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+     WHERE o.fecha = $1
+       AND COALESCE(o.estado, '') <> 'ANULADA'
+       AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
+       AND mp.es_efectivo = FALSE
+       AND NOT EXISTS (
+         SELECT 1 FROM evidencia e
+         WHERE e.id_operacion = o.id_operacion
+           AND e.tipo_evidencia = 'EMPRESA'
+       )`,
+    [fecha]
+  );
+  return result.rows[0]?.total || 0;
+};
+
+// CONSULTA BLINDADA CON SUBCONSULTAS PARA EVITAR ERRORES DE JSON
+export const findOperacionesConNumeros = async (fecha) => {
+  const result = await query(
+    `SELECT
+       o.id_operacion,
+       c.tipo_comprobante,
+       c.serie,
+       c.numero,
+       c.monto AS monto_comprobante,
+       p.referencia_bancaria AS num_operacion_pago,
+       (
+         SELECT (e.datos_ocr::jsonb->>'referencia_bancaria')
+         FROM evidencia e
+         WHERE e.id_operacion = o.id_operacion AND e.tipo_evidencia = 'EMPRESA'
+         LIMIT 1
+       ) AS num_operacion_empresa,
+       (
+         SELECT (e.datos_ocr::jsonb->>'numero_operacion')
+         FROM evidencia e
+         WHERE e.id_operacion = o.id_operacion AND e.tipo_evidencia = 'EMPRESA'
+         LIMIT 1
+       ) AS num_op_empresa_alt,
+       mp.nombre AS medio_pago
+     FROM operacion o
+     JOIN comprobante c ON c.id_comprobante = o.id_comprobante
+     JOIN pago p ON p.id_operacion = o.id_operacion
+     JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+     WHERE o.fecha = $1
+       AND o.estado != 'ANULADA'
+       AND mp.es_efectivo = FALSE`,
+    [fecha]
   );
   return result.rows;
 };

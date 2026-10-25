@@ -2,7 +2,8 @@ import {
   createCierreCaja,
   findCierreCajaById,
   findCierresCaja,
-  getTotalesParaCierre
+  getTotalesParaCierre,
+  contarOperacionesSinEvidenciaEmpresa
 } from '../repositories/cierreCaja.repository.js';
 
 import {
@@ -90,19 +91,24 @@ export const registrarCierreCaja = async ({
       fecha_fin
     }, client);
 
+    // FIX: usar comprobante.hora (hora impresa en la boleta física)
+    // en lugar de operacion.fecha_registro (hora real del servidor).
+    // Esto permite regularizar comprobantes de días anteriores al turno correcto.
     let timeCondition = '';
     if (turno === 'MAÑANA') {
-      timeCondition = `AND (fecha_registro AT TIME ZONE 'America/Lima')::time <= '14:00:00'::time`;
+      timeCondition = `AND (COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '14:00:00'::time)`;
     } else if (turno === 'TARDE') {
-      timeCondition = `AND (fecha_registro AT TIME ZONE 'America/Lima')::time > '14:00:00'::time AND (fecha_registro AT TIME ZONE 'America/Lima')::time <= '20:00:00'::time`;
+      timeCondition = `AND (COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) > '14:00:00'::time AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '20:00:00'::time)`;
     }
 
     await client.query(
-      `UPDATE operacion
+      `UPDATE operacion o
        SET id_cierre = $1,
            fecha_modificacion = CURRENT_TIMESTAMP
-       WHERE fecha = $2
-         AND id_cierre IS NULL
+       FROM comprobante c
+       WHERE c.id_comprobante = o.id_comprobante
+         AND o.fecha = $2
+         AND o.id_cierre IS NULL
          ${timeCondition}`,
       [cierre.id_cierre, fecha]
     );
@@ -112,7 +118,17 @@ export const registrarCierreCaja = async ({
 };
 
 export const obtenerCierreCaja = async (idCierre) => {
-  return findCierreCajaById(idCierre);
+  const cierre = await findCierreCajaById(idCierre);
+
+  if (!cierre) return null;
+
+  const operaciones_pendientes_evidencia =
+    await contarOperacionesSinEvidenciaEmpresa(idCierre);
+
+  return {
+    ...cierre,
+    operaciones_pendientes_evidencia
+  };
 };
 
 export const listarCierresCaja = async () => {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
+import api from '../../../lib/api';
 
 export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack }) {
   const [loading, setLoading] = useState(false);
@@ -29,11 +30,27 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
     items: [],
   });
 
+  const [mediosPago, setMediosPago] = useState([]);
+
   useEffect(() => {
     if (datosIniciales) {
       setFormData(datosIniciales);
     }
   }, [datosIniciales]);
+
+  useEffect(() => {
+    const cargarMedios = async () => {
+      try {
+        const res = await api.get('/medios-pago');
+        const data = res.data?.data || res.data;
+        setMediosPago(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error cargando medios de pago:', err);
+        setMediosPago([]);
+      }
+    };
+    cargarMedios();
+  }, []);
 
   useEffect(() => {
     if (datosIniciales?.evidencia && !imagenPreview) {
@@ -110,14 +127,12 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
     };
   }, []);
 
-  // MODIFICADO: Calcula IGV y Op. Gravada automáticamente cuando el modo es manual
   const handleChange = (field, value) => {
     let nuevo = { ...formData, [field]: value };
 
     if (field === 'monto' && modo === 'manual') {
       const montoNum = Number(value);
       if (Number.isFinite(montoNum) && montoNum > 0) {
-        // Fórmula peruana: el monto total incluye IGV (18%)
         const igvCalculado = montoNum * (0.18 / 1.18);
         const opGravadaCalculada = montoNum - igvCalculado;
         nuevo.igv = igvCalculado.toFixed(2);
@@ -581,23 +596,6 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Efectivo
-              </label>
-              <input
-                type="number"
-                name="efectivo"
-                value={formData.efectivo}
-                onChange={(e) => handleChange('efectivo', e.target.value)}
-                onBlur={() => handleChange('efectivo', formatNumber(formData.efectivo))}
-                placeholder="0.00"
-                step="0.01"
-                min="0"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Moneda
               </label>
               <select
@@ -608,28 +606,6 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               >
                 <option value="PEN">PEN - Soles</option>
                 <option value="USD">USD - Dólares</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Medio de pago (indicado en comprobante)
-              </label>
-              <select
-                name="medio_pago"
-                value={formData.medio_pago}
-                onChange={(e) => handleChange('medio_pago', e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
-              >
-                <option value="">Seleccionar...</option>
-                <option value="EFECTIVO">Efectivo</option>
-                <option value="TARJETA">Tarjeta</option>
-                <option value="CONTADO">Contado</option>
-                <option value="YAPE">Yape</option>
-                <option value="BCP">BCP</option>
-                <option value="INTERBANK">Interbank</option>
-                <option value="BBVA">BBVA</option>
-                <option value="SCOTIABANK">Scotiabank</option>
               </select>
             </div>
 
