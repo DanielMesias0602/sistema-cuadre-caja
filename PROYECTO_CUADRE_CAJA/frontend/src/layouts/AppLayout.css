@@ -262,20 +262,11 @@
   align-items: center;
   gap: 6px;
   padding: 7px 12px;
-  border: 1px solid #fee2e2;
   border-radius: 8px;
-  background: #fef2f2;
-  color: #dc2626;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.logout-button:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #991b1b;
 }
 
 .app-content {

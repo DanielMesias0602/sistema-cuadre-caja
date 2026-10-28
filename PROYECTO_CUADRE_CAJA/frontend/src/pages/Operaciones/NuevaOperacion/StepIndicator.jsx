@@ -12,7 +12,7 @@ export function StepIndicator({ currentStep, totalSteps }) {
                   ? 'bg-brand-orange text-white shadow-md'
                   : step < currentStep
                   ? 'bg-green-500 text-white'
-                  : 'bg-gray-200 text-gray-500'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
               }`}
             >
               {step < currentStep ? '✓' : step}
@@ -20,7 +20,7 @@ export function StepIndicator({ currentStep, totalSteps }) {
             {index < steps.length - 1 && (
               <div
                 className={`w-12 h-1 mx-1 rounded transition-all ${
-                  step < currentStep ? 'bg-green-500' : 'bg-gray-200'
+                  step < currentStep ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-600'
                 }`}
               />
             )}

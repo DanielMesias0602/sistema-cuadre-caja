@@ -200,7 +200,11 @@ function AppLayout() {
                 {user?.condicion_personal ? `${user.condicion_personal} | ${user.rol}` : (user?.rol || 'Sesión activa')}
               </small>
             </div>
-            <button type="button" onClick={logout} className="logout-button">
+            <button
+              type="button"
+              onClick={logout}
+              className="logout-button bg-red-50 dark:bg-rose-950/40 text-red-600 dark:text-rose-400 border border-red-200 dark:border-rose-800/60 hover:bg-red-100 dark:hover:bg-rose-900/50"
+            >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Cerrar sesión</span>
             </button>
