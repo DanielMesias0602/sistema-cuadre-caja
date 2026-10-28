@@ -36,9 +36,11 @@ export function Pagos() {
       const data = res.data?.data || res.data;
       setOperaciones(Array.isArray(data) ? data : []);
       setError(null);
+      return true;
     } catch (err) {
       console.error('Error al cargar pagos:', err);
       setError('No se pudo cargar la información de los pagos.');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -711,9 +713,12 @@ export function Pagos() {
       <PagoDetailDrawer
         selectedPago={drawerAbierto ? selectedPago : null}
         onClose={() => setDrawerAbierto(false)}
-        onUpdateSuccess={() => {
-          setDrawerAbierto(false);
-          recargarDatos();
+        onUpdateSuccess={async () => {
+          const recargaCompletada = await recargarDatos();
+          if (recargaCompletada) {
+            setDrawerAbierto(false);
+          }
+          return recargaCompletada;
         }}
       />
     </div>

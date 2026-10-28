@@ -174,6 +174,13 @@ export const modifyPago = async (idPago, data) => {
     estado
   } = data;
 
+  const estadosPermitidos = ['REGISTRADO', 'VERIFICADO', 'ANULADO'];
+  if (estado !== undefined && !estadosPermitidos.includes(estado)) {
+    const error = new Error('Estado de pago no válido');
+    error.statusCode = 400;
+    throw error;
+  }
+
   if (monto !== undefined) {
     const montoNum = Number(monto);
     if (!Number.isFinite(montoNum) || montoNum <= 0) {

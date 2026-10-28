@@ -124,9 +124,12 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const open = op !== null;
   const [lastOperation, setLastOperation] = useState(op);
   if (op && op !== lastOperation) setLastOperation(op);
-  const opData = op || lastOperation;
+  const initialOpData = op || lastOperation;
   const closeRef = useRef(null);
   const fileInputEmpresaRef = useRef(null);
+  const [freshOperation, setFreshOperation] = useState(null);
+  const [operationLoadError, setOperationLoadError] = useState(null);
+  const [operationRefreshKey, setOperationRefreshKey] = useState(0);
 
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
@@ -143,10 +146,13 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const [evidenciasLocales, setEvidenciasLocales] = useState([]);
 
   const idOperacion = Number(
-    opData?.id_operacion ??
-    opData?.idOperacion ??
-    opData?.operacion?.id_operacion
+    initialOpData?.id_operacion ??
+    initialOpData?.idOperacion ??
+    initialOpData?.operacion?.id_operacion
   );
+  const opData = freshOperation?.id === idOperacion
+    ? freshOperation.data
+    : initialOpData;
   const [previousOpen, setPreviousOpen] = useState(open);
   const [previousOperationId, setPreviousOperationId] = useState(idOperacion);
 
@@ -170,6 +176,47 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     setErrorEvidencia('');
     setEvidenciasLocales([]);
   }
+
+  useEffect(() => {
+    if (!open || !Number.isFinite(idOperacion)) return undefined;
+
+    let active = true;
+    const cargarOperacionActualizada = async () => {
+      setOperationLoadError(null);
+      try {
+        const [operationResponse, paymentsResponse] = await Promise.all([
+          api.get(`/operaciones/${idOperacion}`),
+          api.get(`/pagos/operacion/${idOperacion}`),
+        ]);
+        const operationData = operationResponse.data?.data || operationResponse.data;
+        const paymentsData = paymentsResponse.data?.data || paymentsResponse.data;
+        if (!Array.isArray(paymentsData)) {
+          throw new Error('La respuesta de pagos no tiene el formato esperado.');
+        }
+        const data = {
+          ...(op || {}),
+          ...operationData,
+          pagos: paymentsData.map((payment) => ({
+            ...payment,
+            referencia: payment.referencia ?? payment.referencia_bancaria,
+          })),
+        };
+        if (active) {
+          setFreshOperation({ id: idOperacion, data });
+        }
+      } catch (error) {
+        console.error('Error al actualizar los pagos de la operación:', error);
+        if (active) {
+          setOperationLoadError('No se pudieron actualizar los pagos de esta operación.');
+        }
+      }
+    };
+
+    void cargarOperacionActualizada();
+    return () => {
+      active = false;
+    };
+  }, [open, idOperacion, op, operationRefreshKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -1017,6 +1064,18 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
               </h3>
 
               <ul className="divide-y divide-slate-100 dark:divide-slate-600 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 shadow-sm dark:shadow-none">
+                {operationLoadError && (
+                  <li className="flex items-center justify-between gap-3 py-3 text-xs text-rose-700 dark:text-rose-300">
+                    <span>{operationLoadError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setOperationRefreshKey((key) => key + 1)}
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Reintentar
+                    </button>
+                  </li>
+                )}
                 {pagos.length > 0 ? (
                   pagos.map((p, idx) => {
                     const medio = String(
@@ -1024,6 +1083,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     ).toLowerCase();
                     const esEfectivo = medio.includes('efectivo');
                     const puedeVerCliente = !esEfectivo && evidenciaClienteUrl;
+                    const estadoPago = String(p.estado || 'REGISTRADO').toUpperCase();
+                    const pagoVerificado = ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(estadoPago);
+                    const pagoAnulado = estadoPago === 'ANULADO';
 
                     return (
                       <li
@@ -1058,9 +1120,20 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                           )}
                         </div>
 
-                        <span className="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-                          {formatPEN(p.monto)}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                            {formatPEN(p.monto)}
+                          </span>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            pagoVerificado
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                              : pagoAnulado
+                                ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                          }`}>
+                            {pagoVerificado ? 'Verificado' : pagoAnulado ? 'Anulado' : 'Pendiente'}
+                          </span>
+                        </div>
                       </li>
                     );
                   })
