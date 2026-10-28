@@ -196,8 +196,19 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   };
 
   const validarFormulario = () => {
-    if (!formData.tipo_comprobante || !formData.serie || !formData.numero || !formData.fecha || !formData.monto) {
-      setError('Completa los campos requeridos: Tipo, Serie, Número, Fecha y Monto');
+    const camposRequeridos = [
+      ['Tipo de comprobante', formData.tipo_comprobante],
+      ['Serie', formData.serie],
+      ['Número', formData.numero],
+      ['Fecha', formData.fecha],
+      ['Monto', formData.monto],
+    ];
+    const camposFaltantes = camposRequeridos
+      .filter(([, valor]) => !String(valor ?? '').trim())
+      .map(([nombre]) => nombre);
+
+    if (camposFaltantes.length > 0) {
+      setError(`Completa los siguientes campos requeridos: ${camposFaltantes.join(', ')}.`);
       return false;
     }
     setError(null);
@@ -266,7 +277,16 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 dark:bg-slate-900">
+    <div className="paso1-comprobante grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 dark:bg-slate-900">
+      <style>{`
+        html.dark .paso1-comprobante input:-webkit-autofill,
+        html.dark .paso1-comprobante input:-webkit-autofill:hover,
+        html.dark .paso1-comprobante input:-webkit-autofill:focus,
+        html.dark .paso1-comprobante input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 30px #0f172a inset !important;
+          -webkit-text-fill-color: #f1f5f9 !important;
+        }
+      `}</style>
       {/* Columna izquierda: imagen o selector */}
       <div className="lg:sticky lg:top-4 lg:self-start">
         {modo === null ? (
@@ -311,7 +331,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               id="archivo-input"
               type="file"
               accept="image/*,application/pdf"
-              className="hidden"
+              className="hidden bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) handleArchivoSelect(file);
@@ -527,7 +547,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 name="tipo_comprobante"
                 value={formData.tipo_comprobante}
                 onChange={(e) => handleChange('tipo_comprobante', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               >
                 <option value="">Seleccionar...</option>
                 <option value="BOLETA">Boleta</option>
@@ -542,10 +562,11 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="text"
                 name="serie"
+                autoComplete="off"
                 value={formData.serie}
                 onChange={(e) => handleChange('serie', e.target.value)}
                 placeholder="Ej: BE02"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -556,10 +577,11 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="text"
                 name="numero"
+                autoComplete="off"
                 value={formData.numero}
                 onChange={(e) => handleChange('numero', e.target.value)}
                 placeholder="Ej: 00024034"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -587,7 +609,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -600,7 +622,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 name="hora"
                 value={formData.hora}
                 onChange={(e) => handleChange('hora', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -611,10 +633,11 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="text"
                 name="cliente"
+                autoComplete="off"
                 value={formData.cliente || ''}
                 onChange={(e) => handleChange('cliente', e.target.value)}
                 placeholder="Nombre del cliente"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -625,10 +648,11 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="text"
                 name="vendedor"
+                autoComplete="off"
                 value={formData.vendedor}
                 onChange={(e) => handleChange('vendedor', e.target.value)}
                 placeholder="Nombre del vendedor"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -652,7 +676,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 step="0.01"
                 min="0"
                 readOnly={modo === 'manual'}
-                className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition ${modo === 'manual' ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed text-slate-600 dark:text-slate-400' : ''}`}
+                className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition ${modo === 'manual' ? 'bg-white dark:bg-slate-900 cursor-not-allowed' : ''}`}
               />
               {modo === 'manual' && (
                 <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
@@ -669,7 +693,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 name="moneda"
                 value={formData.moneda}
                 onChange={(e) => handleChange('moneda', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               >
                 <option value="PEN">PEN - Soles</option>
                 <option value="USD">USD - Dólares</option>
@@ -683,10 +707,11 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="text"
                 name="producto"
+                autoComplete="off"
                 value={formData.producto}
                 onChange={(e) => handleChange('producto', e.target.value)}
                 placeholder="Descripción del producto o servicio"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
           </div>

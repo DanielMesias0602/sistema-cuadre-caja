@@ -7,12 +7,220 @@ import {
 import { createComprobante } from '../repositories/comprobante.repository.js';
 import { createPago } from '../repositories/pago.repository.js';
 import { createEvidencia } from '../repositories/evidencia.repository.js';
+import { createVerificacionPago } from '../repositories/verificacionPago.repository.js';
 import { generatePreauthenticatedRequest } from './ociStorage.service.js';
+import {
+  normalizarTurnoCaja,
+  obtenerTurnoPorHora,
+  validarHorarioRegistroOperacion,
+} from '../utils/turnoCaja.js';
 
 // --- FUNCIONES EXISTENTES ---
 
+const validarHorarioRegistro = async (client, fechaOperacion, horaComprobante) => {
+  if (!fechaOperacion) {
+    const error = new Error('La fecha de la operación es obligatoria');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
+    [fechaOperacion]
+  );
+
+  const horaCheck = await client.query(
+    `WITH hora_local AS (
+       SELECT clock_timestamp() AT TIME ZONE 'America/Lima' AS ahora
+     )
+     SELECT
+       TO_CHAR(ahora, 'YYYY-MM-DD') AS hoy,
+       TO_CHAR(ahora, 'HH24:MI:SS') AS hora_actual
+     FROM hora_local`
+  );
+  const { hoy, hora_actual: horaActual } = horaCheck.rows[0];
+  if (fechaOperacion !== hoy) return;
+
+  const cierresResult = await client.query(
+    `SELECT
+       TRANSLATE(UPPER(turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') AS turno,
+       UPPER(estado) AS estado
+     FROM cierre_caja
+     WHERE fecha = $1
+       AND TRANSLATE(UPPER(turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') = ANY($2::text[])`,
+    [hoy, ['MANANA', 'TARDE']]
+  );
+  const cierres = new Map(cierresResult.rows.map((cierre) => [
+    normalizarTurnoCaja(cierre.turno),
+    String(cierre.estado || '').toUpperCase(),
+  ]));
+  const resultadoValidacion = validarHorarioRegistroOperacion({
+    horaActual,
+    horaComprobante,
+    cierreMananaCerrado: cierres.get('MANANA') === 'CERRADO',
+    cierreTurnoActualCerrado: cierres.get(
+      obtenerTurnoPorHora(horaActual) || ''
+    ) === 'CERRADO',
+  });
+  if (resultadoValidacion.statusCode) {
+    const error = new Error(resultadoValidacion.message);
+    error.statusCode = resultadoValidacion.statusCode;
+    throw error;
+  }
+};
+
+const normalizarFechaComparada = (valor) => {
+  const fecha = String(valor || '').trim();
+  let iso;
+
+  const fechaISO = fecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (fechaISO) {
+    iso = `${fechaISO[1]}-${fechaISO[2]}-${fechaISO[3]}`;
+  } else {
+    const fechaNumerica = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (fechaNumerica) {
+      iso = `${fechaNumerica[3]}-${fechaNumerica[2]}-${fechaNumerica[1]}`;
+    } else {
+      const fechaTexto = fecha
+        .split(/[|,]/)[0]
+        .toLowerCase()
+        .replace(/\s+de\s+/g, ' ')
+        .replace(/\./g, '')
+        .trim();
+      const fechaEnTexto = fechaTexto.match(/^(\d{1,2})\s+([a-záéíóúñ]+)\s+(\d{4})$/);
+      if (!fechaEnTexto) return null;
+
+      const meses = {
+        ene: '01', enero: '01',
+        feb: '02', febrero: '02',
+        mar: '03', marzo: '03',
+        abr: '04', abril: '04',
+        may: '05', mayo: '05',
+        jun: '06', junio: '06',
+        jul: '07', julio: '07',
+        ago: '08', agosto: '08',
+        sep: '09', set: '09', septiembre: '09', setiembre: '09',
+        oct: '10', octubre: '10',
+        nov: '11', noviembre: '11',
+        dic: '12', diciembre: '12',
+      };
+      const mes = meses[fechaEnTexto[2]];
+      if (!mes) return null;
+      iso = `${fechaEnTexto[3]}-${mes}-${fechaEnTexto[1].padStart(2, '0')}`;
+    }
+  }
+
+  const [anio, mes, dia] = iso.split('-').map(Number);
+  const fechaUTC = new Date(Date.UTC(anio, mes - 1, dia));
+  if (
+    fechaUTC.getUTCFullYear() !== anio ||
+    fechaUTC.getUTCMonth() !== mes - 1 ||
+    fechaUTC.getUTCDate() !== dia
+  ) {
+    return null;
+  }
+
+  return iso;
+};
+
+export const crearEvidenciasOperacion = async ({
+  listaEvidencias,
+  id_operacion,
+  id_usuario,
+  cantidadPagos,
+  client
+}) => {
+  const evidenciasPorPago = new Map();
+  const createdEvidencias = [];
+
+  for (const evidencia of listaEvidencias) {
+    if (!evidencia || typeof evidencia !== 'object') {
+      const error = new Error('La evidencia enviada no es válida');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const { index_pago: indexPagoPayload, ...datosEvidencia } = evidencia;
+    let indexPago = null;
+    if (indexPagoPayload !== undefined && indexPagoPayload !== null && indexPagoPayload !== '') {
+      indexPago = Number(indexPagoPayload);
+      if (!Number.isSafeInteger(indexPago) || indexPago < 0 || indexPago >= cantidadPagos) {
+        const error = new Error('Índice de pago asociado a evidencia no válido');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    const evidenciaCreada = await createEvidencia({
+      id_operacion,
+      id_usuario,
+      tipo_evidencia: datosEvidencia.tipo_evidencia,
+      storage_key: datosEvidencia.storage_key,
+      fecha_evidencia: datosEvidencia.fecha_evidencia,
+      observacion: datosEvidencia.observacion,
+      texto_ocr: datosEvidencia.texto_ocr,
+      datos_ocr: datosEvidencia.datos_ocr
+    }, client);
+    createdEvidencias.push(evidenciaCreada);
+
+    if (indexPago !== null) {
+      const tipo = String(datosEvidencia.tipo_evidencia || '').toUpperCase();
+      const evidenciasDelPago = evidenciasPorPago.get(indexPago) || {};
+      if ((tipo === 'CLIENTE' || tipo === 'EMPRESA') && evidenciasDelPago[tipo]) {
+        const error = new Error(`Solo se permite una evidencia ${tipo.toLowerCase()} por pago`);
+        error.statusCode = 400;
+        throw error;
+      }
+      if (tipo === 'CLIENTE' || tipo === 'EMPRESA') {
+        evidenciasDelPago[tipo] = evidenciaCreada.id_evidencia;
+        evidenciasPorPago.set(indexPago, evidenciasDelPago);
+      }
+    }
+  }
+
+  return { createdEvidencias, evidenciasPorPago };
+};
+
+export const crearVerificacionesPendientesPorPago = async ({
+  pagosPorIndice,
+  evidenciasPorPago,
+  id_usuario,
+  fechaOperacion,
+  client
+}) => {
+  for (const { index, pago, pagoCreado, esEfectivo } of pagosPorIndice) {
+    if (esEfectivo) continue;
+
+    const fechaComparada = normalizarFechaComparada(pago.fecha_operacion || fechaOperacion);
+    if (!fechaComparada) {
+      const error = new Error('La fecha de operación del pago no es válida');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await createVerificacionPago({
+      id_pago: pagoCreado.id_pago,
+      id_evidencia_cliente: evidenciasPorPago.get(index)?.CLIENTE ?? null,
+      id_evidencia_empresa: evidenciasPorPago.get(index)?.EMPRESA ?? null,
+      id_usuario,
+      monto_comparado: Number(pagoCreado.monto),
+      fecha_comparada: fechaComparada,
+      referencia_bancaria_comparada: pagoCreado.referencia_bancaria ?? null,
+      estado_verificacion: 'PENDIENTE',
+      observacion: 'Verificación pendiente al registrar la operación'
+    }, client);
+  }
+};
+
 export const registerOperacion = async (data) => {
-  return createOperacion(data);
+  return withTransaction(async (client) => {
+    const comprobanteResult = await client.query(
+      'SELECT hora FROM comprobante WHERE id_comprobante = $1',
+      [data.id_comprobante]
+    );
+    await validarHorarioRegistro(client, data.fecha, comprobanteResult.rows[0]?.hora);
+    return createOperacion(data, client);
+  });
 };
 
 export const getOperacionById = async (idOperacion) => {
@@ -88,38 +296,7 @@ export const registerOperacionUnificada = async (data) => {
   }
 
   return await withTransaction(async (client) => {
-    
-    // =================================================================
-    // OPCIÓN A: BLOQUEO ESTRICTO DE TURNOS
-    // =================================================================
-    const dateCheck = await client.query(`SELECT CURRENT_DATE::text as hoy`);
-    const hoyStr = dateCheck.rows[0].hoy;
-    
-    // Solo validamos si la operación es para el día de HOY (ignoramos fechas pasadas)
-    if (operacion.fecha === hoyStr) {
-      const timeCheck = await client.query(`SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima')::time::text as hora_actual`);
-      const horaActual = timeCheck.rows[0].hora_actual; // Formato "HH:MM:SS"
-      
-      // Si es después de las 2:00 PM (14:00:00)
-      if (horaActual > '14:00:00') {
-        const cierreMananaResult = await client.query(
-          `SELECT id_cierre, estado 
-           FROM cierre_caja 
-           WHERE fecha = $1 AND UPPER(turno) = 'MAÑANA' 
-           LIMIT 1`,
-          [hoyStr]
-        );
-        
-        const cierreManana = cierreMananaResult.rows[0];
-        
-        if (!cierreManana || cierreManana.estado.toUpperCase() !== 'CERRADO') {
-          const error = new Error('El Turno Mañana no ha sido cerrado. Es obligatorio realizar el Cierre de Caja de la Mañana antes de continuar operando en el Turno Tarde.');
-          error.statusCode = 409; // 409 Conflict para que el frontend lo detecte como error fatal
-          throw error;
-        }
-      }
-    }
-    // =================================================================
+    await validarHorarioRegistro(client, operacion?.fecha, comprobante?.hora);
     
     // 1. Crear Comprobante con datos de OCR
     const newComprobante = await createComprobante(comprobante, client);
@@ -131,34 +308,47 @@ export const registerOperacionUnificada = async (data) => {
       id_usuario: id_usuario
     }, client);
 
-    // 3. Crear Pagos con lógica de auto-verificación para efectivo
-    const createdPagos = await Promise.all(
-      pagos.map(async (pago) => {
-        const medioPagoResult = await client.query(
-          `SELECT es_efectivo
-           FROM medio_pago
-           WHERE id_medio_pago = $1`,
-          [pago.id_medio_pago]
-        );
+    // 3. Crear pagos secuencialmente y conservar su índice de entrada.
+    const createdPagos = [];
+    const pagosPorIndice = [];
+    for (let index = 0; index < pagos.length; index += 1) {
+      const pago = pagos[index];
+      const medioPagoResult = await client.query(
+        `SELECT es_efectivo
+         FROM medio_pago
+         WHERE id_medio_pago = $1`,
+        [pago.id_medio_pago]
+      );
 
-        const esEfectivo = medioPagoResult.rows.length > 0 && medioPagoResult.rows[0].es_efectivo;
-        const estadoInicial = esEfectivo ? 'VERIFICADO' : (pago.estado || 'REGISTRADO');
-
-        return createPago({
-          ...pago,
-          id_operacion: newOperacion.id_operacion,
-          estado: estadoInicial
-        }, client);
-      })
-    );
-
-    const createdEvidencias = await Promise.all(
-      listaEvidencias.map(evid => createEvidencia({
-        ...evid,
+      const esEfectivo = medioPagoResult.rows.length > 0 && medioPagoResult.rows[0].es_efectivo;
+      const estadoInicial = esEfectivo ? 'VERIFICADO' : (pago.estado || 'REGISTRADO');
+      const pagoCreado = await createPago({
+        ...pago,
         id_operacion: newOperacion.id_operacion,
-        id_usuario
-      }, client))
-    );
+        estado: estadoInicial
+      }, client);
+
+      createdPagos.push(pagoCreado);
+      pagosPorIndice.push({ index, pago, pagoCreado, esEfectivo });
+    }
+
+    // index_pago solo se usa para vincular en memoria; no existe en evidencia.
+    const { createdEvidencias, evidenciasPorPago } = await crearEvidenciasOperacion({
+      listaEvidencias,
+      id_operacion: newOperacion.id_operacion,
+      id_usuario,
+      cantidadPagos: pagos.length,
+      client
+    });
+
+    // 4. Crear una verificación pendiente por pago no efectivo.
+    await crearVerificacionesPendientesPorPago({
+      pagosPorIndice,
+      evidenciasPorPago,
+      id_usuario,
+      fechaOperacion: operacion?.fecha,
+      client
+    });
 
     return {
       id_operacion: newOperacion.id_operacion,

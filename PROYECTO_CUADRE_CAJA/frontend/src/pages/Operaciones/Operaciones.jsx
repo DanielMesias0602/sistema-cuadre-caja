@@ -61,9 +61,25 @@ export function Operaciones() {
 
   const getTurno = (hora) => {
     if (!hora) return '-';
-    const horaComparar = hora.substring(0, 8) || hora;
-    if (horaComparar <= '14:00:00') return 'MAÑANA';
-    if (horaComparar > '14:00:00' && horaComparar <= '20:00:00') return 'TARDE';
+    const textoHora = String(hora).trim();
+    let horaComparar;
+    if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(textoHora)) {
+      const [horas, minutos, segundos = '00'] = textoHora.split(':');
+      horaComparar = `${horas.padStart(2, '0')}:${minutos}:${segundos}`;
+    } else {
+      const fecha = new Date(textoHora);
+      if (Number.isNaN(fecha.getTime())) return '-';
+      horaComparar = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Lima',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      }).format(fecha);
+    }
+
+    if (horaComparar >= '08:00:00' && horaComparar < '14:00:00') return 'MAÑANA';
+    if (horaComparar >= '14:00:00' && horaComparar <= '20:00:00') return 'TARDE';
     return 'FUERA DE TURNO';
   };
 

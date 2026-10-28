@@ -23,6 +23,7 @@ import {
 import { CierreDetailDrawer } from '../../components/caja/CierreDetailDrawer';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import { SingleDatePicker } from '../../components/ui/SingleDatePicker';
+import { getFechaPeru, getHoraPeru } from '../../utils/horaPeru';
 
 export function CierresCaja() {
   const { user } = useAuth();
@@ -57,7 +58,7 @@ export function CierresCaja() {
   };
 
   const [formCierre, setFormCierre] = useState({
-    fecha: new Date().toLocaleDateString('en-CA'),
+    fecha: getFechaPeru(),
     turno: '',
     efectivoFisico: '',
     observaciones: ''
@@ -126,7 +127,7 @@ export function CierresCaja() {
 
   const calcularEfectivoEsperado = async (turno, fechaSeleccionada) => {
     try {
-      const fecha = fechaSeleccionada || formCierre.fecha || new Date().toLocaleDateString('en-CA');
+      const fecha = fechaSeleccionada || formCierre.fecha || getFechaPeru();
       const res = await api.get(`/cierres-caja/pre-calculo?fecha=${fecha}&turno=${turno}`);
       const data = res.data.data;
       setEfectivoEsperado(Number(data.efectivo_esperado || 0));
@@ -141,8 +142,8 @@ export function CierresCaja() {
   };
 
   const recalcularTurnosDisponibles = (fechaSeleccionada) => {
-    const hoy = new Date().toLocaleDateString('en-CA');
-    const currentHour = new Date().getHours();
+    const hoy = getFechaPeru();
+    const horaActual = getHoraPeru();
     const esHoy = fechaSeleccionada === hoy;
 
     const cierresFecha = cierres.filter(c => c.fecha === fechaSeleccionada);
@@ -153,12 +154,11 @@ export function CierresCaja() {
     const nuevoMotivo = { manana: '', tarde: '' };
 
     if (esHoy) {
-      if (currentHour < 14) {
+      if (horaActual < '14:00:00') {
         nuevoDeshabilitados.tarde = true;
         nuevoMotivo.tarde = 'El turno Tarde comienza a las 2:00 PM';
-      } else {
-        nuevoDeshabilitados.manana = true;
-        nuevoMotivo.manana = 'El turno Mañana finalizó a las 2:00 PM';
+      } else if (!cierreManana) {
+        nuevoMotivo.manana = 'Cierre pendiente de regularización';
       }
     }
 
@@ -176,7 +176,7 @@ export function CierresCaja() {
   };
 
   const abrirModal = () => {
-    const hoy = new Date().toLocaleDateString('en-CA');
+    const hoy = getFechaPeru();
     setFormCierre({ fecha: hoy, turno: '', efectivoFisico: '', observaciones: '' });
     setEfectivoEsperado(0);
     setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
@@ -190,7 +190,7 @@ export function CierresCaja() {
     setPasoModal(1);
     setConfirmacionAbierta(false);
     setFormCierre({
-      fecha: new Date().toLocaleDateString('en-CA'),
+      fecha: getFechaPeru(),
       turno: '',
       efectivoFisico: '',
       observaciones: ''
@@ -683,7 +683,7 @@ export function CierresCaja() {
                       </div>
                       <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">Mañana</span>
                       <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 text-center">
-                        {turnosDeshabilitados.manana ? motivoDeshabilitado.manana : 'Antes de las 2:00 PM'}
+                        {motivoDeshabilitado.manana || 'Antes de las 2:00 PM'}
                       </span>
                     </button>
 

@@ -141,7 +141,7 @@ export function TurnoAlertBanner() {
     // w-[380px] -> ancho fijo para que no sea un rectángulo alargado
     // rounded-3xl -> bordes muy curvos
     // z-[9999] -> siempre visible por encima de todo
-    <div className="fixed top-24 right-6 z-[9999] w-[380px] bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden animate-slide-in-right">
+    <div className="fixed top-24 right-6 z-[9999] w-[380px] bg-white dark:bg-slate-800 rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden animate-slide-in-right">
       
       {/* Franja superior decorativa */}
       <div className={`h-1.5 w-full ${styles.bar}`} />
@@ -154,15 +154,15 @@ export function TurnoAlertBanner() {
         
         {/* Textos */}
         <div className="flex-1 pr-6">
-          <p className="text-[13px] font-bold text-slate-900 leading-tight">{aviso.titulo}</p>
-          <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed">{aviso.mensaje}</p>
+          <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight">{aviso.titulo}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium leading-relaxed">{aviso.mensaje}</p>
         </div>
         
         {/* Botón de cerrar */}
         <button
           type="button"
           onClick={handleDescartar}
-          className="absolute top-4 right-4 shrink-0 rounded-full p-1 text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
+          className="absolute top-4 right-4 shrink-0 rounded-full p-1 text-slate-300 dark:text-slate-500 hover:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           title="Descartar este aviso"
         >
           <X className="w-4 h-4" />

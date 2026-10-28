@@ -10,8 +10,9 @@ export const createVerificacionPago = async ({
   referencia_bancaria_comparada = null,
   estado_verificacion,
   observacion = null
-}) => {
-  const result = await query(
+}, client = null) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
     `INSERT INTO verificacion_pago
       (
         id_pago,

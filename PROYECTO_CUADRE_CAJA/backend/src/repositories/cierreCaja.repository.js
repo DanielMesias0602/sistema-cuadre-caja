@@ -1,4 +1,5 @@
 import { query } from './base.repository.js';
+import { obtenerRangoTurno, normalizarTurnoCaja } from '../utils/turnoCaja.js';
 
 export const createCierreCaja = async ({
   id_usuario_responsable,
@@ -123,8 +124,15 @@ export const findCierresCaja = async () => {
   return result.rows;
 };
 
-export const getTotalesParaCierre = async (fecha, turno) => {
-  const result = await query(
+export const getTotalesParaCierre = async (fecha, turno, client = null) => {
+  const turnoNormalizado = normalizarTurnoCaja(turno);
+  const rangoTurno = obtenerRangoTurno(turno);
+  if (!turnoNormalizado || !rangoTurno) {
+    throw new Error('El turno debe ser Mañana o Tarde');
+  }
+
+  const executor = client ?? { query };
+  const result = await executor.query(
     `SELECT
        COALESCE(SUM(p.monto), 0) as total_ingresos,
        COALESCE(SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END), 0) as total_no_efectivo
@@ -136,13 +144,9 @@ export const getTotalesParaCierre = async (fecha, turno) => {
        AND o.id_cierre IS NULL
        AND o.estado != 'ANULADA'
        AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
-       AND (
-         (UPPER($2) = 'MAÑANA' AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '14:00:00'::time)
-         OR
-         (UPPER($2) = 'TARDE' AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) > '14:00:00'::time
-           AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '20:00:00'::time)
-       )`,
-    [fecha, turno]
+       AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) ${rangoTurno.operadorInicio} $2::time
+       AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) ${rangoTurno.operadorFin} $3::time`,
+    [fecha, rangoTurno.inicio, rangoTurno.fin]
   );
   return result.rows[0];
 };

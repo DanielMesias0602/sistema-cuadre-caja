@@ -26,6 +26,7 @@ const initialDatosState = {
   evidencia: null,
   previewUrl: null,
   pagos: [],
+  evidenciasEmpresa: {},
   evidenciaEmpresa: null,
   previewEmpresa: null,
   ocrEmpresa: null,
@@ -140,6 +141,7 @@ function NuevaOperacionContent() {
             <Paso4Confirmacion
               comprobante={datos}
               pagos={datos.pagos}
+              evidenciasEmpresa={datos.evidenciasEmpresa}
               evidenciaComprobante={datos.evidencia}
               evidenciaEmpresa={datos.evidenciaEmpresa}
               ocrEmpresa={datos.ocrEmpresa}

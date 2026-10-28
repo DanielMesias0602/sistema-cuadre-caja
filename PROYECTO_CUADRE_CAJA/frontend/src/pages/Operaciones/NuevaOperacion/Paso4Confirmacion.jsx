@@ -153,17 +153,19 @@ const obtenerMedioPago = (pago) =>
     pago?.nombre_medio || pago?.medio_pago || pago?.medioPago || pago?.nombre_medio_pago || ''
   );
 
-const esMedioBancario = (pago) => {
-  const medio = obtenerMedioPago(pago);
-  return (
-    medio.includes('transferencia') ||
-    medio.includes('deposito') ||
-    medio.includes('yape') ||
-    medio.includes('plin') ||
-    medio.includes('billetera') ||
-    medio.includes('banco') ||
-    medio.includes('tarjeta')
-  );
+const obtenerNumeroOperacionEvidencia = (datosOCR) => {
+  const numero = [
+    datosOCR?.numero_operacion,
+    datosOCR?.nro_operacion,
+    datosOCR?.referencia_bancaria,
+  ].find((valor) => valor != null && String(valor).trim() !== '');
+
+  return numero == null ? '' : String(numero).replace(/\s+/g, '');
+};
+
+const normalizarNumeroOperacion = (numero) => {
+  if (!numero) return '';
+  return numero.replace(/^0+/, '') || '0';
 };
 
 const formatPEN = (val) => {
@@ -175,6 +177,7 @@ export function Paso4Confirmacion({
   comprobante,
   pagos = [],
   evidenciaComprobante,
+  evidenciasEmpresa = {},
   evidenciaEmpresa,
   ocrEmpresa,
   onBack,
@@ -196,21 +199,34 @@ export function Paso4Confirmacion({
   const totalPagado = listaPagos.reduce((sum, pago) => sum + (Number.parseFloat(pago?.monto) || 0), 0);
   const pendiente = Math.max(0, montoOperacion - totalPagado);
 
-  const pagosTransferencia = listaPagos.filter(esMedioBancario);
-  const totalTransferenciasCliente = pagosTransferencia.reduce((sum, pago) => sum + (Number.parseFloat(pago?.monto) || 0), 0);
-
-  const montoEmpresa = ocrEmpresa?.monto != null && ocrEmpresa.monto !== '' ? Number.parseFloat(ocrEmpresa.monto) || 0 : 0;
+  const pagosTransferencia = listaPagos
+    .map((pago, index) => ({ pago, index }))
+    .filter(({ pago }) => pago?.es_efectivo === false);
+  const totalTransferenciasCliente = pagosTransferencia.reduce(
+    (sum, { pago }) => sum + (Number.parseFloat(pago?.monto) || 0),
+    0
+  );
+  const evidenciasEmpresaPorPago = Object.keys(evidenciasEmpresa || {}).length > 0
+    ? evidenciasEmpresa
+    : evidenciaEmpresa
+      ? { [pagosTransferencia[0]?.index ?? 0]: { evidencia: evidenciaEmpresa, ocrData: ocrEmpresa } }
+      : {};
+  const montoEmpresa = pagosTransferencia.reduce((sum, { index }) => {
+    const monto = evidenciasEmpresaPorPago[index]?.ocrData?.monto;
+    return sum + (monto != null && monto !== '' ? Number.parseFloat(monto) || 0 : 0);
+  }, 0);
   const margenError = 1;
   const hayPagoBancario = pagosTransferencia.length > 0;
 
   const esTodoEfectivo = listaPagos.length > 0 && listaPagos.every((pago) => {
-    const medio = obtenerMedioPago(pago);
-    return medio.includes('efectivo');
+    return pago?.es_efectivo === true;
   });
 
   const hayPagoTarjeta = listaPagos.some(p => obtenerMedioPago(p).includes('tarjeta'));
 
-  const hayEvidenciaEmpresa = Boolean(evidenciaEmpresa);
+  const hayEvidenciaEmpresa = pagosTransferencia.some(({ index }) =>
+    Boolean(evidenciasEmpresaPorPago[index]?.evidencia)
+  );
   const montosCoinciden = hayPagoBancario && montoEmpresa > 0 && Math.abs(totalTransferenciasCliente - montoEmpresa) <= margenError;
   const hayDiferenciaMontos = hayPagoBancario && montoEmpresa > 0 && !montosCoinciden;
 
@@ -273,27 +289,30 @@ export function Paso4Confirmacion({
         }
       }
 
-      if (evidenciaEmpresa) {
+      for (const [indexStr, evidenciaPago] of Object.entries(evidenciasEmpresaPorPago)) {
+        const indexPago = Number(indexStr);
+        if (!Number.isSafeInteger(indexPago) || indexPago < 0 || !evidenciaPago?.evidencia) continue;
         const formDataEmpresa = new FormData();
-        formDataEmpresa.append('archivo', evidenciaEmpresa);
+        formDataEmpresa.append('archivo', evidenciaPago.evidencia);
         const resUploadEmpresa = await api.post('/evidencias/upload', formDataEmpresa, { headers: { 'Content-Type': 'multipart/form-data' } });
         const keyEmpresa = resUploadEmpresa.data?.data?.storage_key;
         if (keyEmpresa) {
           evidenciasParaPayload.push({
             tipo_evidencia: 'EMPRESA',
             storage_key: keyEmpresa,
+            index_pago: indexPago,
             fecha_evidencia: fechaISO,
-            observacion: 'Comprobante de ingreso a la cuenta de la empresa',
-            datos_ocr: ocrEmpresa ? JSON.stringify(ocrEmpresa) : null,
+            observacion: `Comprobante de ingreso a la cuenta de la empresa para el pago #${indexPago + 1}`,
+            datos_ocr: evidenciaPago.ocrData ? JSON.stringify(evidenciaPago.ocrData) : null,
             texto_ocr: null,
           });
         }
       }
 
-      for (const pago of listaPagos) {
+      for (const { pago, index } of pagosTransferencia) {
         if (pago?.evidencia?.imagenBase64) {
           const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
-          const file = new File([blob], `evidencia-cliente-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          const file = new File([blob], `evidencia-cliente-${index + 1}.jpg`, { type: 'image/jpeg' });
           const formDataCliente = new FormData();
           formDataCliente.append('archivo', file);
           const resUploadCliente = await api.post('/evidencias/upload', formDataCliente, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -302,6 +321,7 @@ export function Paso4Confirmacion({
             evidenciasParaPayload.push({
               tipo_evidencia: 'CLIENTE',
               storage_key: keyCliente,
+              index_pago: index,
               fecha_evidencia: fechaISO,
               observacion: `Evidencia de pago del cliente: ${pago.nombre_medio || pago.medio_pago || 'No especificado'}`,
               datos_ocr: pago.evidencia.datosOCR ? JSON.stringify(pago.evidencia.datosOCR) : null,
@@ -344,6 +364,7 @@ export function Paso4Confirmacion({
             monto: Number(pago.monto),
             referencia_bancaria: pago.referencia || null,
             observacion: obsFinal || null,
+            fecha_operacion: pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion || null,
           };
         }),
         evidencias: evidenciasParaPayload,
@@ -483,9 +504,13 @@ export function Paso4Confirmacion({
           <span className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-brand-orange flex-shrink-0">
             <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </span>
-          <span className="break-words">Datos extraídos del comprobante</span>
+          <span className="break-words">Datos del comprobante</span>
         </h3>
-        <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mb-3 sm:mb-4">Información detectada automáticamente por el OCR en la boleta/factura.</p>
+        <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mb-3 sm:mb-4">
+          {evidenciaComprobante
+            ? 'Información detectada automáticamente por el OCR en la boleta/factura.'
+            : 'Información ingresada manualmente para la boleta/factura.'}
+        </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
           {comprobante?.cliente && <CampoOCR icon="user" label="Cliente" value={comprobante.cliente} color="indigo" />}
@@ -527,6 +552,7 @@ export function Paso4Confirmacion({
         )}
       </div>
 
+      {!esTodoEfectivo && (
       <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600 rounded-xl p-3 sm:p-6 shadow-sm dark:shadow-none">
         <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base sm:text-lg mb-1 flex items-center gap-2">
           <span className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
@@ -537,36 +563,103 @@ export function Paso4Confirmacion({
         <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mb-3 sm:mb-4">Información detectada automáticamente según el tipo de medio de pago.</p>
 
         <div className="space-y-3">
-          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">Evidencias del cliente</p>
           {pagosTransferencia.length > 0 ? (
-            pagosTransferencia.map((pago, idx) => {
-              const datosOCR = pago.evidencia?.datosOCR;
-              const campos = datosOCR ? getCamposOCR(datosOCR, pago.nombre_medio || pago.medio_pago) : [];
-              const esTarjeta = (pago.nombre_medio || pago.medio_pago || '').toLowerCase().includes('tarjeta');
-              
-              // Si hay campos OCR, los mostramos. Si no, y es tarjeta, mostramos el aviso.
+            pagosTransferencia.map(({ pago, index }) => {
+              const datosOCRCliente = pago.evidencia?.datosOCR;
+              const camposCliente = datosOCRCliente
+                ? getCamposOCR(datosOCRCliente, pago.nombre_medio || pago.medio_pago)
+                : [];
+              const evidenciaEmpresaPago = evidenciasEmpresaPorPago[index];
+              const datosOCREmpresa = evidenciaEmpresaPago?.ocrData;
+              const camposEmpresa = datosOCREmpresa ? getCamposOCR(datosOCREmpresa, 'transferencia') : [];
+              const esTarjeta = obtenerMedioPago(pago).includes('tarjeta');
+              const numeroOperacionCliente = obtenerNumeroOperacionEvidencia(datosOCRCliente);
+              const numeroOperacionEmpresa = obtenerNumeroOperacionEvidencia(datosOCREmpresa);
+              const numeroOperacionClienteNormalizado = normalizarNumeroOperacion(numeroOperacionCliente);
+              const numeroOperacionEmpresaNormalizado = normalizarNumeroOperacion(numeroOperacionEmpresa);
+              const estadoCruceEvidencias = !numeroOperacionCliente || !numeroOperacionEmpresa
+                ? 'INCOMPLETO'
+                : numeroOperacionClienteNormalizado === numeroOperacionEmpresaNormalizado
+                  ? 'COINCIDE'
+                  : 'DIFERENTE';
+
               return (
-                <div key={idx} className="rounded-lg border border-slate-100 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/60 p-2.5 sm:p-3">
-                  <div className="flex items-center justify-between mb-2 gap-2">
+                <div key={index} className="rounded-lg border border-slate-100 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/60 p-2.5 sm:p-3">
+                  <div className="flex items-center justify-between mb-3 gap-2">
                     <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate min-w-0">
-                      Pago #{idx + 1} — {pago.medio_pago || pago.nombre_medio || 'Transferencia'}
+                      Pago #{index + 1} — {pago.medio_pago || pago.nombre_medio || 'Transferencia'}
                     </p>
                     <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums flex-shrink-0">{formatPEN(pago.monto)}</span>
                   </div>
-                  {campos.length > 0 ? (
-                    <CamposConToggle
-                      campos={campos}
-                      storageKey={`cliente-${idx}`}
-                      expandidos={expandidos}
-                      onToggle={toggleExpandir}
-                    />
-                  ) : esTarjeta ? (
-                    <p className="text-[11px] sm:text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-100 dark:border-amber-800/60">
-                      Voucher adjuntado manualmente. Verifica que el monto corresponda a la venta menos la comisión de Culqi.
-                    </p>
-                  ) : (
-                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 italic">Sin datos OCR registrados para este pago.</p>
-                  )}
+
+                  <div>
+                    <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Evidencia del cliente</p>
+                    {camposCliente.length > 0 ? (
+                      <CamposConToggle
+                        campos={camposCliente}
+                        storageKey={`cliente-${index}`}
+                        expandidos={expandidos}
+                        onToggle={toggleExpandir}
+                      />
+                    ) : esTarjeta ? (
+                      <p className="text-[11px] sm:text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-100 dark:border-amber-800/60">
+                        Voucher adjuntado manualmente. Verifica que el monto corresponda a la venta menos la comisión de Culqi.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 italic">Sin datos OCR registrados para este pago.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                    <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Evidencia de la empresa</p>
+                    {evidenciaEmpresaPago?.evidencia ? (
+                      <div>
+                        {datosOCREmpresa && (
+                          <div className="flex items-center justify-between mb-2 gap-2">
+                            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate min-w-0">
+                              {datosOCREmpresa.aplicacion_banco || datosOCREmpresa.banco || 'Transferencia'} — Evidencia de empresa
+                            </p>
+                            {datosOCREmpresa.monto != null && (
+                              <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums flex-shrink-0">{formatPEN(datosOCREmpresa.monto)}</span>
+                            )}
+                          </div>
+                        )}
+                        {camposEmpresa.length > 0 ? (
+                          <CamposConToggle
+                            campos={camposEmpresa}
+                            storageKey={`empresa-${index}`}
+                            expandidos={expandidos}
+                            onToggle={toggleExpandir}
+                          />
+                        ) : (
+                          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 italic">
+                            Evidencia adjuntada ({evidenciaEmpresaPago.evidencia.name || 'archivo'}), sin datos OCR registrados.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 italic">No se adjuntó evidencia de empresa para este pago.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-3">
+                    {estadoCruceEvidencias === 'COINCIDE' ? (
+                      <p className="flex items-start gap-2 text-[11px] sm:text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded border border-emerald-200 dark:border-emerald-800/60">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                        <span>El número de operación de ambas evidencias coincide</span>
+                      </p>
+                    ) : estadoCruceEvidencias === 'DIFERENTE' ? (
+                      <p className="flex items-start gap-2 text-[11px] sm:text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-800/60">
+                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                        <span>El número de operación de las evidencias no coincide</span>
+                      </p>
+                    ) : (
+                      <p className="flex items-start gap-2 text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700">
+                        <Info className="w-4 h-4 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                        <span>No se puede verificar: falta el número de operación en una de las evidencias</span>
+                      </p>
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -574,38 +667,8 @@ export function Paso4Confirmacion({
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-900/70 p-2.5 sm:p-3 rounded-lg text-center">No hay pagos bancarios con evidencia del cliente.</p>
           )}
         </div>
-
-        <div className="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 dark:border-slate-700">
-          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Evidencia de la empresa</p>
-          {ocrEmpresa ? (
-            (() => {
-              const campos = getCamposOCR(ocrEmpresa, 'transferencia');
-              return (
-                <div className="rounded-lg border border-slate-100 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/60 p-2.5 sm:p-3">
-                  <div className="flex items-center justify-between mb-2 gap-2">
-                    <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate min-w-0">
-                      {ocrEmpresa.aplicacion_banco || ocrEmpresa.banco || 'Transferencia'} — Evidencia de empresa
-                    </p>
-                    <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums flex-shrink-0">{formatPEN(ocrEmpresa.monto)}</span>
-                  </div>
-                  {campos.length > 0 ? (
-                    <CamposConToggle
-                      campos={campos}
-                      storageKey="empresa"
-                      expandidos={expandidos}
-                      onToggle={toggleExpandir}
-                    />
-                  ) : (
-                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 italic">Sin datos OCR registrados.</p>
-                  )}
-                </div>
-              );
-            })()
-          ) : (
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-900/70 p-2.5 sm:p-3 rounded-lg text-center">No se adjuntó evidencia de empresa.</p>
-          )}
-        </div>
       </div>
+      )}
 
       <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600 rounded-xl p-3 sm:p-6 shadow-sm dark:shadow-none">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-center">

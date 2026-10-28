@@ -8,6 +8,11 @@ import {
 } from '../repositories/cierreCaja.repository.js';
 
 import { withTransaction } from '../repositories/base.repository.js';
+import {
+  construirAsociacionOperacionesSql,
+  obtenerEtiquetaTurno,
+  obtenerRangoTurno,
+} from '../utils/turnoCaja.js';
 
 export const registrarCierreCaja = async ({
   fecha,
@@ -22,7 +27,13 @@ export const registrarCierreCaja = async ({
 }) => {
   if (!id_usuario_responsable) throw new Error('El usuario responsable es obligatorio');
   if (!fecha) throw new Error('La fecha es obligatoria');
-  if (!turno) throw new Error('El turno es obligatorio');
+  const turnoEtiqueta = obtenerEtiquetaTurno(turno);
+  const rangoTurno = obtenerRangoTurno(turno);
+  if (!turnoEtiqueta || !rangoTurno) {
+    const error = new Error('El turno debe ser Mañana o Tarde');
+    error.statusCode = 400;
+    throw error;
+  }
 
   const ingresos = Number(total_ingresos);
   const noEfectivo = Number(total_no_efectivo);
@@ -47,42 +58,43 @@ export const registrarCierreCaja = async ({
   const efectivoDespuesSalidas = efectivoEsperado - salidas;
   if (efectivoDespuesSalidas < 0) throw new Error('El efectivo después de salidas no puede ser negativo');
 
-  const diferencia = efectivoFisico - efectivoDespuesSalidas;
-
   return withTransaction(async (client) => {
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
+      [fecha]
+    );
+
+    const totalesReales = await getTotalesParaCierre(fecha, turnoEtiqueta, client);
+    const ingresosReales = Number(totalesReales.total_ingresos);
+    const noEfectivoReal = Number(totalesReales.total_no_efectivo);
+    const efectivoEsperadoReal = ingresosReales - noEfectivoReal;
+    const efectivoDespuesSalidasReal = efectivoEsperadoReal - salidas;
+    if (efectivoEsperadoReal < 0 || efectivoDespuesSalidasReal < 0) {
+      throw new Error('Los totales calculados para el cierre no son válidos');
+    }
+
     const cierre = await createCierreCaja({
       id_usuario_responsable,
       fecha,
-      turno,
-      total_ingresos: ingresos,
-      total_no_efectivo: noEfectivo,
-      efectivo_esperado: efectivoEsperado,
+      turno: turnoEtiqueta,
+      total_ingresos: ingresosReales,
+      total_no_efectivo: noEfectivoReal,
+      efectivo_esperado: efectivoEsperadoReal,
       total_salidas: salidas,
-      efectivo_despues_salidas: efectivoDespuesSalidas,
+      efectivo_despues_salidas: efectivoDespuesSalidasReal,
       efectivo_fisico: efectivoFisico,
-      diferencia,
+      diferencia: efectivoFisico - efectivoDespuesSalidasReal,
       estado,
       fecha_fin
     }, client);
 
-    let timeCondition = '';
-    if (turno === 'MAÑANA') {
-      timeCondition = `AND (COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '14:00:00'::time)`;
-    } else if (turno === 'TARDE') {
-      timeCondition = `AND (COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) > '14:00:00'::time AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '20:00:00'::time)`;
-    }
-
-    await client.query(
-      `UPDATE operacion o
-       SET id_cierre = $1,
-           fecha_modificacion = CURRENT_TIMESTAMP
-       FROM comprobante c
-       WHERE c.id_comprobante = o.id_comprobante
-         AND o.fecha = $2
-         AND o.id_cierre IS NULL
-         ${timeCondition}`,
-      [cierre.id_cierre, fecha]
-    );
+    const asociacion = construirAsociacionOperacionesSql(turnoEtiqueta);
+    await client.query(asociacion.sql, [
+      cierre.id_cierre,
+      fecha,
+      asociacion.rangoTurno.inicio,
+      asociacion.rangoTurno.fin,
+    ]);
 
     return cierre;
   });
@@ -105,7 +117,13 @@ export const listarCierresCaja = async () => {
 };
 
 export const obtenerPreCalculoCierre = async (fecha, turno) => {
-  const totales = await getTotalesParaCierre(fecha, turno);
+  const etiquetaTurno = obtenerEtiquetaTurno(turno);
+  if (!etiquetaTurno) {
+    const error = new Error('El turno debe ser Mañana o Tarde');
+    error.statusCode = 400;
+    throw error;
+  }
+  const totales = await getTotalesParaCierre(fecha, etiquetaTurno);
   const ingresos = Number(totales.total_ingresos);
   const noEfectivo = Number(totales.total_no_efectivo);
   return {
