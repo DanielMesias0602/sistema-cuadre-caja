@@ -17,17 +17,22 @@ import {
   AlertTriangle,
   Pencil,
   Save,
-  Loader2
+  Loader2,
+  Upload,
+  FileText
 } from 'lucide-react';
 import api from '../../lib/api';
+import { useAuth } from '../../hooks/useAuth';
 
 export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
+  const { user } = useAuth();
   const open = selectedPago !== null;
   const [lastPago, setLastPago] = useState(selectedPago);
   const [previousSelectedPago, setPreviousSelectedPago] = useState(selectedPago);
   if (selectedPago && selectedPago !== lastPago) setLastPago(selectedPago);
   const pago = selectedPago || lastPago;
   const closeRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [estadoLocal, setEstadoLocal] = useState(null);
   const [isImageOpen, setIsImageOpen] = useState(false);
@@ -40,6 +45,21 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
   const [loadingSave, setLoadingSave] = useState(false);
   const [errorSave, setErrorSave] = useState(null);
 
+  // ESTADOS PARA VERIFICACIÓN
+  const [modalVerificarAbierto, setModalVerificarAbierto] = useState(false);
+  const [archivoEmpresa, setArchivoEmpresa] = useState(null);
+  const [previewEmpresa, setPreviewEmpresa] = useState(null);
+  const [loadingVerificar, setLoadingVerificar] = useState(false);
+  const [errorVerificar, setErrorVerificar] = useState(null);
+
+  const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
+
+  // Helper para saber si un pago es en efectivo
+  const esEfectivo = (pagoObj) => {
+    const medio = String(pagoObj?.medio_pago || pagoObj?.nombre_medio || '').toLowerCase();
+    return medio.includes('efectivo');
+  };
+
   if (selectedPago !== previousSelectedPago) {
     setPreviousSelectedPago(selectedPago);
     if (selectedPago) {
@@ -50,6 +70,10 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
       setEstadoLocal(null);
       setIsEditing(false);
       setErrorSave(null);
+      setModalVerificarAbierto(false);
+      setArchivoEmpresa(null);
+      setPreviewEmpresa(null);
+      setErrorVerificar(null);
     }
   }
 
@@ -66,7 +90,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
     };
   }, [open]);
 
-  // Efecto 2: maneja la tecla ESC.
+  // Maneja la tecla ESC.
   useEffect(() => {
     if (!open) return;
 
@@ -77,6 +101,8 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
           setZoom(false);
         } else if (isEditing) {
           setIsEditing(false);
+        } else if (modalVerificarAbierto) {
+          setModalVerificarAbierto(false);
         } else {
           onClose();
         }
@@ -85,9 +111,9 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
 
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, isImageOpen, isEditing, onClose]);
+  }, [open, isImageOpen, isEditing, modalVerificarAbierto, onClose]);
 
-  // Efecto 3: Cargar medios de pago cuando se activa la edición
+  // Cargar medios de pago cuando se activa la edición
   useEffect(() => {
     if (isEditing && mediosPago.length === 0) {
       api.get('/medios-pago').then(res => {
@@ -113,6 +139,20 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
   const esOperacionAnulada = pago.esAnulada || String(pago.estado_operacion || '').toUpperCase() === 'ANULADA';
 
   const urlEvidencia = pago.evidencia_url;
+
+  // Verifica si el pago actual es efectivo
+  const esPagoEfectivo = esEfectivo(pago);
+  
+  // Determinar si el medio seleccionado actualmente en el formulario es efectivo
+  // Busca en la lista de medios. Si no encuentra o la lista no ha cargado,
+  // usa el nombre del medio original del pago como respaldo.
+  const esEdicionEfectivo = (() => {
+    if (mediosPago.length > 0 && editForm.id_medio_pago) {
+      const medio = mediosPago.find(m => String(m.id_medio_pago) === String(editForm.id_medio_pago));
+      if (medio) return String(medio.nombre || '').toLowerCase().includes('efectivo');
+    }
+    return String(pago.medio_pago || '').toLowerCase().includes('efectivo');
+  })();
 
   const renderMedioIcon = (medio) => {
     const m = (medio || '').toLowerCase();
@@ -158,16 +198,16 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
     try {
       setLoadingSave(true);
       setErrorSave(null);
-      
+
       const payload = {
         id_medio_pago: Number(editForm.id_medio_pago),
         monto: Number(editForm.monto),
-        referencia_bancaria: editForm.referencia_bancaria || null,
+        referencia_bancaria: esEdicionEfectivo ? null : (editForm.referencia_bancaria || null),
         observacion: editForm.observacion || null
       };
 
       await api.put(`/pagos/${pago.id_pago}`, payload);
-      
+
       setIsEditing(false);
       if (onUpdateSuccess) onUpdateSuccess();
     } catch (err) {
@@ -178,12 +218,58 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
     }
   };
 
+  // MANEJADORES DE VERIFICACIÓN
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setArchivoEmpresa(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPreviewEmpresa(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleVerificar = async () => {
+    setLoadingVerificar(true);
+    setErrorVerificar(null);
+
+    try {
+      if (archivoEmpresa) {
+        const formData = new FormData();
+        formData.append('archivo', archivoEmpresa);
+        formData.append('id_operacion', String(pago.id_operacion));
+        formData.append('tipo_evidencia', 'EMPRESA');
+        formData.append('fecha_evidencia', new Date().toLocaleDateString('en-CA'));
+        await api.post('/evidencias', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
+      await api.put(`/pagos/${pago.id_pago}`, {
+        id_medio_pago: pago.id_medio_pago,
+        monto: Number(pago.monto),
+        referencia_bancaria: pago.referencia || null,
+        observacion: pago.observacion || null,
+        estado: 'VERIFICADO'
+      });
+
+      setModalVerificarAbierto(false);
+      setArchivoEmpresa(null);
+      setPreviewEmpresa(null);
+      if (onUpdateSuccess) onUpdateSuccess();
+    } catch (err) {
+      console.error('Error al verificar pago:', err);
+      setErrorVerificar(err.response?.data?.message || err.message || 'Error al verificar el pago.');
+    } finally {
+      setLoadingVerificar(false);
+    }
+  };
+
   return (
     <div className={`fixed inset-0 z-50 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
       {/* Fondo oscuro */}
       <div
-        onClick={!isEditing ? onClose : undefined}
-        className={`absolute inset-0 bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'} ${isEditing ? 'cursor-default' : 'cursor-pointer'}`}
+        onClick={!isEditing && !modalVerificarAbierto ? onClose : undefined}
+        className={`absolute inset-0 bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'} ${isEditing || modalVerificarAbierto ? 'cursor-default' : 'cursor-pointer'}`}
       />
 
       {/* VISOR DE EVIDENCIA EN SPLIT-SCREEN */}
@@ -239,7 +325,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
         aria-modal="true"
         className={`absolute inset-y-0 right-0 z-30 flex w-full max-w-[500px] flex-col bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl dark:shadow-none shadow-slate-900/20 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        <header className="border-b border-slate-100 dark:border-slate-700 px-6 pb-6 pt-5 sm:px-8">
+        <header className="border-b border-slate-100 dark:border-slate-700 px-6 pb-6 pt-5 sm:px-8 shrink-0">
           <div className="flex items-center justify-between">
             <div>
               {esOperacionAnulada ? (
@@ -255,12 +341,11 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-600/20">
                   <Clock className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  PENDIENTE DE CONCILIACIÓN
+                  PENDIENTE DE VERIFICACIÓN
                 </span>
               )}
             </div>
 
-            {/* BOTONES DE ACCIÓN (EDITAR Y CERRAR) - REDISEÑADOS PARA SER VISIBLES */}
             <div className="flex items-center gap-2">
               {!esOperacionAnulada && !isEditing && (
                 <button
@@ -319,7 +404,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
         </header>
 
         <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-900/70 px-6 py-6 sm:px-8">
-          
           {errorSave && (
             <div className="mb-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl p-4 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
@@ -335,7 +419,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
               </h3>
 
               <div className="flex flex-col gap-4">
-                {/* MEDIO DE PAGO */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400 w-1/3">Medio de Pago</span>
                   {isEditing ? (
@@ -357,25 +440,26 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                   )}
                 </div>
 
-                {/* REFERENCIA BANCARIA */}
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 w-1/3">Nro. Referencia</span>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editForm.referencia_bancaria}
-                      onChange={(e) => setEditForm({ ...editForm, referencia_bancaria: e.target.value })}
-                      placeholder="Opcional"
-                      className="w-2/3 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-                    />
-                  ) : (
-                    <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
-                      {pago.referencia || 'Sin referencia bancaria'}
-                    </span>
-                  )}
-                </div>
+                {/* OCULTAR REFERENCIA SI ES EFECTIVO */}
+                {((isEditing && !esEdicionEfectivo) || (!isEditing && !esPagoEfectivo)) && (
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 w-1/3">Nro. Referencia</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editForm.referencia_bancaria}
+                        onChange={(e) => setEditForm({ ...editForm, referencia_bancaria: e.target.value })}
+                        placeholder="Opcional"
+                        className="w-2/3 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                      />
+                    ) : (
+                      <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        {pago.referencia || 'Sin referencia bancaria'}
+                      </span>
+                    )}
+                  </div>
+                )}
 
-                {/* OBSERVACION (Solo en edición) */}
                 {isEditing && (
                   <div className="flex flex-col border-b border-slate-100 dark:border-slate-700 pb-3 gap-1">
                     <span className="text-xs text-slate-500 dark:text-slate-400">Observación (Opcional)</span>
@@ -388,7 +472,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                   </div>
                 )}
 
-                {/* COMPROBANTE */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400">Comprobante Vinculado</span>
                   <span className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ${esOperacionAnulada ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 line-through' : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}`}>
@@ -396,7 +479,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                   </span>
                 </div>
 
-                {/* CLIENTE */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400">Cliente</span>
                   <span className={`max-w-[230px] truncate text-right text-xs font-semibold ${esOperacionAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`}>
@@ -404,7 +486,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                   </span>
                 </div>
 
-                {/* USUARIO */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500 dark:text-slate-400">Usuario Registrador</span>
                   <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -415,10 +496,9 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
               </div>
             </section>
 
-            {/* EVIDENCIA Y CONCILIACIÓN (Solo se muestran si NO estamos editando) */}
             {!isEditing && (
               <>
-                {(pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
+                {esPagoEfectivo ? (
                   <section className="rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/70 p-4 shadow-sm dark:shadow-none">
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-600/10">
@@ -501,7 +581,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
           </div>
         </div>
 
-        <footer className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-4 sm:px-8">
+        <footer className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-4 sm:px-8 shrink-0">
           {isEditing ? (
             <div className="flex gap-3">
               <button
@@ -524,10 +604,17 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
             </div>
           ) : (
             <>
-              <div className="rounded-xl bg-blue-50 dark:bg-blue-950/40 p-3 text-xs text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 flex items-start gap-2">
-                <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                <p>La verificación de pagos se realiza en la <strong>Mesa de Conciliación</strong> (módulo de Evidencias).</p>
-              </div>
+              {esAdmin && !isVerificado && !esOperacionAnulada && (
+                <button
+                  type="button"
+                  onClick={() => setModalVerificarAbierto(true)}
+                  className="h-11 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-md dark:shadow-none cursor-pointer"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Verificar Pago
+                </button>
+              )}
+              
               <button
                 type="button"
                 onClick={onClose}
@@ -539,6 +626,83 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
           )}
         </footer>
       </aside>
+
+      {/* MODAL DE VERIFICACIÓN */}
+      {modalVerificarAbierto && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-6 h-6 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-white font-bold text-lg">Verificar Pago</h3>
+                  <p className="text-emerald-50 text-xs font-medium">Confirma que el dinero llegó a la empresa</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {errorVerificar && (
+                <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-lg p-3 text-xs text-rose-800 dark:text-rose-300">
+                  {errorVerificar}
+                </div>
+              )}
+
+              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Pago a verificar:</p>
+                <p className="font-bold text-slate-900 dark:text-slate-100">{pago.comprobante} - {formatCurrency(pago.monto)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Medio: {pago.medio_pago}</p>
+              </div>
+
+              {!esPagoEfectivo && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Subir Evidencia de la Empresa (Opcional)
+                  </label>
+                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    {previewEmpresa ? (
+                      <img src={previewEmpresa} alt="Preview" className="max-h-24 object-contain" />
+                    ) : (
+                      <>
+                        <Upload className="w-6 h-6 text-slate-400 dark:text-slate-500 mb-1" />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Haz clic para subir voucher</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setModalVerificarAbierto(false); setArchivoEmpresa(null); setPreviewEmpresa(null); setErrorVerificar(null); }}
+                  disabled={loadingVerificar}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition text-sm disabled:opacity-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVerificar}
+                  disabled={loadingVerificar}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {loadingVerificar ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
