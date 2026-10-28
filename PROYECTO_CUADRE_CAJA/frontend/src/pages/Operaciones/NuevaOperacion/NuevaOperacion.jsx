@@ -8,30 +8,33 @@ import { Paso2Pagos } from './Paso2Pagos';
 import { Paso3EvidenciaEmpresa } from './Paso3EvidenciaEmpresa';
 import { Paso4Confirmacion } from './Paso4Confirmacion';
 
+// Estado inicial limpio para poder reiniciar el wizard
+const initialDatosState = {
+  tipo_comprobante: '',
+  serie: '',
+  numero: '',
+  fecha: '',
+  hora: '',
+  vendedor: '',
+  monto: '',
+  igv: '',
+  efectivo: '',
+  moneda: 'PEN',
+  medio_pago: '',
+  producto: '',
+  items: [],
+  evidencia: null,
+  previewUrl: null,
+  pagos: [],
+  evidenciaEmpresa: null,
+  previewEmpresa: null,
+  ocrEmpresa: null,
+};
+
 function NuevaOperacionContent() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
-  const [datos, setDatos] = useState({
-    tipo_comprobante: '',
-    serie: '',
-    numero: '',
-    fecha: '',
-    hora: '',
-    vendedor: '',
-    monto: '',
-    igv: '',
-    efectivo: '',
-    moneda: 'PEN',
-    medio_pago: '',
-    producto: '',
-    items: [],
-    evidencia: null,
-    previewUrl: null,
-    pagos: [],
-    evidenciaEmpresa: null,
-    previewEmpresa: null,
-    ocrEmpresa: null,
-  });
+  const [datos, setDatos] = useState(initialDatosState);
   const [success, setSuccess] = useState(false);
 
   const totalSteps = 4;
@@ -67,14 +70,20 @@ function NuevaOperacionContent() {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
-      navigate('/cuadrecaja/operaciones');
+      navigate('/operaciones'); // <-- RUTA CORREGIDA
     }
   }, [currentStep, navigate]);
+
+  // NUEVA FUNCIÓN: Limpia todo y vuelve al Paso 1
+  const handleVolverAlInicio = useCallback(() => {
+    setDatos(initialDatosState);
+    setCurrentStep(1);
+  }, []);
 
   const handleSuccess = useCallback(() => {
     setSuccess(true);
     setTimeout(() => {
-      navigate('/cuadrecaja/operaciones');
+      navigate('/operaciones'); // <-- RUTA CORREGIDA
     }, 2000);
   }, [navigate]);
 
@@ -135,6 +144,7 @@ function NuevaOperacionContent() {
               evidenciaEmpresa={datos.evidenciaEmpresa}
               ocrEmpresa={datos.ocrEmpresa}
               onBack={handleBack}
+              onCancel={handleVolverAlInicio}
               onSuccess={handleSuccess}
             />
           )}

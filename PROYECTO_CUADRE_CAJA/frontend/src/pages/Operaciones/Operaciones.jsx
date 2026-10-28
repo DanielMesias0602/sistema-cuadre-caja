@@ -14,7 +14,6 @@ export function Operaciones() {
 
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
@@ -24,13 +23,8 @@ export function Operaciones() {
   const [selectedOp, setSelectedOp] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
 
-  useEffect(() => {
-    cargarOperaciones();
-  }, []);
-
-  const cargarOperaciones = async () => {
+  async function cargarOperaciones() {
     try {
-      setLoading(true);
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
       const lista = Array.isArray(data) ? data : [];
@@ -38,12 +32,20 @@ export function Operaciones() {
       return lista;
     } catch (err) {
       console.error(err);
-      setError('No se pudo cargar el historial de operaciones.');
       return [];
     } finally {
       setLoading(false);
     }
+  }
+
+  const recargarOperaciones = () => {
+    setLoading(true);
+    return cargarOperaciones();
   };
+
+  useEffect(() => {
+    void Promise.resolve().then(cargarOperaciones);
+  }, []);
 
   const limpiarFiltros = () => {
     setBusqueda('');
@@ -69,20 +71,20 @@ export function Operaciones() {
     const turno = getTurno(hora);
     if (turno === 'MAÑANA') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] sm:text-xs font-bold border border-amber-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] sm:text-xs font-bold border border-amber-100 dark:border-amber-800/60">
           <Sun className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Mañana
         </span>
       );
     }
     if (turno === 'TARDE') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] sm:text-xs font-bold border border-indigo-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 text-[10px] sm:text-xs font-bold border border-indigo-100 dark:border-indigo-800/60">
           <Moon className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Tarde
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] sm:text-xs font-bold border border-slate-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] sm:text-xs font-bold border border-slate-200 dark:border-slate-700">
         <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> {turno}
       </span>
     );
@@ -92,27 +94,27 @@ export function Operaciones() {
     const st = (estado || '').toUpperCase();
     if (st === 'PAGADA' || st === 'VERIFICADA') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] sm:text-xs font-bold border border-emerald-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] sm:text-xs font-bold border border-emerald-100 dark:border-emerald-800/60">
           <CheckCircle className="w-3 h-3" /> {st}
         </span>
       );
     }
     if (st === 'PENDIENTE') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] sm:text-xs font-bold border border-amber-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] sm:text-xs font-bold border border-amber-100 dark:border-amber-800/60">
           <Clock className="w-3 h-3" /> PENDIENTE
         </span>
       );
     }
     if (st === 'ANULADA') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-rose-50 text-rose-700 text-[10px] sm:text-xs font-bold border border-rose-100">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-[10px] sm:text-xs font-bold border border-rose-100 dark:border-rose-800/60">
           <XCircle className="w-3 h-3" /> ANULADA
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-slate-100 text-slate-700 text-[10px] sm:text-xs font-bold border border-slate-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] sm:text-xs font-bold border border-slate-200 dark:border-slate-700">
         <AlertCircle className="w-3 h-3" /> {st || 'REGISTRADO'}
       </span>
     );
@@ -138,36 +140,36 @@ export function Operaciones() {
   return (
     <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up">
       {/* CABECERA */}
-      <div className="flex flex-col gap-3 bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200">
+      <div className="flex flex-col gap-3 bg-white dark:bg-slate-800 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
-            <Receipt className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-brand-orange flex-shrink-0" />
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2 sm:gap-3">
+            <Receipt className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-brand-orange dark:text-orange-400 flex-shrink-0" />
             <span className="truncate">Historial de Operaciones</span>
           </h1>
-          <p className="hidden sm:block text-sm sm:text-base text-slate-500 mt-1 sm:mt-2 font-medium">
+          <p className="hidden sm:block text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 font-medium">
             Consulta, filtra y exporta todas las ventas registradas en el sistema.
           </p>
         </div>
 
         <button
           onClick={() => navigate('/operaciones/nueva')}
-          className="w-full sm:w-auto sm:self-end bg-brand-orange hover:bg-brand-orange-hover text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl flex justify-center items-center gap-2 font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95"
+          className="w-full sm:w-auto sm:self-end bg-brand-orange hover:bg-brand-orange-hover text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl flex justify-center items-center gap-2 font-bold text-xs sm:text-sm transition-all shadow-md dark:shadow-none active:scale-95 cursor-pointer"
         >
           <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> Nueva Operación
         </button>
       </div>
 
       {/* FILTROS */}
-      <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200">
+      <div className="bg-white dark:bg-slate-800 p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               placeholder="Buscar por comprobante o cliente..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
 
@@ -183,25 +185,25 @@ export function Operaciones() {
           </div>
 
           <div className="relative w-full lg:w-[180px] flex-shrink-0">
-            <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
             <select
               value={estadoFiltro}
               onChange={e => setEstadoFiltro(e.target.value)}
-              className="w-full h-[42px] pl-10 pr-9 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
+              className="w-full h-[42px] pl-10 pr-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los estados</option>
               <option value="PAGADA">Pagadas</option>
               <option value="PENDIENTE">Pendientes</option>
               <option value="ANULADA">Anuladas</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           </div>
 
           {hayFiltrosActivos && (
             <button
               type="button"
               onClick={limpiarFiltros}
-              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto"
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 hover:text-slate-900 dark:hover:text-slate-100 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
               title="Limpiar filtros"
             >
               <X className="h-4 w-4" />
@@ -212,14 +214,14 @@ export function Operaciones() {
       </div>
 
       {/* TABLA / CARDS */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 overflow-hidden">
         {/* MOBILE: cards */}
-        <div className="block md:hidden divide-y divide-slate-100">
+        <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-700">
           {loading ? (
-            <div className="p-8 text-center text-slate-500 text-sm">Cargando historial...</div>
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">Cargando historial...</div>
           ) : operacionesFiltradas.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm flex flex-col items-center gap-2">
-              <FileText className="w-8 h-8 text-slate-300" />
+            <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm flex flex-col items-center gap-2">
+              <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600" />
               No se encontraron operaciones con los filtros seleccionados.
             </div>
           ) : operacionesFiltradas.map((op) => {
@@ -236,27 +238,27 @@ export function Operaciones() {
             return (
               <div
                 key={op.id_operacion}
-                className={`p-3 space-y-2 ${esAnulada ? 'bg-rose-50/30' : ''}`}
+                className={`p-3 space-y-2 ${esAnulada ? 'bg-rose-50/30 dark:bg-rose-950/20' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                      <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>
                         {op.fecha}
                       </span>
                       {getTurnoBadge(op.hora || op.fecha_registro)}
                     </div>
-                    <p className={`text-sm font-bold break-words ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                      <span className="text-[10px] text-slate-500 uppercase mr-1">{op.tipo_comprobante || 'DOC'}</span>
+                    <p className={`text-sm font-bold break-words ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mr-1">{op.tipo_comprobante || 'DOC'}</span>
                       {op.serie}-{op.numero}
                     </p>
-                    <p className={`text-xs mt-0.5 break-words ${esAnulada ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <p className={`text-xs mt-0.5 break-words ${esAnulada ? 'text-slate-400' : 'text-slate-600 dark:text-slate-300'}`}>
                       {op.cliente || 'No registrado'}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`text-base font-bold tabular-nums ${esAnulada ? 'text-slate-400 line-through' : 'text-brand-orange'}`}>
+                    <p className={`text-base font-bold tabular-nums ${esAnulada ? 'text-slate-400 line-through' : 'text-brand-orange dark:text-orange-400'}`}>
                       {formatCurrency(op.monto)}
                     </p>
                     <div className="mt-1">{getStatusBadge(op.estado)}</div>
@@ -268,7 +270,7 @@ export function Operaciones() {
                     {op.pagos.map((pago, i) => (
                       <span
                         key={i}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-medium ${esAnulada ? 'line-through text-slate-400' : ''}`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-medium ${esAnulada ? 'line-through text-slate-400' : ''}`}
                       >
                         {pago.medio_pago || pago.nombre_medio || 'Efectivo'}: S/ {parseFloat(pago.monto).toFixed(2)}
                       </span>
@@ -277,14 +279,14 @@ export function Operaciones() {
                 )}
 
                 {evidenciaEmpresaPendiente && (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 border border-amber-200">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold px-2 py-0.5 border border-amber-200 dark:border-amber-800/60">
                     <Clock className="w-3 h-3" /> Evidencia empresa pendiente
                   </span>
                 )}
 
                 <button
                   onClick={() => { setSelectedOp(op); setDrawerAbierto(true); }}
-                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold transition"
                 >
                   <Eye className="h-3.5 w-3.5" /> Ver Detalle
                 </button>
@@ -294,11 +296,10 @@ export function Operaciones() {
         </div>
 
         {/* DESKTOP: tabla */}
-        <div className="hidden md:block overflow-x-auto">
-          {/* ... (La tabla de escritorio se mantiene igual) ... */}
+        <div className="hidden md:block overflow-x-auto pb-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full">
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
                 <th className="p-4">Fecha</th>
                 <th className="p-4">Turno</th>
                 <th className="p-4">Comprobante</th>
@@ -309,16 +310,16 @@ export function Operaciones() {
                 <th className="p-4 text-center">Acción</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-slate-500 text-lg">Cargando historial...</td>
+                  <td colSpan={8} className="p-12 text-center text-slate-500 dark:text-slate-400 text-lg">Cargando historial...</td>
                 </tr>
               ) : operacionesFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-slate-500 text-lg">
+                  <td colSpan={8} className="p-12 text-center text-slate-500 dark:text-slate-400 text-lg">
                     <div className="flex flex-col items-center gap-2">
-                      <FileText className="w-10 h-10 text-slate-300" />
+                      <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600" />
                       No se encontraron operaciones con los filtros seleccionados.
                     </div>
                   </td>
@@ -335,11 +336,11 @@ export function Operaciones() {
                 const evidenciaEmpresaPendiente = hayPagoNoEfectivo && !tieneEvidenciaEmpresa && !esAnulada;
 
                 return (
-                  <tr key={op.id_operacion} className={`hover:bg-slate-50 transition-colors group ${esAnulada ? 'bg-rose-50/30' : ''}`}>
+                  <tr key={op.id_operacion} className={`hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors group ${esAnulada ? 'bg-rose-50/30 dark:bg-rose-950/20' : ''}`}>
                     <td className="p-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <span className={`text-sm font-semibold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{op.fecha}</span>
+                        <Calendar className="w-5 h-5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                        <span className={`text-sm font-semibold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>{op.fecha}</span>
                       </div>
                     </td>
 
@@ -349,18 +350,18 @@ export function Operaciones() {
 
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <FileText className={`w-5 h-5 flex-shrink-0 ${esAnulada ? 'text-slate-300' : 'text-slate-400'}`} />
+                        <FileText className={`w-5 h-5 flex-shrink-0 ${esAnulada ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400 dark:text-slate-500'}`} />
                         <div className="flex flex-col">
-                          <span className="text-xs text-slate-500 uppercase">{op.tipo_comprobante || 'DOC'}</span>
-                          <span className={`text-sm font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{op.serie}-{op.numero}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 uppercase">{op.tipo_comprobante || 'DOC'}</span>
+                          <span className={`text-sm font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>{op.serie}-{op.numero}</span>
                         </div>
                       </div>
                     </td>
 
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <User className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <span className={`text-sm font-medium max-w-[200px] truncate ${esAnulada ? 'text-slate-400' : 'text-slate-900'}`} title={op.cliente || 'No registrado'}>
+                        <User className="w-5 h-5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                        <span className={`text-sm font-medium max-w-[200px] truncate ${esAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`} title={op.cliente || 'No registrado'}>
                           {op.cliente || 'No registrado'}
                         </span>
                       </div>
@@ -370,14 +371,14 @@ export function Operaciones() {
                       <div className="flex flex-col gap-1">
                         {op.pagos && op.pagos.length > 0 ? op.pagos.map((pago, i) => (
                           <div key={i} className="flex items-center gap-1.5">
-                            <CreditCard className={`w-4 h-4 flex-shrink-0 ${esAnulada ? 'text-slate-300' : 'text-blue-600'}`} />
-                            <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400' : 'text-slate-700'}`}>{pago.medio_pago || pago.nombre_medio || 'Efectivo'}:</span>
-                            <span className={`text-xs font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900'}`}>S/ {parseFloat(pago.monto).toFixed(2)}</span>
+                            <CreditCard className={`w-4 h-4 flex-shrink-0 ${esAnulada ? 'text-slate-300 dark:text-slate-600' : 'text-blue-600 dark:text-blue-400'}`} />
+                            <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>{pago.medio_pago || pago.nombre_medio || 'Efectivo'}:</span>
+                            <span className={`text-xs font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>S/ {parseFloat(pago.monto).toFixed(2)}</span>
                           </div>
-                        )) : <span className="text-xs text-slate-400">-</span>}
+                        )) : <span className="text-xs text-slate-400 dark:text-slate-500">-</span>}
 
                         {evidenciaEmpresaPendiente && (
-                          <span className="inline-flex items-center gap-1 mt-1 w-fit rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 border border-amber-200">
+                          <span className="inline-flex items-center gap-1 mt-1 w-fit rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold px-2 py-0.5 border border-amber-200 dark:border-amber-800/60">
                             <Clock className="w-3 h-3" />
                             Evidencia empresa pendiente
                           </span>
@@ -390,7 +391,7 @@ export function Operaciones() {
                     </td>
 
                     <td className="p-4 text-right whitespace-nowrap">
-                      <span className={`text-lg font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-brand-orange'}`}>
+                      <span className={`text-lg font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-brand-orange dark:text-orange-400'}`}>
                         {formatCurrency(op.monto)}
                       </span>
                     </td>
@@ -398,7 +399,7 @@ export function Operaciones() {
                     <td className="p-4 text-center">
                       <button
                         onClick={() => { setSelectedOp(op); setDrawerAbierto(true); }}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
                       >
                         <Eye className="h-4 w-4" />
                         Ver Detalle
@@ -412,16 +413,16 @@ export function Operaciones() {
         </div>
 
         {operacionesFiltradas.length > 0 && (
-          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-end items-start sm:items-center gap-2 sm:gap-4">
+          <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-end items-start sm:items-center gap-2 sm:gap-4">
             {hayAnuladas && (
-              <span className="text-[10px] sm:text-xs font-bold text-rose-600 bg-rose-50 px-2 sm:px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5">
+              <span className="text-[10px] sm:text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 sm:px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800/60 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
                 El total excluye operaciones anuladas
               </span>
             )}
             <div className="text-right w-full sm:w-auto">
-              <span className="text-[10px] sm:text-sm font-bold text-slate-600 mr-2 uppercase">Total Conciliado:</span>
-              <span className="text-lg sm:text-xl font-black text-slate-900">
+              <span className="text-[10px] sm:text-sm font-bold text-slate-600 dark:text-slate-400 mr-2 uppercase">Total Conciliado:</span>
+              <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
                 {formatCurrency(
                   operacionesFiltradas
                     .filter(op => (op.estado || '').toUpperCase() !== 'ANULADA')
@@ -437,7 +438,7 @@ export function Operaciones() {
         op={drawerAbierto ? selectedOp : null}
         onClose={() => setDrawerAbierto(false)}
         onEvidenciaSubida={async (idOperacion) => {
-          const lista = await cargarOperaciones();
+          const lista = await recargarOperaciones();
           const opActualizada = lista.find(
             (o) => Number(o.id_operacion) === Number(idOperacion)
           );

@@ -8,6 +8,25 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- SCRIPT ANTI-FOUC (Evita el destello blanco en modo oscuro) -->
+    <script>
+      (function() {
+        try {
+          const temaGuardado = localStorage.getItem('theme');
+          const prefiereOscuro = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          
+          if (temaGuardado === 'dark' || (!temaGuardado && prefiereOscuro)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.backgroundColor = '#0f172a'; // Color slate-900
+          } else {
+            document.documentElement.style.backgroundColor = '#ffffff'; // Color blanco
+          }
+        } catch (e) {
+          // Si falla el localStorage, no hacemos nada (cae en modo claro por defecto)
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

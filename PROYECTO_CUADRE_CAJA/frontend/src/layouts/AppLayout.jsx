@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import './AppLayout.css';
 import { useAuth } from '../hooks/useAuth';
@@ -12,7 +12,6 @@ import {
   Receipt,
   CreditCard,
   Paperclip,
-  CheckCircle,
   Store,
   ArrowUpRight,
   Ban,
@@ -23,6 +22,8 @@ import {
   TrendingUp,
   Users,
   Shield,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 function AppLayout() {
@@ -31,6 +32,22 @@ function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    return document.documentElement.classList.contains('dark') ||
+      localStorage.getItem('theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDark]);
+
+  const toggleTheme = () => setIsDark(prev => !prev);
 
   const userIsAdmin = typeof isAdmin === 'function' ? isAdmin() : !!isAdmin;
 
@@ -166,6 +183,15 @@ function AppLayout() {
           </div>
 
           <div className="app-header-user">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="theme-toggle-btn"
+              title={isDark ? "Cambiar a Modo Claro" : "Cambiar a Modo Oscuro"}
+              aria-label="Alternar tema"
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+            </button>
             <div className="user-info text-right">
               <span className="font-bold text-slate-800 block text-sm">
                 {user?.nombres ? `${user.nombres} ${user.apellidos}` : (user?.usuario || 'Usuario')}

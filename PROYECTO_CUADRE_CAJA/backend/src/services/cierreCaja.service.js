@@ -3,12 +3,11 @@ import {
   findCierreCajaById,
   findCierresCaja,
   getTotalesParaCierre,
-  contarOperacionesSinEvidenciaEmpresa
+  contarOperacionesSinEvidenciaEmpresa,
+  updateEstadoCierre // <-- NUEVO
 } from '../repositories/cierreCaja.repository.js';
 
-import {
-  withTransaction
-} from '../repositories/base.repository.js';
+import { withTransaction } from '../repositories/base.repository.js';
 
 export const registrarCierreCaja = async ({
   fecha,
@@ -21,17 +20,9 @@ export const registrarCierreCaja = async ({
   fecha_fin = null,
   id_usuario_responsable
 }) => {
-  if (!id_usuario_responsable) {
-    throw new Error('El usuario responsable es obligatorio');
-  }
-
-  if (!fecha) {
-    throw new Error('La fecha es obligatoria');
-  }
-
-  if (!turno) {
-    throw new Error('El turno es obligatorio');
-  }
+  if (!id_usuario_responsable) throw new Error('El usuario responsable es obligatorio');
+  if (!fecha) throw new Error('La fecha es obligatoria');
+  if (!turno) throw new Error('El turno es obligatorio');
 
   const ingresos = Number(total_ingresos);
   const noEfectivo = Number(total_no_efectivo);
@@ -46,34 +37,17 @@ export const registrarCierreCaja = async ({
   ];
 
   for (const [nombre, valor] of valores) {
-    if (!Number.isFinite(valor)) {
-      throw new Error(`${nombre} debe ser numérico`);
-    }
-
-    if (valor < 0) {
-      throw new Error(`${nombre} no puede ser negativo`);
-    }
+    if (!Number.isFinite(valor)) throw new Error(`${nombre} debe ser numérico`);
+    if (valor < 0) throw new Error(`${nombre} no puede ser negativo`);
   }
 
   const efectivoEsperado = ingresos - noEfectivo;
+  if (efectivoEsperado < 0) throw new Error('El efectivo esperado no puede ser negativo');
 
-  if (efectivoEsperado < 0) {
-    throw new Error(
-      'El efectivo esperado no puede ser negativo'
-    );
-  }
+  const efectivoDespuesSalidas = efectivoEsperado - salidas;
+  if (efectivoDespuesSalidas < 0) throw new Error('El efectivo después de salidas no puede ser negativo');
 
-  const efectivoDespuesSalidas =
-    efectivoEsperado - salidas;
-
-  if (efectivoDespuesSalidas < 0) {
-    throw new Error(
-      'El efectivo después de salidas no puede ser negativo'
-    );
-  }
-
-  const diferencia =
-    efectivoFisico - efectivoDespuesSalidas;
+  const diferencia = efectivoFisico - efectivoDespuesSalidas;
 
   return withTransaction(async (client) => {
     const cierre = await createCierreCaja({
@@ -91,9 +65,6 @@ export const registrarCierreCaja = async ({
       fecha_fin
     }, client);
 
-    // FIX: usar comprobante.hora (hora impresa en la boleta física)
-    // en lugar de operacion.fecha_registro (hora real del servidor).
-    // Esto permite regularizar comprobantes de días anteriores al turno correcto.
     let timeCondition = '';
     if (turno === 'MAÑANA') {
       timeCondition = `AND (COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '14:00:00'::time)`;
@@ -119,11 +90,9 @@ export const registrarCierreCaja = async ({
 
 export const obtenerCierreCaja = async (idCierre) => {
   const cierre = await findCierreCajaById(idCierre);
-
   if (!cierre) return null;
 
-  const operaciones_pendientes_evidencia =
-    await contarOperacionesSinEvidenciaEmpresa(idCierre);
+  const operaciones_pendientes_evidencia = await contarOperacionesSinEvidenciaEmpresa(idCierre);
 
   return {
     ...cierre,
@@ -144,4 +113,22 @@ export const obtenerPreCalculoCierre = async (fecha, turno) => {
     total_no_efectivo: noEfectivo,
     efectivo_esperado: ingresos - noEfectivo
   };
+};
+
+// NUEVO: Servicio para reabrir el turno
+export const reabrirCierreCaja = async (idCierre) => {
+  const cierre = await findCierreCajaById(idCierre);
+  if (!cierre) {
+    const error = new Error('El cierre de caja no existe');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (cierre.estado !== 'CERRADO') {
+    const error = new Error('El turno ya se encuentra abierto');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return updateEstadoCierre(idCierre, 'ABIERTO');
 };

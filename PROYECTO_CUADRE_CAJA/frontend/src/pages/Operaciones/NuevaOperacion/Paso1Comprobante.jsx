@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator, ChevronDown, X } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
 import api from '../../../lib/api';
 import { SingleDatePicker } from '../../../components/ui/SingleDatePicker';
@@ -13,10 +13,14 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [ocrData, setOcrData] = useState(null);
-  const [modo, setModo] = useState(null);
+  const [modo, setModo] = useState(datosIniciales?.evidencia ? 'ocr' : null);
   const [imagenPreview, setImagenPreview] = useState(null);
   const [verImagenCompleta, setVerImagenCompleta] = useState(false);
   const [itemsAbiertos, setItemsAbiertos] = useState(false);
+  
+  // NUEVO ESTADO PARA EL FALSO POSITIVO
+  const [warningDuplicado, setWarningDuplicado] = useState(null);
+
   const urlRef = useRef(null);
   const blobRef = useRef(null);
 
@@ -28,26 +32,6 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
     medio_pago: '', producto: '', items: [],
   });
 
-  const [mediosPago, setMediosPago] = useState([]);
-
-  useEffect(() => {
-    if (datosIniciales) setFormData(datosIniciales);
-  }, [datosIniciales]);
-
-  useEffect(() => {
-    const cargarMedios = async () => {
-      try {
-        const res = await api.get('/medios-pago');
-        const data = res.data?.data || res.data;
-        setMediosPago(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('Error cargando medios de pago:', err);
-        setMediosPago([]);
-      }
-    };
-    cargarMedios();
-  }, []);
-
   useEffect(() => {
     if (datosIniciales?.evidencia && !imagenPreview) {
       const blob = datosIniciales.evidencia;
@@ -55,9 +39,9 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         blobRef.current = blob;
         const url = URL.createObjectURL(blob);
         urlRef.current = url;
+        // The object URL is created after commit and state is required to render its preview.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setImagenPreview(url);
-        setModo('ocr');
-        setOcrData(null);
       }
     }
   }, [datosIniciales?.evidencia, imagenPreview]);
@@ -160,19 +144,15 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
       setOcrData(ocrResult);
       const datos = ocrResult?.datos_extraidos || {};
 
-      // --- SALVAVIDAS MATEMÁTICO ---
       let igvFinal = datos.igv;
       let opGravadaFinal = datos.op_gravada;
 
-      // Si el OCR falló en el IGV pero tenemos el Total y la Op. Gravada
       if ((!igvFinal || Number(igvFinal) === 0) && datos.monto && opGravadaFinal) {
         igvFinal = Number(datos.monto) - Number(opGravadaFinal);
       }
-      // Si el OCR falló en la Op. Gravada pero tenemos el Total y el IGV
       if ((!opGravadaFinal || Number(opGravadaFinal) === 0) && datos.monto && igvFinal) {
         opGravadaFinal = Number(datos.monto) - Number(igvFinal);
       }
-      // ------------------------------
 
       const nuevo = {
         ...formData,
@@ -185,7 +165,6 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         cliente: datos.cliente || '',
         producto: '',
         monto: datos.monto ? String(datos.monto) : '',
-        // Aplicamos los valores finales (con el salvavidas aplicado)
         igv: igvFinal ? Number(igvFinal).toFixed(2) : '',
         op_gravada: opGravadaFinal ? Number(opGravadaFinal).toFixed(2) : '',
         efectivo: datos.efectivo ? String(datos.efectivo) : '',
@@ -225,9 +204,38 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
     return true;
   };
 
-  const handleNext = () => {
+  // LÓGICA DE VALIDACIÓN PROACTIVA
+  const handleNext = async () => {
     if (!validarFormulario()) return;
-    onNext({ comprobante: formData });
+
+    setLoading(true);
+    setWarningDuplicado(null);
+
+    try {
+      const res = await api.get('/comprobantes/check', {
+        params: {
+          tipo_comprobante: formData.tipo_comprobante,
+          serie: formData.serie,
+          numero: formData.numero
+        }
+      });
+
+      if (res.data?.exists) {
+        // ENCONTRAMOS UN POSIBLE DUPLICADO: Mostramos advertencia y DETENEMOS
+        setWarningDuplicado(res.data.data);
+        setLoading(false);
+        return; 
+      }
+
+      // No existe, avanzamos normal
+      onNext({ comprobante: formData });
+    } catch (err) {
+      // Si falla la verificación (ej. error de red), lo dejamos pasar por seguridad
+      console.error('Error verificando comprobante:', err);
+      onNext({ comprobante: formData });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatNumber = (val) => {
@@ -239,8 +247,8 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   // LOADING
   if (loading) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-slate-50 rounded-xl p-3 sm:p-4 flex items-start justify-center">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 dark:bg-slate-900">
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 sm:p-4 flex items-start justify-center">
           {imagenPreview && (
             <img
               src={imagenPreview}
@@ -251,37 +259,34 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         </div>
         <div className="flex flex-col items-center justify-center py-12 sm:py-20">
           <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-slate-600 font-medium mb-2 text-sm sm:text-base">Procesando OCR...</p>
-          <p className="text-slate-400 text-xs sm:text-sm text-center max-w-md px-4">
-            Esto puede tardar unos segundos.
-          </p>
+          <p className="text-slate-600 dark:text-slate-400 font-medium mb-2 text-sm sm:text-base">Verificando datos...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 dark:bg-slate-900">
       {/* Columna izquierda: imagen o selector */}
       <div className="lg:sticky lg:top-4 lg:self-start">
         {modo === null ? (
           <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-sm sm:text-lg font-bold text-slate-900 mb-2 sm:mb-4">
+            <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 mb-2 sm:mb-4">
               ¿Cómo deseas registrar el comprobante?
             </h3>
 
             <button
               type="button"
               onClick={() => document.getElementById('archivo-input').click()}
-              className="w-full p-3 sm:p-6 bg-white border-2 border-gray-200 hover:border-brand-orange rounded-xl transition-all hover:shadow-md text-left group"
+              className="w-full p-3 sm:p-6 bg-white dark:bg-slate-800/60 border-2 border-gray-200 dark:border-slate-600 hover:border-brand-orange rounded-xl transition-all hover:shadow-md dark:hover:shadow-none text-left group"
             >
               <div className="flex items-center gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-brand-orange transition-colors flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center group-hover:bg-brand-orange transition-colors flex-shrink-0">
                   <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6 text-brand-orange group-hover:text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="font-bold text-slate-900 text-sm sm:text-base">Subir foto del comprobante</h4>
-                  <p className="text-xs sm:text-sm text-slate-500">El OCR extraerá los datos automáticamente</p>
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">Subir foto del comprobante</h4>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">El OCR extraerá los datos automáticamente</p>
                 </div>
               </div>
             </button>
@@ -289,15 +294,15 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
             <button
               type="button"
               onClick={handleManualMode}
-              className="w-full p-3 sm:p-6 bg-white border-2 border-gray-200 hover:border-brand-orange rounded-xl transition-all hover:shadow-md text-left group"
+              className="w-full p-3 sm:p-6 bg-white dark:bg-slate-800/60 border-2 border-gray-200 dark:border-slate-600 hover:border-brand-orange rounded-xl transition-all hover:shadow-md dark:hover:shadow-none text-left group"
             >
               <div className="flex items-center gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-brand-orange transition-colors flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center group-hover:bg-brand-orange transition-colors flex-shrink-0">
                   <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6 text-brand-orange group-hover:text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="font-bold text-slate-900 text-sm sm:text-base">Registro manual</h4>
-                  <p className="text-xs sm:text-sm text-slate-500">Ingresar los datos manualmente</p>
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">Registro manual</h4>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Ingresar los datos manualmente</p>
                 </div>
               </div>
             </button>
@@ -314,15 +319,14 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
             />
           </div>
         ) : (
-          <div className="bg-slate-50 rounded-xl p-2 sm:p-4">
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-2 sm:p-4">
             {imagenPreview && (
               <>
                 <div className="relative">
                   <img
                     src={imagenPreview}
                     alt="Comprobante"
-                    className={`w-full h-auto rounded-lg border border-slate-200 object-contain transition-all ${verImagenCompleta ? 'max-h-[80vh]' : 'max-h-[200px] sm:max-h-[60vh]'
-                      }`}
+                    className={`w-full h-auto rounded-lg border border-slate-200 object-contain transition-all ${verImagenCompleta ? 'max-h-[80vh]' : 'max-h-[200px] sm:max-h-[60vh]'}`}
                   />
                   {!verImagenCompleta && (
                     <button
@@ -364,7 +368,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 setFormData(nuevo);
                 onDataChange(nuevo);
               }}
-              className="mt-3 w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs sm:text-sm font-semibold transition"
+              className="mt-3 w-full px-4 py-2 bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 rounded-lg text-xs sm:text-sm font-semibold transition"
             >
               Cambiar modo
             </button>
@@ -375,43 +379,75 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
       {/* Columna derecha: formulario */}
       <div className="space-y-4 sm:space-y-6">
         <div className="text-center mb-2 sm:mb-6">
-          <h2 className="text-lg sm:text-2xl font-bold text-slate-900 mb-1 sm:mb-2">
+          <h2 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1 sm:mb-2">
             Paso 1: Comprobante
           </h2>
-          <p className="text-xs sm:text-base text-slate-500 px-2">
+          <p className="text-xs sm:text-base text-slate-500 dark:text-slate-400 px-2">
             Registra los datos del comprobante (define el monto total a pagar)
           </p>
         </div>
 
+        {/* NUEVO BANNER DE ADVERTENCIA (FALSO POSITIVO) */}
+        {warningDuplicado && (
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl p-4 sm:p-5 shadow-sm dark:shadow-none animate-fade-in">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-amber-900 dark:text-amber-300 text-sm sm:text-base">Posible comprobante duplicado</h4>
+                <p className="text-amber-800 dark:text-amber-300 text-xs sm:text-sm mt-1 leading-relaxed">
+                  El comprobante <strong>{formData.tipo_comprobante} {formData.serie}-{formData.numero}</strong> ya figura en el sistema (Monto: {formatPEN(warningDuplicado.monto)}).
+                  Si estás seguro de que es una operación distinta, puedes continuar.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setWarningDuplicado(null)}
+                    className="px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition"
+                  >
+                    Cancelar y revisar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNext({ comprobante: formData })}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition shadow-sm"
+                  >
+                    Continuar de todas formas
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
-            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-800 font-medium text-xs sm:text-sm">{error}</p>
+          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-800 dark:text-red-300 font-medium text-xs sm:text-sm">{error}</p>
           </div>
         )}
 
         {ocrData && (
           <div className="flex gap-2 flex-wrap mb-2 sm:mb-4">
             {ocrData.requiere_revision && (
-              <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-yellow-100 text-yellow-800 text-[10px] sm:text-xs font-semibold">
+              <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-yellow-100 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 text-[10px] sm:text-xs font-semibold">
                 <AlertCircle className="w-3 h-3" /> Requiere revisión
               </span>
             )}
             {ocrData.requiere_confirmacion && (
-              <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-blue-100 text-blue-800 text-[10px] sm:text-xs font-semibold">
+              <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 text-[10px] sm:text-xs font-semibold">
                 <CheckCircle className="w-3 h-3" /> Requiere confirmación
               </span>
             )}
           </div>
         )}
 
-        {/* ITEMS OCR — ACORDEÓN con cards en móvil */}
+        {/* ITEMS OCR */}
         {formData.items && formData.items.length > 0 && (
-          <div className="bg-white rounded-xl p-3 sm:p-6 shadow-sm border border-slate-200">
+          <div className="bg-white dark:bg-slate-800/60 rounded-xl p-3 sm:p-6 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-600">
             <button
               type="button"
               onClick={() => setItemsAbiertos(!itemsAbiertos)}
-              className="w-full flex items-center justify-between text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wide hover:text-slate-900 transition"
+              className="w-full flex items-center justify-between text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide hover:text-slate-900 dark:hover:text-slate-100 transition"
             >
               <span>Detalle detectado por el OCR ({formData.items.length})</span>
               <ChevronDown className={`w-4 h-4 transition-transform ${itemsAbiertos ? 'rotate-180' : ''}`} />
@@ -419,18 +455,17 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
             {itemsAbiertos && (
               <div className="mt-3">
-                {/* MÓVIL: cards */}
-                <div className="block sm:hidden divide-y divide-slate-100 rounded-lg border border-slate-100 bg-slate-50/50">
+                <div className="block sm:hidden divide-y divide-slate-100 dark:divide-slate-700 rounded-lg border border-slate-100 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/60">
                   {formData.items.map((item, idx) => (
                     <div key={idx} className="p-3 space-y-1">
-                      <p className="text-sm font-semibold text-slate-900 break-words">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 break-words">
                         {item.descripcion}
                       </p>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500">
+                        <span className="text-slate-500 dark:text-slate-400">
                           {Number(item.cantidad).toFixed(2)} × {formatPEN(item.precio_unitario)}
                         </span>
-                        <span className="font-bold text-slate-900 tabular-nums">
+                        <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                           {formatPEN(item.total)}
                         </span>
                       </div>
@@ -438,43 +473,43 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                   ))}
                 </div>
 
-                {/* DESKTOP: tabla */}
                 <div className="hidden sm:block">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-2 px-3 font-semibold text-slate-600">CANT.</th>
-                        <th className="text-left py-2 px-3 font-semibold text-slate-600">DESCRIPCIÓN</th>
-                        <th className="text-right py-2 px-3 font-semibold text-slate-600">P.UNIT</th>
-                        <th className="text-right py-2 px-3 font-semibold text-slate-600">TOTAL</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {formData.items.map((item, idx) => (
-                        <tr key={idx} className="border-b border-gray-100 last:border-0">
-                          <td className="py-2 px-3 text-slate-900 whitespace-nowrap">{Number(item.cantidad).toFixed(2)}</td>
-                          <td className="py-2 px-3 text-slate-900 break-words whitespace-normal">{item.descripcion}</td>
-                          <td className="py-2 px-3 text-right text-slate-900 whitespace-nowrap">{formatPEN(item.precio_unitario)}</td>
-                          <td className="py-2 px-3 text-right text-slate-900 whitespace-nowrap">{formatPEN(item.total)}</td>
+                  <div className="overflow-x-auto pb-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-slate-700">
+                          <th className="text-left py-2 px-3 font-semibold text-slate-600 dark:text-slate-400">CANT.</th>
+                          <th className="text-left py-2 px-3 font-semibold text-slate-600 dark:text-slate-400">DESCRIPCIÓN</th>
+                          <th className="text-right py-2 px-3 font-semibold text-slate-600 dark:text-slate-400">P.UNIT</th>
+                          <th className="text-right py-2 px-3 font-semibold text-slate-600 dark:text-slate-400">TOTAL</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {formData.items.map((item, idx) => (
+                          <tr key={idx} className="border-b border-gray-100 dark:border-slate-600 last:border-0">
+                            <td className="py-2 px-3 text-slate-900 dark:text-slate-100 whitespace-nowrap">{Number(item.cantidad).toFixed(2)}</td>
+                            <td className="py-2 px-3 text-slate-900 dark:text-slate-100 break-words whitespace-normal">{item.descripcion}</td>
+                            <td className="py-2 px-3 text-right text-slate-900 dark:text-slate-100 whitespace-nowrap">{formatPEN(item.precio_unitario)}</td>
+                            <td className="py-2 px-3 text-right text-slate-900 dark:text-slate-100 whitespace-nowrap">{formatPEN(item.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                {/* Totales */}
-                <div className="mt-3 space-y-1.5 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                <div className="mt-3 space-y-1.5 bg-slate-50 dark:bg-slate-900/70 rounded-lg p-3 border border-slate-100 dark:border-slate-600">
                   <div className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-slate-600 font-semibold">Op. Gravada:</span>
-                    <span className="text-slate-900 font-bold tabular-nums">{formatPEN(formData.op_gravada)}</span>
+                    <span className="text-slate-600 dark:text-slate-400 font-semibold">Op. Gravada:</span>
+                    <span className="text-slate-900 dark:text-slate-100 font-bold tabular-nums">{formatPEN(formData.op_gravada)}</span>
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-slate-600 font-semibold">IGV:</span>
-                    <span className="text-slate-900 font-bold tabular-nums">{formatPEN(formData.igv)}</span>
+                    <span className="text-slate-600 dark:text-slate-400 font-semibold">IGV:</span>
+                    <span className="text-slate-900 dark:text-slate-100 font-bold tabular-nums">{formatPEN(formData.igv)}</span>
                   </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-200">
-                    <span className="text-slate-800 font-bold text-sm sm:text-base">Total:</span>
-                    <span className="text-slate-900 font-black text-base sm:text-lg tabular-nums">{formatPEN(formData.monto)}</span>
+                  <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <span className="text-slate-800 dark:text-slate-200 font-bold text-sm sm:text-base">Total:</span>
+                    <span className="text-slate-900 dark:text-slate-100 font-black text-base sm:text-lg tabular-nums">{formatPEN(formData.monto)}</span>
                   </div>
                 </div>
               </div>
@@ -482,18 +517,17 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
           </div>
         )}
 
-        {/* FORMULARIO */}
-        <div className="bg-white rounded-xl p-3 sm:p-6 shadow-sm border border-slate-200 space-y-3 sm:space-y-4">
+        <div className="bg-white dark:bg-slate-800/60 rounded-xl p-3 sm:p-6 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-600 space-y-3 sm:space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Tipo de comprobante *
               </label>
               <select
                 name="tipo_comprobante"
                 value={formData.tipo_comprobante}
                 onChange={(e) => handleChange('tipo_comprobante', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               >
                 <option value="">Seleccionar...</option>
                 <option value="BOLETA">Boleta</option>
@@ -502,7 +536,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Serie *
               </label>
               <input
@@ -511,12 +545,12 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.serie}
                 onChange={(e) => handleChange('serie', e.target.value)}
                 placeholder="Ej: BE02"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Número *
               </label>
               <input
@@ -525,12 +559,12 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.numero}
                 onChange={(e) => handleChange('numero', e.target.value)}
                 placeholder="Ej: 00024034"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Fecha *
               </label>
               <SingleDatePicker
@@ -541,7 +575,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Monto (S/) *
               </label>
               <input
@@ -553,12 +587,12 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Hora
               </label>
               <input
@@ -566,12 +600,12 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 name="hora"
                 value={formData.hora}
                 onChange={(e) => handleChange('hora', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Cliente
               </label>
               <input
@@ -580,12 +614,12 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.cliente || ''}
                 onChange={(e) => handleChange('cliente', e.target.value)}
                 placeholder="Nombre del cliente"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Vendedor
               </label>
               <input
@@ -594,15 +628,15 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.vendedor}
                 onChange={(e) => handleChange('vendedor', e.target.value)}
                 placeholder="Nombre del vendedor"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5 flex items-center gap-1.5 flex-wrap">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5 flex items-center gap-1.5 flex-wrap">
                 IGV
                 {modo === 'manual' && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">
                     <Calculator className="w-3 h-3" />
                     Auto
                   </span>
@@ -618,24 +652,24 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 step="0.01"
                 min="0"
                 readOnly={modo === 'manual'}
-                className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition ${modo === 'manual' ? 'bg-slate-100 cursor-not-allowed text-slate-600' : ''}`}
+                className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition ${modo === 'manual' ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed text-slate-600 dark:text-slate-400' : ''}`}
               />
               {modo === 'manual' && (
-                <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500">
+                <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
                   Calculado automáticamente (18% incluido)
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Moneda
               </label>
               <select
                 name="moneda"
                 value={formData.moneda}
                 onChange={(e) => handleChange('moneda', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               >
                 <option value="PEN">PEN - Soles</option>
                 <option value="USD">USD - Dólares</option>
@@ -643,7 +677,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 sm:mb-1.5">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                 Producto / Detalle
               </label>
               <input
@@ -652,25 +686,24 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.producto}
                 onChange={(e) => handleChange('producto', e.target.value)}
                 placeholder="Descripción del producto o servicio"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
           </div>
         </div>
 
-        {/* NAV BUTTONS — Continuar arriba en móvil */}
         <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 sm:gap-0 pt-2">
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-semibold text-sm transition"
+            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-200 rounded-xl font-semibold text-sm transition"
           >
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleNext}
-            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl font-semibold text-sm transition shadow-md"
+            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl font-semibold text-sm transition shadow-md dark:shadow-none disabled:opacity-50"
           >
             Continuar con los pagos
             <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />

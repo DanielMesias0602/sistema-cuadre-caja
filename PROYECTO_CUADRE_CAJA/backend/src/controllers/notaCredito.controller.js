@@ -2,7 +2,8 @@ import {
   registrarNotaCredito,
   obtenerNotaCredito,
   listarNotasCreditoPorComprobante,
-  listarTodasNotasCredito // <-- NUEVO
+  listarTodasNotasCredito,
+  modificarNotaCredito
 } from '../services/notaCredito.service.js';
 
 export const createNotaCredito = async (req, res, next) => {
@@ -38,11 +39,19 @@ export const getNotasCreditoByComprobante = async (req, res, next) => {
   }
 };
 
-// NUEVO: Listar todas las notas
 export const getNotasCredito = async (req, res, next) => {
   try {
     const notas = await listarTodasNotasCredito();
     return res.json({ status: 'success', data: notas });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateNotaCredito = async (req, res, next) => {
+  try {
+    const nota = await modificarNotaCredito(Number(req.params.id), req.body);
+    return res.json({ status: 'success', data: nota });
   } catch (error) {
     next(error);
   }

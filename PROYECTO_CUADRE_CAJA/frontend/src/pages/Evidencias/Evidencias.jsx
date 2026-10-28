@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
-import { Search, ChevronDown, Loader2, ImageOff, X, CheckCircle, Clock, Receipt, CreditCard, Banknote, Wallet, ZoomIn, ZoomOut, User, Calendar, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Search, ChevronDown, Loader2, ImageOff, X, CheckCircle, Clock, CreditCard, Banknote, Wallet, ZoomIn, ZoomOut, User, Calendar, ShieldCheck } from 'lucide-react';
 import { EvidenceCard } from './EvidenceCard';
 
 export function Evidencias() {
@@ -10,9 +10,9 @@ export function Evidencias() {
 
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [docType, setDocType] = useState('');
+  const [estadoFiltro, setEstadoFiltro] = useState(''); // NUEVO: Filtro de estado
   const [selectedOp, setSelectedOp] = useState(null);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [isImageOpen, setIsImageOpen] = useState(false);
@@ -26,13 +26,11 @@ export function Evidencias() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        setError(null);
         const res = await api.get('/operaciones');
         const data = res.data?.data || res.data;
         setOperaciones(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error(err);
-        setError('No hay datos disponibles');
         setOperaciones([]);
       } finally {
         setLoading(false);
@@ -52,9 +50,22 @@ export function Evidencias() {
 
       const matchType = !docType || (op.tipo_comprobante || '').toUpperCase() === docType;
 
-      return matchQuery && matchType;
+      // NUEVO: Filtro por Estado de Conciliación
+      let matchEstado = true;
+      if (estadoFiltro) {
+        const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+        const todosVerificados = pagos.length > 0 && pagos.every(p => {
+          const est = String(p.estado || '').toUpperCase();
+          return est === 'VERIFICADO' || est === 'VERIFICADA' || est === 'COMPLETADO';
+        });
+        
+        if (estadoFiltro === 'CONCILIADO') matchEstado = todosVerificados;
+        if (estadoFiltro === 'PENDIENTE') matchEstado = !todosVerificados;
+      }
+
+      return matchQuery && matchType && matchEstado;
     });
-  }, [operaciones, query, docType]);
+  }, [operaciones, query, docType, estadoFiltro]);
 
   const abrirModal = (op) => {
     setSelectedOp(op);
@@ -118,7 +129,6 @@ export function Evidencias() {
 
     try {
       setVerificando(true);
-
       const promesas = pagosPendientes.map(p =>
         api.put(`/pagos/${p.id_pago}`, {
           id_medio_pago: p.id_medio_pago || p.id_medio,
@@ -138,7 +148,6 @@ export function Evidencias() {
       cerrarModal();
     } catch (err) {
       console.error('Error al verificar pagos:', err);
-
       if (err.response?.status === 403) {
         alert('No tienes permisos suficientes.\n\nSolo un Administrador puede verificar pagos.');
       } else {
@@ -175,41 +184,54 @@ export function Evidencias() {
 
   if (loading) {
     return (
-      <div className="flex h-[80vh] items-center justify-center">
+      <div className="flex h-[80vh] items-center justify-center dark:bg-slate-900">
         <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto w-full">
+    <div className="space-y-6 max-w-7xl mx-auto w-full dark:bg-slate-900">
       <div>
-        <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Galería de Evidencias</h1>
-        <p className="mt-1 text-sm text-slate-500">Visualiza todas las evidencias documentales de las operaciones registradas.</p>
+        <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">Galería de Evidencias</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Visualiza todas las evidencias documentales de las operaciones registradas.</p>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/60 p-3 shadow-sm dark:shadow-none sm:flex-row">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por comprobante o cliente..."
-            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-brand-orange focus:bg-white focus:ring-1 focus:ring-brand-orange"
+            className="h-10 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition focus:border-brand-orange focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-brand-orange"
           />
         </div>
-        <div className="relative sm:w-64">
+        <div className="relative sm:w-56">
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value)}
-            className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-9 text-sm outline-none focus:border-brand-orange focus:bg-white focus:ring-1 focus:ring-brand-orange"
+            className="h-10 w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 pl-3 pr-9 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand-orange focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-brand-orange"
           >
             <option value="">Todos los comprobantes</option>
             <option value="BOLETA">Boleta</option>
             <option value="FACTURA">Factura</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        </div>
+        {/* NUEVO: Selector de Estado de Conciliación */}
+        <div className="relative sm:w-56">
+          <select
+            value={estadoFiltro}
+            onChange={(e) => setEstadoFiltro(e.target.value)}
+            className="h-10 w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 pl-3 pr-9 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand-orange focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-brand-orange"
+          >
+            <option value="">Todos los estados</option>
+            <option value="PENDIENTE">Pendientes de Conciliar</option>
+            <option value="CONCILIADO">Conciliados</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
         </div>
       </div>
 
@@ -225,9 +247,9 @@ export function Evidencias() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-20">
-          <ImageOff className="h-10 w-10 text-slate-300 mb-3" />
-          <p className="text-slate-500 font-medium">No se encontraron evidencias con los filtros aplicados.</p>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/60 py-20">
+          <ImageOff className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="text-slate-500 dark:text-slate-400 font-medium">No se encontraron evidencias con los filtros aplicados.</p>
         </div>
       )}
 
@@ -235,7 +257,7 @@ export function Evidencias() {
         <div className="fixed inset-0 z-50">
           <div
             onClick={cerrarModal}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm"
           />
 
           <div className="absolute inset-0 z-30 flex flex-col sm:flex-row">
@@ -251,7 +273,7 @@ export function Evidencias() {
                 </button>
               </div>
 
-              <div className="flex-1 flex flex-col p-4 overflow-hidden">
+              <div className="flex-1 flex flex-col p-4 overflow-hidden [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
                 {(() => {
                   const evidencias = getEvidenciasDeOperacion(selectedOp);
                   if (evidencias.length === 0) {
@@ -280,14 +302,14 @@ export function Evidencias() {
                               className="max-h-full max-w-full object-contain"
                             />
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 group-hover:bg-slate-900/40 transition-colors">
-                              <span className="flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-bold text-slate-800 shadow-md opacity-0 group-hover:opacity-100">
+                              <span className="flex items-center gap-1.5 rounded-lg bg-white/95 dark:bg-slate-800/95 px-3 py-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-md dark:shadow-none opacity-0 group-hover:opacity-100">
                                 <ZoomIn className="h-3.5 w-3.5" />
                                 Ampliar
                               </span>
                             </div>
                           </>
                         ) : (
-                          <div className="flex flex-col items-center justify-center text-slate-500 p-6">
+                          <div className="flex flex-col items-center justify-center text-slate-400 p-6">
                             <ImageOff className="h-10 w-10 mb-2" />
                             <p className="text-xs text-center">Sin vista previa</p>
                           </div>
@@ -300,7 +322,7 @@ export function Evidencias() {
                       </div>
 
                       {evidencias.length > 1 && (
-                        <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+                        <div className="flex gap-2 mt-4 overflow-x-auto pb-2 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
                           {evidencias.map((evidencia, idx) => (
                             <button
                               key={idx}
@@ -320,7 +342,7 @@ export function Evidencias() {
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-slate-800">
-                                  <ImageOff className="h-4 w-4 text-slate-600" />
+                                  <ImageOff className="h-4 w-4 text-slate-400" />
                                 </div>
                               )}
                               {idx === imagenPrincipalIndex && (
@@ -336,39 +358,39 @@ export function Evidencias() {
               </div>
             </div>
 
-            <div className="flex-1 sm:w-1/2 bg-white flex flex-col h-full overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0">
+            <div className="flex-1 sm:w-1/2 bg-white dark:bg-slate-800 flex flex-col h-full overflow-hidden">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-600 px-6 py-4 shrink-0">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Conciliación</h2>
-                  <p className="text-sm text-slate-500">{selectedOp.tipo_comprobante} {selectedOp.serie}-{selectedOp.numero}</p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Conciliación</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{selectedOp.tipo_comprobante} {selectedOp.serie}-{selectedOp.numero}</p>
                 </div>
                 <button
                   type="button"
                   onClick={cerrarModal}
-                  className="sm:hidden rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  className="sm:hidden rounded-lg p-2 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-4">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+                <div className="flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-900 p-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-white">
                     <User className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Cliente</p>
-                    <p className="text-sm font-bold text-slate-900">{selectedOp.cliente}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Cliente</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedOp.cliente}</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                     <Calendar className="h-4 w-4" />
                     <span>{selectedOp.fecha}</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-slate-500">Monto Total</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Monto Total</p>
                     <p className="text-2xl font-black text-brand-orange tabular-nums">
                       {formatCurrency(selectedOp.monto)}
                     </p>
@@ -376,7 +398,7 @@ export function Evidencias() {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 mb-3">Pagos Asociados</h3>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-3">Pagos Asociados</h3>
                   <div className="space-y-2">
                     {(Array.isArray(selectedOp.pagos) ? selectedOp.pagos : []).map((pago, idx) => {
                       const verificado = estaVerificado(pago);
@@ -384,29 +406,29 @@ export function Evidencias() {
                         <div
                           key={idx}
                           className={`flex items-center justify-between p-3 rounded-xl border ${
-                            verificado ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                            verificado ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-slate-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-600'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                               {renderMedioIcon(pago.medio_pago)}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">{pago.medio_pago}</p>
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{pago.medio_pago}</p>
                               {pago.referencia && (
-                                <p className="text-xs text-slate-500">Ref: {pago.referencia}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Ref: {pago.referencia}</p>
                               )}
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(pago.monto)}</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(pago.monto)}</p>
                             {verificado ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                                 <CheckCircle className="h-3 w-3" />
                                 Verificado
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400">
                                 <Clock className="h-3 w-3" />
                                 Pendiente
                               </span>
@@ -418,7 +440,7 @@ export function Evidencias() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-600 flex flex-col sm:flex-row gap-3">
                   {(() => {
                     const pagosPendientesCount = (Array.isArray(selectedOp.pagos) ? selectedOp.pagos : []).filter(p => {
                       const est = String(p.estado || 'PENDIENTE').toUpperCase();
@@ -431,7 +453,7 @@ export function Evidencias() {
                           type="button"
                           onClick={cerrarModal}
                           disabled={verificando}
-                          className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200 transition active:scale-95 disabled:opacity-50"
+                          className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95 disabled:opacity-50"
                         >
                           Cancelar
                         </button>
@@ -440,13 +462,13 @@ export function Evidencias() {
                             type="button"
                             onClick={handleAprobarPagos}
                             disabled={verificando}
-                            className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                            className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-md dark:shadow-none shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
                           >
                             <ShieldCheck className="h-5 w-5" />
                             {verificando ? 'Verificando...' : 'Aprobar y Verificar'}
                           </button>
                         ) : (
-                          <div className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-amber-50 text-sm font-bold text-amber-800 ring-1 ring-amber-200">
+                          <div className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-sm font-bold text-amber-800 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800">
                             <ShieldCheck className="h-5 w-5" />
                             Solo un Administrador puede verificar
                           </div>
@@ -458,11 +480,11 @@ export function Evidencias() {
                           type="button"
                           onClick={cerrarModal}
                           disabled={verificando}
-                          className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200 transition active:scale-95 disabled:opacity-50"
+                          className="flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95 disabled:opacity-50"
                         >
                           Cerrar
                         </button>
-                        <div className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
+                        <div className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-sm font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-800">
                           <CheckCircle className="h-5 w-5" /> Operación ya conciliada
                         </div>
                       </>

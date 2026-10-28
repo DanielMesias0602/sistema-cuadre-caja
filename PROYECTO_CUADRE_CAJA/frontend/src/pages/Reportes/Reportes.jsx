@@ -1,46 +1,42 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
-  FileText,
-  FileSpreadsheet,
   Download,
   RefreshCw,
-  Calendar,
   Lock
 } from 'lucide-react';
 
 export function Reportes() {
-  const navigate = useNavigate();
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [agruparPor, setAgruparPor] = useState('day');
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
-  const cargarDatos = async () => {
+  async function cargarDatos() {
     try {
-      setLoading(true);
-      setError(null);
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
       setOperaciones(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error al cargar datos para reportes:', err);
-      setError('No se pudo cargar los datos para generar reportes.');
     } finally {
       setLoading(false);
     }
+  }
+
+  const recargarDatos = () => {
+    setLoading(true);
+    return cargarDatos();
   };
+
+  useEffect(() => {
+    void Promise.resolve().then(cargarDatos);
+  }, []);
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);
@@ -418,7 +414,9 @@ export function Reportes() {
               } else {
                 url = data?.url_firmada || data?.url || null;
               }
-            } catch (e) { }
+            } catch (error) {
+              console.warn('No se pudo resolver la URL de la evidencia.', error);
+            }
           }
           if (!url) return null;
           const respuesta = await fetch(url);
@@ -440,7 +438,7 @@ export function Reportes() {
           canvas.height = img.height;
           canvas.getContext('2d').drawImage(img, 0, 0);
           return canvas.toDataURL('image/jpeg', 0.85);
-        } catch (e) {
+        } catch {
           return null;
         }
       };
@@ -601,23 +599,23 @@ export function Reportes() {
   };
 
   return (
-    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up">
+    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up dark:bg-slate-900">
       {/* Encabezado */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
             Centro de Reportes
           </h1>
-          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-500">
+          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-500 dark:text-slate-400">
             Genera y descarga el reporte unificado de conciliación de caja.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={cargarDatos}
+          onClick={recargarDatos}
           disabled={loading}
-          className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50 self-start sm:self-auto"
+          className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50 self-start sm:self-auto dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-slate-100 dark:shadow-none"
         >
           <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 ${loading ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">Actualizar</span>
@@ -625,11 +623,11 @@ export function Reportes() {
       </div>
 
       {/* Filtros de fecha y agrupación */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800/60 dark:shadow-none">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-3 sm:gap-4 w-full">
 
           <div className="flex-1 min-w-0">
-            <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 dark:text-slate-400">
               Rango de fechas
             </label>
             <div className="w-full">
@@ -645,13 +643,13 @@ export function Reportes() {
           </div>
 
           <div className="w-full lg:w-56 flex-shrink-0">
-            <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 dark:text-slate-400">
               Agrupar por
             </label>
             <select
               value={agruparPor}
               onChange={(e) => setAgruparPor(e.target.value)}
-              className="w-full h-[42px] px-3.5 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 cursor-pointer transition-all"
+              className="w-full h-[42px] px-3.5 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 cursor-pointer transition-all dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="day">Día (Fecha)</option>
               <option value="week">Semana</option>
@@ -664,7 +662,7 @@ export function Reportes() {
             <button
               type="button"
               onClick={() => { setFechaDesde(''); setFechaHasta(''); setAgruparPor('day'); }}
-              className="h-[42px] px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors w-full lg:w-auto"
+              className="h-[42px] px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors w-full lg:w-auto dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-slate-100"
             >
               Limpiar
             </button>
@@ -680,7 +678,7 @@ export function Reportes() {
           type="button"
           onClick={exportarPDF}
           disabled={loading}
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64"
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64 dark:shadow-none"
         >
           <img
             src={`${import.meta.env.BASE_URL}pdf-icon.png`}
@@ -704,7 +702,7 @@ export function Reportes() {
           type="button"
           onClick={exportarExcel}
           disabled={loading}
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64"
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64 dark:shadow-none"
         >
           <img
             src={`${import.meta.env.BASE_URL}excel-icon.png`}
@@ -728,7 +726,7 @@ export function Reportes() {
           type="button"
           onClick={exportarPDFVisual}
           disabled={loading}
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 to-violet-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64"
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 to-violet-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64 dark:shadow-none"
         >
           <img
             src={`${import.meta.env.BASE_URL}aura-icon.png`}
@@ -749,21 +747,21 @@ export function Reportes() {
       </div>
 
       {/* Resumen */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-8 shadow-lg">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-8 shadow-lg dark:border-slate-600 dark:bg-slate-800/60 dark:shadow-none">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-brand-orange/10 text-brand-orange flex-shrink-0">
               <Lock className="h-6 w-6 sm:h-8 sm:w-8" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-semibold text-slate-900">Resumen del Periodo</p>
-              <p className="text-[10px] sm:text-xs text-slate-500 truncate">
+              <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">Resumen del Periodo</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 truncate dark:text-slate-400">
                 {fechaDesde || 'Inicio'} al {fechaHasta || 'Fin'}
               </p>
             </div>
           </div>
           <div className="text-left sm:text-right">
-            <p className="text-[10px] sm:text-xs text-slate-500">Total Conciliado</p>
+            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">Total Conciliado</p>
             <p className="text-2xl sm:text-4xl font-black text-brand-orange tabular-nums break-words">
               {formatCurrency(
                 operaciones.filter(op => {

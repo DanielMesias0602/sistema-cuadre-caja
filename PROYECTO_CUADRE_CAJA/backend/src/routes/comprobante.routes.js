@@ -2,16 +2,17 @@ import { Router } from 'express';
 import {
   create,
   getById,
-  getAll
+  getAll,
+  checkExists // <-- Importamos el nuevo controlador
 } from '../controllers/comprobante.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 
 const router = Router();
-
 router.use(requireAuth);
 
 router.post('/', create);
 router.get('/', getAll);
+router.get('/check', checkExists); // <-- NUEVA RUTA
 router.get('/:id', getById);
 
 export default router;

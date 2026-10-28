@@ -9,7 +9,6 @@ export function PagosPorMedioSection({ filteredOps }) {
       const pagos = Array.isArray(op.pagos) ? op.pagos : [];
       pagos.forEach(p => {
         const medio = p.medio_pago || p.nombre_medio || 'Efectivo';
-        // El monto puede venir directamente del pago o de op.comprobante.monto
         const monto = Number(p.monto || p.importe || 0);
         const esEfectivo = (medio || '').toLowerCase().includes('efectivo');
         
@@ -49,21 +48,26 @@ export function PagosPorMedioSection({ filteredOps }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-      <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+    // CONTENEDOR PRINCIPAL
+    <div className="bg-blue-50/50 dark:bg-slate-800/50 rounded-2xl p-5 sm:p-6 border border-blue-100 dark:border-slate-600 shadow-sm dark:shadow-none">
+      
+      {/* HEADER DE LA SECCIÓN */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-5 border-b border-blue-100 dark:border-slate-600 gap-3 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm dark:shadow-none">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Desglose por Medio de Pago</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            Desglose por Medio de Pago
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Distribución de ingresos según medio de recepción registrado
           </p>
         </div>
-        <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-100">
+        <span className="text-sm font-black text-brand-orange dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 px-3.5 py-1.5 rounded-xl border border-orange-100 dark:border-orange-800/50 shadow-sm dark:shadow-none w-fit">
           Total: {formatCurrency(totalMontoGeneral)}
         </span>
       </div>
 
       {pagosPorMedio.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 text-sm font-medium">
+        <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm font-medium bg-white dark:bg-slate-800/90 rounded-xl">
           No hay registros de pagos para el período seleccionado
         </div>
       ) : (
@@ -72,28 +76,35 @@ export function PagosPorMedioSection({ filteredOps }) {
             const Icon = getMedioIcon(item.medio_pago, item.es_efectivo);
             const monto = Number(item.total_monto || 0);
             const porcentaje = totalMontoGeneral > 0 ? ((monto / totalMontoGeneral) * 100).toFixed(1) : 0;
+            
+            const barColor = item.es_efectivo ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-brand-orange dark:bg-orange-500';
+            const iconBg = item.es_efectivo
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+              : 'bg-orange-50 dark:bg-orange-950/40 text-brand-orange dark:text-orange-400';
 
             return (
-              <div key={item.id_medio_pago || item.medio_pago} className="space-y-1.5">
+              <div key={item.id_medio_pago || item.medio_pago} className="space-y-2 bg-white dark:bg-slate-800/90 p-4 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-600">
                 <div className="flex items-center justify-between text-sm font-medium">
-                  <div className="flex items-center gap-2 text-slate-800">
-                    <Icon className="w-4 h-4 text-orange-600" />
-                    <span className="font-semibold">{item.medio_pago}</span>
+                  <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                    <span className={`flex items-center justify-center w-7 h-7 rounded-lg ${iconBg}`}>
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <span className="font-bold">{item.medio_pago}</span>
                     {item.es_efectivo && (
-                      <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                      <span className="text-[9px] bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/60 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
                         EFECTIVO
                       </span>
                     )}
                   </div>
                   <div className="text-right">
-                    <span className="font-bold text-slate-900">{formatCurrency(monto)}</span>
-                    <span className="text-xs text-gray-400 ml-2">({porcentaje}%)</span>
+                    <span className="font-black text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(monto)}</span>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 ml-2">({porcentaje}%)</span>
                   </div>
                 </div>
 
-                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-100 dark:bg-slate-700/60 h-2.5 rounded-full overflow-hidden shadow-inner">
                   <div
-                    className="bg-brand-orange h-full rounded-full transition-all duration-300"
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${barColor}`}
                     style={{ width: `${porcentaje}%` }}
                   />
                 </div>

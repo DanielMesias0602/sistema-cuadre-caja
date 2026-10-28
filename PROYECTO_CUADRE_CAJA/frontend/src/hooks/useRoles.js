@@ -7,11 +7,10 @@ export function useRoles() {
   const [error, setError] = useState(null);
 
   const fetchRoles = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const response = await rolesService.listar();
       setData(response.data?.data || response.data);
+      setError(null);
     } catch (err) {
       setError(err.message || 'Error al cargar roles');
     } finally {
@@ -20,13 +19,19 @@ export function useRoles() {
   }, []);
 
   useEffect(() => {
-    fetchRoles();
+    void Promise.resolve().then(fetchRoles);
+  }, [fetchRoles]);
+
+  const refetch = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    return fetchRoles();
   }, [fetchRoles]);
 
   return {
     data,
     loading,
     error,
-    refetch: fetchRoles,
+    refetch,
   };
 }

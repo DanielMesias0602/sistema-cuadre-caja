@@ -1,7 +1,8 @@
 import {
   createComprobante,
   findComprobanteById,
-  findAllComprobantes
+  findAllComprobantes,
+  findComprobanteByTipoSerieNumero // <-- NUEVO IMPORT
 } from '../repositories/comprobante.repository.js';
 
 export const registerComprobante = async (data) => {
@@ -14,4 +15,9 @@ export const getComprobanteById = async (idComprobante) => {
 
 export const getComprobantes = async () => {
   return findAllComprobantes();
+};
+
+// NUEVA FUNCIÓN: Verificar si existe un comprobante por sus datos únicos
+export const checkComprobanteExistente = async (tipo, serie, numero) => {
+  return findComprobanteByTipoSerieNumero(tipo, serie, numero);
 };

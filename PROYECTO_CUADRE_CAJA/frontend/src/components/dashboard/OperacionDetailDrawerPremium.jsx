@@ -30,14 +30,14 @@ import ocrService from '../../services/ocr.service';
 
 function DatoOCR({ icon, label, children }) {
   return (
-    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-0">
+    <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-600 min-w-0">
       <div className="flex items-center gap-2 mb-1">
         {icon}
-        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">
           {label}
         </span>
       </div>
-      <p className="text-sm font-bold text-slate-900 break-words">
+      <p className="text-sm font-bold text-slate-900 dark:text-slate-100 break-words">
         {children}
       </p>
     </div>
@@ -70,12 +70,12 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
 
   // Efectivo no se verifica con OCR
   if (medioLower.includes('efectivo')) {
-    return { estado: 'EFECTIVO', color: 'bg-slate-50 text-slate-700 border-slate-200', icono: 'info', mensaje: 'Se verifica en el cierre de caja' };
+    return { estado: 'EFECTIVO', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Se verifica en el cierre de caja' };
   }
 
   // Sin evidencia empresa
   if (!evidenciaEmpresa) {
-    return { estado: 'SIN_EVIDENCIA', color: 'bg-slate-50 text-slate-700 border-slate-200', icono: 'info', mensaje: 'Sin evidencia de empresa registrada' };
+    return { estado: 'SIN_EVIDENCIA', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Sin evidencia de empresa registrada' };
   }
 
   // Extraer datos del OCR de la evidencia empresa
@@ -92,18 +92,18 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
   const montoCoincide = compararMontos(pago?.monto, montoEmpresa);
 
   if (!normRefPago && !normRefEmpresa) {
-    return { estado: 'SIN_REFERENCIA', color: 'bg-slate-50 text-slate-700 border-slate-200', icono: 'info', mensaje: 'Sin número de operación en pago ni en evidencia' };
+    return { estado: 'SIN_REFERENCIA', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Sin número de operación en pago ni en evidencia' };
   }
 
   if (refCoincide && montoCoincide) {
-    return { estado: 'COINCIDE', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icono: 'check', mensaje: 'Monto y referencia coinciden' };
+    return { estado: 'COINCIDE', color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60', icono: 'check', mensaje: 'Monto y referencia coinciden' };
   }
 
   if (refCoincide || montoCoincide) {
-    return { estado: 'PARCIAL', color: 'bg-amber-50 text-amber-700 border-amber-200', icono: 'alert', mensaje: refCoincide ? 'Referencia coincide, monto difiere' : 'Monto coincide, referencia difiere' };
+    return { estado: 'PARCIAL', color: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/60', icono: 'alert', mensaje: refCoincide ? 'Referencia coincide, monto difiere' : 'Monto coincide, referencia difiere' };
   }
 
-  return { estado: 'DIFERENTE', color: 'bg-rose-50 text-rose-700 border-rose-200', icono: 'x', mensaje: 'Ni el monto ni la referencia coinciden' };
+  return { estado: 'DIFERENTE', color: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/60', icono: 'x', mensaje: 'Ni el monto ni la referencia coinciden' };
 };
 
 const BadgeEstado = ({ evaluacion }) => {
@@ -122,11 +122,9 @@ const BadgeEstado = ({ evaluacion }) => {
 // ============================================================
 export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida }) {
   const open = op !== null;
-  const lastOperation = useRef(op);
-
-  if (op) lastOperation.current = op;
-
-  const opData = lastOperation.current;
+  const [lastOperation, setLastOperation] = useState(op);
+  if (op && op !== lastOperation) setLastOperation(op);
+  const opData = op || lastOperation;
   const closeRef = useRef(null);
   const fileInputEmpresaRef = useRef(null);
 
@@ -149,20 +147,40 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     opData?.idOperacion ??
     opData?.operacion?.id_operacion
   );
+  const [previousOpen, setPreviousOpen] = useState(open);
+  const [previousOperationId, setPreviousOperationId] = useState(idOperacion);
 
-  useEffect(() => {
+  if (previousOpen !== open) {
+    setPreviousOpen(open);
     if (!open) {
       setIsImageOpen(false);
       setSelectedImageUrl(null);
       setVisorEsPreview(false);
       setZoom(false);
-      return;
     }
+  }
+
+  if (!Object.is(previousOperationId, idOperacion)) {
+    setPreviousOperationId(idOperacion);
+    setArchivoEmpresa(null);
+    setPreviewEmpresa(null);
+    setOcrEmpresa(null);
+    setProcesandoOcr(false);
+    setMensajeEvidencia('');
+    setErrorEvidencia('');
+    setEvidenciasLocales([]);
+  }
+
+  useEffect(() => {
+    if (!open) return;
 
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (isImageOpen) {
-          cerrarVisor();
+          setIsImageOpen(false);
+          setSelectedImageUrl(null);
+          setVisorEsPreview(false);
+          setZoom(false);
         } else {
           onClose();
         }
@@ -182,13 +200,6 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   }, [open, onClose, isImageOpen]);
 
   useEffect(() => {
-    setArchivoEmpresa(null);
-    setPreviewEmpresa(null);
-    setOcrEmpresa(null);
-    setProcesandoOcr(false);
-    setMensajeEvidencia('');
-    setErrorEvidencia('');
-    setEvidenciasLocales([]);
     if (fileInputEmpresaRef.current) {
       fileInputEmpresaRef.current.value = '';
     }
@@ -210,7 +221,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
 
     if (horaComparar <= '14:00:00') {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-100 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">
           <Sun className="h-3.5 w-3.5" />
           Mañana
         </span>
@@ -219,7 +230,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
 
     if (horaComparar > '14:00:00' && horaComparar <= '20:00:00') {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-indigo-100 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:text-indigo-400">
           <Moon className="h-3.5 w-3.5" />
           Tarde
         </span>
@@ -227,7 +238,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     }
 
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-400">
         <Clock className="h-3.5 w-3.5" />
         Fuera de turno
       </span>
@@ -391,9 +402,8 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       return;
     }
 
-    let dataUrl = null;
     try {
-      dataUrl = await new Promise((resolve, reject) => {
+      const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
@@ -545,7 +555,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     >
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'
+        className={`absolute inset-0 bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'
           }`}
       />
 
@@ -553,15 +563,15 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
         role="dialog"
         aria-modal="true"
         aria-label="Detalle de operación"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-[500px] flex-col bg-white text-slate-900 shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'
+        className={`absolute inset-y-0 right-0 flex w-full max-w-[500px] flex-col bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl shadow-slate-900/20 dark:shadow-black/60 border-l dark:border-slate-700 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
-        <header className="border-b border-slate-100 px-6 pb-6 pt-5 sm:px-8">
+        <header className="border-b border-slate-100 dark:border-slate-700 px-6 pb-6 pt-5 sm:px-8 bg-white dark:bg-slate-800">
           <div className="flex items-center justify-between">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${isPagada
-                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
-                : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 ring-emerald-600/20 dark:ring-emerald-500/30'
+                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 ring-amber-600/20 dark:ring-amber-500/30'
                 }`}
             >
               <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
@@ -572,87 +582,87 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
               ref={closeRef}
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-orange"
+              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors focus-visible:outline-2 focus-visible:outline-brand-orange"
             >
               <X className="h-5 w-5" />
               <span className="sr-only">Cerrar panel</span>
             </button>
           </div>
 
-          <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900">
+          <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {comprobante}
           </h2>
 
           <div className="mt-2 flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 text-slate-500" />
-            <span className="tabular-nums text-sm text-slate-500">
+            <Calendar className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+            <span className="tabular-nums text-sm text-slate-500 dark:text-slate-400">
               {fecha} {hora ? `· ${hora.substring(0, 5)}` : ''}
             </span>
             {getTurnoBadge(hora)}
           </div>
 
-          <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">
+          <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Monto total
           </p>
-          <p className="mt-1 text-4xl font-black tracking-tight text-brand-orange tabular-nums">
+          <p className="mt-1 text-4xl font-black tracking-tight text-brand-orange dark:text-orange-400 tabular-nums">
             {formatPEN(montoFinal)}
           </p>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50/60 px-6 py-6 sm:px-8">
+        <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-900/60 px-6 py-6 sm:px-8">
           <div className="flex flex-col gap-6">
-            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <section className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm dark:shadow-none">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-5 p-5">
                 <div className="col-span-2">
-                  <dt className="text-xs font-medium text-slate-500">Cliente</dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Cliente</dt>
+                  <dd className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {cliente}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs font-medium text-slate-500">
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Vendedor
                   </dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">
+                  <dd className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {vendedor}
                   </dd>
                 </div>
 
                 <div>
-                  <dt className="text-xs font-medium text-slate-500">
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Usuario registrador
                   </dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">
+                  <dd className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {nombreUsuario}
                   </dd>
                 </div>
               </dl>
 
-              <div className="border-t border-slate-100 p-5">
-                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <div className="border-t border-slate-100 dark:border-slate-600 p-5">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   <Receipt className="h-3.5 w-3.5" />
                   Totales
                 </h3>
 
                 <dl className="flex flex-col gap-2.5 text-sm">
                   <div className="flex items-center justify-between">
-                    <dt className="text-slate-500">Op. Gravada</dt>
-                    <dd className="font-medium text-slate-700 tabular-nums">
+                    <dt className="text-slate-500 dark:text-slate-400">Op. Gravada</dt>
+                    <dd className="font-medium text-slate-700 dark:text-slate-300 tabular-nums">
                       {formatPEN(opGravada)}
                     </dd>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <dt className="text-slate-500">IGV (18%)</dt>
-                    <dd className="font-medium text-slate-700 tabular-nums">
+                    <dt className="text-slate-500 dark:text-slate-400">IGV (18%)</dt>
+                    <dd className="font-medium text-slate-700 dark:text-slate-300 tabular-nums">
                       {formatPEN(igv)}
                     </dd>
                   </div>
 
-                  <div className="mt-1 flex items-center justify-between border-t border-dashed border-slate-200 pt-3">
-                    <dt className="font-semibold text-slate-900">Total</dt>
-                    <dd className="text-base font-bold text-slate-900 tabular-nums">
+                  <div className="mt-1 flex items-center justify-between border-t border-dashed border-slate-200 dark:border-slate-700 pt-3">
+                    <dt className="font-semibold text-slate-900 dark:text-slate-100">Total</dt>
+                    <dd className="text-base font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                       {formatPEN(montoFinal)}
                     </dd>
                   </div>
@@ -661,16 +671,16 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
             </section>
 
             {hayPagoNoEfectivo && (
-              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-900">
+              <section className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-5 shadow-sm dark:shadow-none">
+                <h3 className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-900 dark:text-slate-100">
                   <span className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-brand-orange">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-brand-orange dark:text-orange-400">
                       <Upload className="h-4 w-4" />
                     </span>
                     Evidencia de la empresa
                   </span>
                   {!evidenciaEmpresaYaExiste && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-300">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700/50">
                       <Clock className="h-3 w-3" />
                       PENDIENTE
                     </span>
@@ -678,12 +688,12 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                 </h3>
 
                 {evidenciaEmpresaYaExiste ? (
-                  <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                  <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                     La evidencia de la empresa ya está registrada y vinculada
                     a esta operación. Puedes consultarla con el botón de abajo.
                   </p>
                 ) : (
-                  <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                  <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                     Adjunta el comprobante de la empresa cuando esté disponible.
                     Puede subirse horas o días después de la operación. El OCR
                     extraerá los datos automáticamente y la imagen se mostrará
@@ -693,9 +703,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
 
                 {evidenciaEmpresaYaExiste && (
                   <>
-                    <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
-                      <p className="text-sm font-medium text-emerald-800">
+                    <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/30 p-3">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
                         Evidencia de empresa registrada
                       </p>
                     </div>
@@ -703,7 +713,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     <button
                       type="button"
                       onClick={() => abrirVisorEvidencia(evidenciaEmpresaUrl)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 px-3 py-2.5 text-sm font-semibold text-blue-700 dark:text-blue-300 transition hover:bg-blue-100 dark:hover:bg-blue-900/40"
                     >
                       <Eye className="h-4 w-4" />
                       Ver evidencia de la empresa
@@ -712,7 +722,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     {mensajeEvidencia && (
                       <p
                         role="status"
-                        className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700"
+                        className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3 text-sm text-emerald-700 dark:text-emerald-300"
                       >
                         {mensajeEvidencia}
                       </p>
@@ -724,7 +734,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                   <>
                     <label
                       htmlFor="evidencia-empresa"
-                      className="mb-2 block text-xs font-medium text-slate-700"
+                      className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300"
                     >
                       Seleccionar archivo (imagen o PDF)
                     </label>
@@ -735,31 +745,31 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                       type="file"
                       accept="image/*,.pdf,application/pdf"
                       onChange={handleFileChangeEmpresa}
-                      className="block w-full rounded-lg border border-slate-200 bg-white text-sm text-slate-600 file:mr-3 file:cursor-pointer file:border-0 file:bg-orange-50 file:px-3 file:py-2.5 file:text-xs file:font-semibold file:text-brand-orange hover:file:bg-orange-100"
+                      className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:cursor-pointer file:border-0 file:bg-orange-50 dark:file:bg-orange-950/40 file:px-3 file:py-2.5 file:text-xs file:font-semibold file:text-brand-orange dark:file:text-orange-400 hover:file:bg-orange-100 dark:hover:file:bg-orange-900/50"
                     />
                   </>
                 )}
 
                 {!evidenciaEmpresaYaExiste && archivoEmpresa && (
                   <>
-                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-slate-50 p-3">
+                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-transparent dark:border-slate-600 p-3">
                       {archivoEmpresa.type === 'application/pdf' ? (
-                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                       ) : (
-                        <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                        <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="break-all text-xs font-medium text-slate-700">
+                        <p className="break-all text-xs font-medium text-slate-700 dark:text-slate-200">
                           {archivoEmpresa.name}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           {(archivoEmpresa.size / (1024 * 1024)).toFixed(2)} MB
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={cancelarSeleccionEmpresa}
-                        className="rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                        className="rounded-md p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200"
                         title="Quitar archivo"
                       >
                         <X className="h-4 w-4" />
@@ -776,13 +786,13 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                         <img
                           src={previewEmpresa}
                           alt="Vista previa de evidencia"
-                          className="max-h-64 w-full rounded-lg border border-slate-200 bg-slate-50 object-contain"
+                          className="max-h-64 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 object-contain"
                         />
                       </button>
                     )}
 
                     {procesandoOcr && (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-transparent dark:border-blue-800/50 p-3 text-sm text-blue-800 dark:text-blue-300">
                         <LoaderCircle className="h-4 w-4 animate-spin" />
                         Procesando OCR automáticamente... Compara la imagen
                         (izquierda) con los datos extraídos.
@@ -790,8 +800,8 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     )}
 
                     {!procesandoOcr && ocrEmpresa && (
-                      <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
-                        <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                      <div className="mb-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/80 p-3">
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                           Datos extraídos por OCR
                         </h4>
                         <div className="grid grid-cols-2 gap-2">
@@ -843,7 +853,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     )}
 
                     {!procesandoOcr && !ocrEmpresa && archivoEmpresa.type.startsWith('image/') && (
-                      <div className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                      <div className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-transparent dark:border-amber-800/50 p-3 text-xs text-amber-800 dark:text-amber-300">
                         El OCR no pudo extraer datos de esta imagen. Puedes
                         subirla igual; quedará disponible para revisión manual.
                       </div>
@@ -873,7 +883,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                 {errorEvidencia && (
                   <p
                     role="alert"
-                    className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                    className="mt-3 rounded-lg bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-800/60 p-3 text-sm text-red-700 dark:text-rose-300"
                   >
                     {errorEvidencia}
                   </p>
@@ -882,17 +892,18 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
             )}
 
             {/* ============================================================ */}
+            {/* ============================================================ */}
             {/* NUEVA SECCIÓN: VALIDACIÓN CRUZADA DE PAGOS                     */}
             {/* ============================================================ */}
             {pagos.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <section className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-5 shadow-sm dark:shadow-none">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
                     <CheckCircle className="h-4 w-4" />
                   </span>
                   Validación de Pagos
                 </h3>
-                <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                   Comparación automática entre los pagos registrados y los datos extraídos de la evidencia de la empresa.
                 </p>
 
@@ -905,13 +916,13 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     const refPago = pago?.referencia || null;
 
                     return (
-                      <li key={idx} className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                      <li key={idx} className="rounded-lg border border-slate-100 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/50 p-3">
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                               {pago.medio_pago || pago.nombre_medio || 'Efectivo'}
                             </p>
-                            <p className="text-xs text-slate-500 tabular-nums">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                               {formatPEN(pago.monto)}
                             </p>
                           </div>
@@ -919,16 +930,16 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                         </div>
 
                         {evaluacion.estado !== 'EFECTIVO' && (
-                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200">
+                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-600">
                             <div>
-                              <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Ref. Cliente</p>
-                              <p className="text-xs font-mono text-slate-700 break-all">
+                              <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-0.5">Ref. Cliente</p>
+                              <p className="text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
                                 {refPago || '—'}
                               </p>
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Ref. Empresa</p>
-                              <p className="text-xs font-mono text-slate-700 break-all">
+                              <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-0.5">Ref. Empresa</p>
+                              <p className="text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
                                 {refEmpresa || '—'}
                               </p>
                             </div>
@@ -936,21 +947,21 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                         )}
 
                         {evaluacion.estado === 'EFECTIVO' && (
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             El efectivo se verifica durante el cierre de caja.
                           </p>
                         )}
 
                         {evaluacion.estado !== 'EFECTIVO' && montoEmpresa != null && (
-                          <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between">
-                            <p className="text-[10px] uppercase font-bold text-slate-400">Monto evidencia empresa</p>
-                            <p className="text-xs font-semibold text-slate-700 tabular-nums">
+                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Monto evidencia empresa</p>
+                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
                               {formatPEN(montoEmpresa)}
                             </p>
                           </div>
                         )}
 
-                        <p className="mt-2 text-xs text-slate-500 italic">
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 italic">
                           {evaluacion.mensaje}
                         </p>
                       </li>
@@ -961,14 +972,14 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
             )}
 
             <section>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-brand-orange">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-brand-orange dark:text-orange-400">
                   <Package className="h-4 w-4" />
                 </span>
                 Detalle de Productos ({items.length})
               </h3>
 
-              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-5 shadow-sm">
+              <ul className="divide-y divide-slate-100 dark:divide-slate-600 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 shadow-sm dark:shadow-none">
                 {items.length > 0 ? (
                   items.map((p, idx) => (
                     <li
@@ -976,21 +987,21 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                       className="flex items-start justify-between gap-4 py-4"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold leading-snug text-slate-900">
+                        <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
                           {p.descripcion}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500 tabular-nums">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                           Cant: {p.cantidad} · P. Unit:{' '}
                           {formatPEN(p.precio_unitario)}
                         </p>
                       </div>
-                      <span className="shrink-0 text-sm font-bold text-slate-900 tabular-nums">
+                      <span className="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                         {formatPEN(p.total)}
                       </span>
                     </li>
                   ))
                 ) : (
-                  <li className="py-4 text-center text-sm text-slate-500">
+                  <li className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
                     No hay productos detallados.
                   </li>
                 )}
@@ -998,14 +1009,14 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
             </section>
 
             <section>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-brand-orange">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-brand-orange dark:text-orange-400">
                   <CreditCard className="h-4 w-4" />
                 </span>
                 Pagos Asociados ({pagos.length})
               </h3>
 
-              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-5 shadow-sm">
+              <ul className="divide-y divide-slate-100 dark:divide-slate-600 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 shadow-sm dark:shadow-none">
                 {pagos.length > 0 ? (
                   pagos.map((p, idx) => {
                     const medio = String(
@@ -1021,7 +1032,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                               {p.medio_pago || p.nombre_medio || 'Efectivo'}
                             </p>
 
@@ -1031,7 +1042,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                                 onClick={() =>
                                   abrirVisorEvidencia(evidenciaClienteUrl)
                                 }
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600 transition hover:bg-blue-100 hover:text-blue-700"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 transition hover:bg-blue-100 dark:hover:bg-blue-900/50"
                                 title="Ver evidencia del cliente"
                               >
                                 <Eye className="h-3.5 w-3.5" />
@@ -1041,20 +1052,20 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                           </div>
 
                           {p.referencia && p.referencia !== 'None' && (
-                            <p className="mt-1 text-xs text-slate-500 tabular-nums">
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                               Ref: {p.referencia}
                             </p>
                           )}
                         </div>
 
-                        <span className="shrink-0 text-sm font-bold text-slate-900 tabular-nums">
+                        <span className="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                           {formatPEN(p.monto)}
                         </span>
                       </li>
                     );
                   })
                 ) : (
-                  <li className="py-4 text-center text-sm text-slate-500">
+                  <li className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
                     No hay pagos registrados.
                   </li>
                 )}
@@ -1063,11 +1074,11 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
           </div>
         </div>
 
-        <footer className="border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
+        <footer className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-4 sm:px-8">
           <button
             type="button"
             onClick={onClose}
-            className="h-11 w-full rounded-lg bg-slate-100 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+            className="h-11 w-full rounded-lg bg-slate-100 dark:bg-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:bg-slate-200 dark:hover:bg-slate-600"
           >
             Cerrar
           </button>

@@ -8,12 +8,7 @@ export function Paso3Registro({ comprobanteData, onNext, onBack }) {
   const [pagos, setPagos] = useState([{ medio_pago: '', monto: '', referencia: '', observacion: '' }]);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    cargarMediosPago();
-  }, []);
-
-  const cargarMediosPago = async () => {
-    setLoadingMedios(true);
+  async function cargarMediosPago() {
     try {
       const response = await api.get('/medios-pago');
       const raw = response.data;
@@ -26,7 +21,11 @@ export function Paso3Registro({ comprobanteData, onNext, onBack }) {
     } finally {
       setLoadingMedios(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    void Promise.resolve().then(cargarMediosPago);
+  }, []);
 
   const handlePagoChange = (index, field, value) => {
     const newPagos = [...pagos];

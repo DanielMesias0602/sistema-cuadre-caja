@@ -437,9 +437,55 @@ def extract_destination_entity(lines):
     return None
 
 # ============================================================
+# NUEVO: EXTRACTOR ESPECÍFICO PARA CULQI
+# ============================================================
+def es_voucher_culqi(lines):
+    full_text = ' '.join(lines).lower()
+    return 'culqi' in full_text or 'venta id' in full_text
+
+def extract_culqi_data(lines):
+    texto_completo = '\n'.join(lines)
+    data = {
+        'tipo_evidencia': 'TRANSFERENCIA',
+        'aplicacion_banco': 'CULQI',
+        'estado_transferencia': 'EXITOSA',
+        'monto': None,
+        'moneda': 'PEN',
+        'fecha_operacion': None,
+        'hora_operacion': None,
+        'referencia_bancaria': None,
+        'destinatario': 'Distribuidora de Cerámica y Acabados',
+        'requiere_revision': True,
+        'requiere_confirmacion': True
+    }
+
+    # Monto: Total: S/ 72.50
+    match_monto = re.search(r'Total\s*:?\s*S/\s*([\d.,]+)', texto_completo, re.IGNORECASE)
+    if match_monto:
+        data['monto'] = parse_money(match_monto.group(1))
+
+    # Referencia: VENTA ID: 209138
+    match_ref = re.search(r'VENTA\s*ID\s*:?\s*(\d+)', texto_completo, re.IGNORECASE)
+    if match_ref:
+        data['referencia_bancaria'] = match_ref.group(1)
+        data['referencia_bancaria_normalizada'] = normalize_reference(match_ref.group(1))
+
+    # Fecha y Hora: 27/10/26 07:54 PM
+    match_fecha_hora = re.search(r'(\d{2}/\d{2}/\d{2,4})\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)', texto_completo)
+    if match_fecha_hora:
+        data['fecha_operacion'] = match_fecha_hora.group(1)
+        data['hora_operacion'] = match_fecha_hora.group(2).upper()
+
+    return data
+
+# ============================================================
 # PARSER PRINCIPAL
 # ============================================================
 def extract_transfer_data(lines):
+    # NUEVO: Si detecta Culqi, usa su propio extractor
+    if es_voucher_culqi(lines):
+        return extract_culqi_data(lines)
+
     data = {
         'tipo_evidencia': 'TRANSFERENCIA',
         'aplicacion_banco': detect_bank(lines),

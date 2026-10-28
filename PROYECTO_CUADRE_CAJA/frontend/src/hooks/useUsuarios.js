@@ -7,11 +7,10 @@ export function useUsuarios() {
   const [error, setError] = useState(null);
 
   const fetchUsuarios = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const response = await usuariosService.listar();
       setData(extractData(response));
+      setError(null);
     } catch (err) {
       setError(err.message || 'Error al cargar usuarios');
     } finally {
@@ -20,38 +19,44 @@ export function useUsuarios() {
   }, []);
 
   useEffect(() => {
-    fetchUsuarios();
+    void Promise.resolve().then(fetchUsuarios);
+  }, [fetchUsuarios]);
+
+  const refetch = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    return fetchUsuarios();
   }, [fetchUsuarios]);
 
   const crear = useCallback(async (usuarioData) => {
     try {
       await usuariosService.crear(usuarioData);
-      await fetchUsuarios();
+      await refetch();
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message || 'Error al crear usuario' };
     }
-  }, [fetchUsuarios]);
+  }, [refetch]);
 
   const actualizar = useCallback(async (id, usuarioData) => {
     try {
       await usuariosService.actualizar(id, usuarioData);
-      await fetchUsuarios();
+      await refetch();
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message || 'Error al actualizar usuario' };
     }
-  }, [fetchUsuarios]);
+  }, [refetch]);
 
   const cambiarEstado = useCallback(async (id, estado) => {
     try {
       await usuariosService.cambiarEstado(id, estado);
-      await fetchUsuarios();
+      await refetch();
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message || 'Error al cambiar estado' };
     }
-  }, [fetchUsuarios]);
+  }, [refetch]);
 
   const resetPassword = useCallback(async (id, password) => {
     try {
@@ -66,7 +71,7 @@ export function useUsuarios() {
     data,
     loading,
     error,
-    refetch: fetchUsuarios,
+    refetch,
     crear,
     actualizar,
     cambiarEstado,

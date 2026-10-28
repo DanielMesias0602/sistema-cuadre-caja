@@ -4,33 +4,39 @@ import { Camera, X, Check } from 'lucide-react';
 export function CapturaCamara({ onCapture, onCancel }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [stream, setStream] = useState(null);
+  const streamRef = useRef(null);
   const [error, setError] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
 
   useEffect(() => {
-    startCamera();
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+    let active = true;
+    const startCamera = async () => {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+        if (!active) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = mediaStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      } catch (err) {
+        if (active) {
+          setError('No se pudo acceder a la cámara. Verifica los permisos.');
+          console.error('Error accessing camera:', err);
+        }
       }
     };
-  }, []);
 
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-    } catch (err) {
-      setError('No se pudo acceder a la cámara. Verifica los permisos.');
-      console.error('Error accessing camera:', err);
-    }
-  };
+    startCamera();
+    return () => {
+      active = false;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
 
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {

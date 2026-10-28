@@ -6,15 +6,12 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(authService.getToken()));
 
   const checkAuth = useCallback(async () => {
     const existingToken = authService.getToken();
     if (!existingToken) {
       authService.logout();
-      setUser(null);
-      setToken(null);
-      setLoading(false);
       return;
     }
 
@@ -38,7 +35,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    checkAuth();
+    void Promise.resolve().then(checkAuth);
   }, [checkAuth]);
 
   const login = async (username, password) => {

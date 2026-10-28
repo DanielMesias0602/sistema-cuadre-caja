@@ -336,3 +336,69 @@
     padding: 12px;
   }
 }
+
+/* THEME TOGGLE BUTTON & DARK MODE SUPPORT */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+html.dark .app-layout {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+html.dark .app-header {
+  background: #1e293b;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.7);
+}
+
+html.dark .app-header strong {
+  color: #f8fafc;
+}
+
+html.dark .app-header-company {
+  color: #94a3b8;
+}
+
+html.dark .user-info span {
+  color: #f8fafc;
+}
+
+html.dark .user-info small {
+  color: #94a3b8;
+}
+
+html.dark .mobile-menu-btn {
+  background: #334155;
+  color: #f8fafc;
+}
+
+html.dark .mobile-menu-btn:hover {
+  background: #475569;
+}
+
+html.dark .theme-toggle-btn {
+  background: #334155;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+html.dark .theme-toggle-btn:hover {
+  background: #475569;
+  color: #fbbf24;
+}

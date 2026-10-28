@@ -5,16 +5,13 @@ import { SubirArchivo } from './components/SubirArchivo';
 
 export function Paso1Evidencia({ onNext, onSkipToManual }) {
   const [mode, setMode] = useState(null); // 'camera', 'upload', 'manual'
-  const [evidencia, setEvidencia] = useState(null);
   const [tipoDocumento, setTipoDocumento] = useState('COMPROBANTE'); // 'COMPROBANTE' | 'TRANSFERENCIA'
 
   const handleCapture = (blob) => {
-    setEvidencia(blob);
     onNext({ evidencia: blob, tipo: tipoDocumento });
   };
 
   const handleFileSelect = (file) => {
-    setEvidencia(file);
     onNext({ evidencia: file, tipo: tipoDocumento });
   };
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Clock, Bell, X } from 'lucide-react';
 import {
   TURNO_MANANA,
@@ -72,14 +72,14 @@ const getEstilos = (nivel, turnoColor) => {
 export function TurnoAlertBanner() {
   const [horaTick, setHoraTick] = useState(0);
   
-  const [descartadosHoy, setDescartadosHoy] = useState(() => {
+  const [descartados, setDescartados] = useState(() => {
     try {
       const guardado = localStorage.getItem(STORAGE_KEY);
-      if (!guardado) return [];
+      if (!guardado) return { fecha: getFechaPeru(), ids: [] };
       const { fecha, ids } = JSON.parse(guardado);
-      return fecha === getFechaPeru() ? (ids || []) : [];
+      return { fecha, ids: fecha === getFechaPeru() ? (ids || []) : [] };
     } catch {
-      return [];
+      return { fecha: getFechaPeru(), ids: [] };
     }
   });
 
@@ -107,14 +107,14 @@ export function TurnoAlertBanner() {
       const { fecha } = JSON.parse(guardado);
       if (fecha !== getFechaPeru()) {
         localStorage.removeItem(STORAGE_KEY);
-        setDescartadosHoy([]);
       }
     } catch {
       // ignorar
     }
   }, [horaTick]);
 
-  const aviso = useMemo(() => calcularAvisoActivo(descartadosHoy), [horaTick, descartadosHoy]);
+  const descartadosHoy = descartados.fecha === getFechaPeru() ? descartados.ids : [];
+  const aviso = calcularAvisoActivo(descartadosHoy);
 
   if (!aviso) return null;
 
@@ -123,7 +123,7 @@ export function TurnoAlertBanner() {
 
   const handleDescartar = () => {
     const nuevosDescartados = [...descartadosHoy, aviso.idAviso];
-    setDescartadosHoy(nuevosDescartados);
+    setDescartados({ fecha: getFechaPeru(), ids: nuevosDescartados });
     try {
       localStorage.setItem(
         STORAGE_KEY,

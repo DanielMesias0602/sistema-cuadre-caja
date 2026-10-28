@@ -77,3 +77,18 @@ export const findAllComprobantes = async () => {
 
   return result.rows;
 };
+
+// NUEVA FUNCIÓN: Buscar comprobante por tipo, serie y número para validación proactiva
+export const findComprobanteByTipoSerieNumero = async (tipo_comprobante, serie, numero) => {
+  const result = await query(
+    `SELECT id_comprobante, tipo_comprobante, serie, numero, fecha, monto
+     FROM comprobante
+     WHERE UPPER(tipo_comprobante) = UPPER($1)
+       AND UPPER(serie) = UPPER($2)
+       AND numero = $3
+     LIMIT 1`,
+    [tipo_comprobante, serie, numero]
+  );
+
+  return result.rows[0] ?? null;
+};

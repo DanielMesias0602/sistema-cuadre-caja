@@ -36,7 +36,7 @@ export const findNotasCreditoByComprobante = async (idComprobante) => {
      ORDER BY id_nota_credito`,
     [idComprobante]
   );
-  return result.rows;s
+  return result.rows;
 };
 
 export const findAllNotasCredito = async () => {
@@ -60,4 +60,15 @@ export const findAllNotasCredito = async () => {
      ORDER BY n.fecha DESC, n.id_nota_credito DESC`
   );
   return result.rows;
+};
+
+export const updateNotaCredito = async (idNotaCredito, { motivo, observacion }) => {
+  const result = await query(
+    `UPDATE nota_credito
+     SET motivo = $1, observacion = $2
+     WHERE id_nota_credito = $3
+     RETURNING id_nota_credito, id_comprobante_original, id_usuario, fecha, monto, motivo, observacion`,
+    [motivo, observacion, idNotaCredito]
+  );
+  return result.rows[0] ?? null;
 };

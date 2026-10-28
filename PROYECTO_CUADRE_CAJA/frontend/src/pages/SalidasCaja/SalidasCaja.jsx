@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import {
   Plus,
-  Calendar,
   ArrowDownRight,
   RefreshCw,
   Search,
@@ -22,15 +22,21 @@ const DEFAULT_COMPROBANTE_TEXT = 'Sin comprobante asociado';
 
 function ComprobanteCombobox({ comprobantes, value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(DEFAULT_COMPROBANTE_TEXT);
+  const [searchInput, setSearchInput] = useState('');
   const wrapperRef = useRef(null);
+  const comprobanteSeleccionado = comprobantes.find(
+    (comprobante) => String(comprobante.id_comprobante) === String(value)
+  );
+  const searchTerm = searchInput || (comprobanteSeleccionado
+    ? `${comprobanteSeleccionado.tipo_comprobante} ${comprobanteSeleccionado.serie}-${comprobanteSeleccionado.numero} | S/ ${Number(comprobanteSeleccionado.monto).toFixed(2)}`
+    : DEFAULT_COMPROBANTE_TEXT);
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
         if (!value) {
-          setSearchTerm(DEFAULT_COMPROBANTE_TEXT);
+          setSearchInput('');
         }
       }
     }
@@ -38,42 +44,32 @@ function ComprobanteCombobox({ comprobantes, value, onChange }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef, value]);
 
-  useEffect(() => {
-    if (value) {
-      const found = comprobantes.find(c => c.id_comprobante === value);
-      if (found) {
-        setSearchTerm(`${found.tipo_comprobante} ${found.serie}-${found.numero}`);
-      }
-    } else {
-      setSearchTerm(DEFAULT_COMPROBANTE_TEXT);
-    }
-  }, [value, comprobantes]);
-
   const filtered = useMemo(() => {
     if (!searchTerm || searchTerm === DEFAULT_COMPROBANTE_TEXT) {
       return comprobantes;
     }
-    const term = searchTerm.toLowerCase();
+    const cleanTerm = searchTerm.split('|')[0].trim().toLowerCase();
+    if (!cleanTerm) return comprobantes;
+
     return comprobantes.filter(c =>
-      `${c.tipo_comprobante} ${c.serie}-${c.numero}`.toLowerCase().includes(term) ||
-      (c.cliente || '').toLowerCase().includes(term) ||
-      String(c.monto).includes(term)
+      `${c.tipo_comprobante} ${c.serie}-${c.numero}`.toLowerCase().includes(cleanTerm) ||
+      (c.cliente || '').toLowerCase().includes(cleanTerm) ||
+      String(c.monto).includes(cleanTerm)
     );
   }, [searchTerm, comprobantes]);
 
   const handleSelect = (c) => {
     onChange(c ? c.id_comprobante : '');
-    if (c) {
-      setSearchTerm(`${c.tipo_comprobante} ${c.serie}-${c.numero}`);
-    } else {
-      setSearchTerm(DEFAULT_COMPROBANTE_TEXT);
-    }
+    setSearchInput('');
     setIsOpen(false);
   };
 
   const handleFocus = (e) => {
     if (searchTerm === DEFAULT_COMPROBANTE_TEXT) {
       e.target.select();
+    } else {
+      const cleanText = searchTerm.split('|')[0].trim();
+      setSearchInput(cleanText);
     }
     setIsOpen(true);
   };
@@ -85,32 +81,35 @@ function ComprobanteCombobox({ comprobantes, value, onChange }) {
           type="text"
           value={searchTerm}
           onChange={(e) => {
-            setSearchTerm(e.target.value);
+            setSearchInput(e.target.value);
             setIsOpen(true);
+            if (e.target.value.trim() === '') {
+              onChange('');
+            }
           }}
           onFocus={handleFocus}
           placeholder="Buscar por N°, cliente o monto..."
-          className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white pl-3 sm:pl-4 pr-9 sm:pr-10 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+          className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 pl-3 sm:pl-4 pr-9 sm:pr-10 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none transition-all truncate"
         />
         {value ? (
           <button
             type="button"
             onClick={() => handleSelect(null)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
           >
             <X className="h-4 w-4" />
           </button>
         ) : (
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 h-4 w-4" />
         )}
       </div>
 
       {isOpen && (
-        <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-xl dark:shadow-none max-h-60 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
           <button
             type="button"
             onClick={() => handleSelect(null)}
-            className="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-100"
+            className="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-600"
           >
             Ninguno (Sin comprobante asociado)
           </button>
@@ -121,18 +120,18 @@ function ComprobanteCombobox({ comprobantes, value, onChange }) {
                 key={c.id_comprobante}
                 type="button"
                 onClick={() => handleSelect(c)}
-                className="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm hover:bg-slate-50 border-b border-slate-50 flex flex-col gap-0.5 last:border-0"
+                className="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-600 flex flex-col gap-0.5 last:border-0"
               >
                 <div className="flex justify-between items-center w-full gap-2">
-                  <span className="font-bold text-slate-900 truncate">{c.tipo_comprobante} {c.serie}-{c.numero}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100 truncate">{c.tipo_comprobante} {c.serie}-{c.numero}</span>
                   <span className="font-black text-brand-orange flex-shrink-0">S/ {Number(c.monto).toFixed(2)}</span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-slate-500 truncate">{c.cliente || 'Sin cliente'}</span>
+                <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{c.cliente || 'Sin cliente'}</span>
               </button>
             ))
           ) : (
-            <div className="px-3 sm:px-4 py-3 text-xs sm:text-sm text-slate-500 text-center">
-              No se encontraron resultados para "{searchTerm}"
+            <div className="px-3 sm:px-4 py-3 text-xs sm:text-sm text-slate-500 dark:text-slate-400 text-center">
+              No se encontraron resultados para "{searchTerm.split('|')[0]}"
             </div>
           )}
         </div>
@@ -142,6 +141,7 @@ function ComprobanteCombobox({ comprobantes, value, onChange }) {
 }
 
 export function SalidasCaja() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [salidas, setSalidas] = useState([]);
@@ -184,13 +184,12 @@ export function SalidasCaja() {
     return !isNaN(d.getTime()) ? d.toLocaleDateString('es-PE') : fechaRaw;
   };
 
-  const cargarDatos = async () => {
+  async function cargarDatos() {
     try {
-      setLoading(true);
-      setError(null);
       const res = await api.get('/salidas-caja');
       const data = res.data?.data || res.data;
       setSalidas(Array.isArray(data) ? data : []);
+      setError(null);
     } catch (err) {
       console.error('Error al cargar salidas de caja:', err);
       setError('No hay datos disponibles');
@@ -198,6 +197,12 @@ export function SalidasCaja() {
     } finally {
       setLoading(false);
     }
+  }
+
+  const recargarDatos = () => {
+    setLoading(true);
+    setError(null);
+    return cargarDatos();
   };
 
   const cargarCatalogos = async () => {
@@ -230,8 +235,8 @@ export function SalidasCaja() {
   };
 
   useEffect(() => {
-    cargarDatos();
-    cargarCatalogos();
+    void Promise.resolve().then(cargarDatos);
+    void Promise.resolve().then(cargarCatalogos);
   }, []);
 
   const abrirModalRegistro = async () => {
@@ -288,18 +293,18 @@ export function SalidasCaja() {
     setExitoModal(null);
 
     if (!formSalida.id_cierre) {
-      setErrorModal('Debes seleccionar un cierre de caja válido.');
+      setErrorModal({ message: 'Debes seleccionar un cierre de caja válido.', isTurnoError: false });
       return;
     }
 
     const montoNum = Number(formSalida.monto);
     if (!montoNum || montoNum <= 0) {
-      setErrorModal('El monto debe ser un número positivo mayor a 0.');
+      setErrorModal({ message: 'El monto debe ser un número positivo mayor a 0.', isTurnoError: false });
       return;
     }
 
     if (!formSalida.motivo.trim()) {
-      setErrorModal('El motivo de la salida es obligatorio.');
+      setErrorModal({ message: 'El motivo de la salida es obligatorio.', isTurnoError: false });
       return;
     }
 
@@ -318,7 +323,7 @@ export function SalidasCaja() {
 
       await api.post('/salidas-caja', payload);
       setExitoModal('Salida de caja registrada exitosamente.');
-      await cargarDatos();
+      await recargarDatos();
 
       setTimeout(() => {
         setModalAbierto(false);
@@ -327,8 +332,13 @@ export function SalidasCaja() {
       }, 1000);
     } catch (err) {
       console.error('Error al registrar salida de caja:', err);
+      const status = err.response?.status;
       const msj = err.response?.data?.message || err.message || 'Error al registrar la salida de caja';
-      setErrorModal(msj);
+      
+      setErrorModal({
+        message: msj,
+        isTurnoError: status === 409
+      });
       setGuardando(false);
     }
   };
@@ -361,21 +371,20 @@ export function SalidasCaja() {
   };
 
   const getStorageUrl = (salida) => {
-    // FIX: usar url_firmada del backend si existe; si no, storage_key solo si empieza con http
     if (salida?.url_firmada) return salida.url_firmada;
     if (salida?.storage_key?.startsWith('http')) return salida.storage_key;
     return null;
   };
 
   return (
-    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up">
+    <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up dark:bg-slate-900">
       {/* HEADER */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
             Salidas de Caja
           </h1>
-          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-500">
+          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-500 dark:text-slate-400">
             Control de egresos y gastos operativos durante el turno de caja.
           </p>
         </div>
@@ -383,9 +392,9 @@ export function SalidasCaja() {
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
-            onClick={cargarDatos}
+            onClick={recargarDatos}
             disabled={loading}
-            className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm dark:shadow-none transition hover:bg-slate-50 dark:hover:bg-slate-600 hover:text-slate-900 dark:hover:text-slate-100 active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Actualizar</span>
@@ -394,7 +403,7 @@ export function SalidasCaja() {
           <button
             type="button"
             onClick={abrirModalRegistro}
-            className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl bg-brand-orange px-3 sm:px-5 text-xs sm:text-sm font-bold text-white shadow-sm shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 cursor-pointer flex-1 sm:flex-initial"
+            className="inline-flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl bg-brand-orange px-3 sm:px-5 text-xs sm:text-sm font-bold text-white shadow-sm dark:shadow-none shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 cursor-pointer flex-1 sm:flex-initial"
           >
             <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
             <span>Registrar Salida</span>
@@ -403,16 +412,16 @@ export function SalidasCaja() {
       </div>
 
       {/* FILTROS */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/60 p-3 sm:p-4 shadow-sm dark:shadow-none">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 sm:gap-3 w-full">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por motivo o tipo..."
-              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
 
@@ -428,7 +437,7 @@ export function SalidasCaja() {
             <select
               value={tipoFiltro}
               onChange={(e) => setTipoFiltro(e.target.value)}
-              className="w-full h-[42px] px-3 pr-9 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
+              className="w-full h-[42px] px-3 pr-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-100 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los tipos</option>
               {tiposSalida.map((t) => (
@@ -437,14 +446,14 @@ export function SalidasCaja() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           </div>
 
           {hayFiltrosActivos && (
             <button
               type="button"
               onClick={limpiarFiltros}
-              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
+              className="h-[42px] px-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 hover:text-slate-900 dark:hover:text-slate-100 transition flex-shrink-0 text-sm font-semibold w-full lg:w-auto cursor-pointer"
               title="Limpiar filtros"
             >
               <X className="h-4 w-4" />
@@ -458,26 +467,26 @@ export function SalidasCaja() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center">
           <Loader2 className="h-7 w-7 sm:h-8 sm:w-8 animate-spin text-brand-orange" />
-          <p className="mt-3 text-xs sm:text-sm font-semibold text-slate-700">Cargando salidas de caja...</p>
+          <p className="mt-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Cargando salidas de caja...</p>
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 text-center shadow-sm">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/60 p-6 sm:p-8 text-center shadow-sm dark:shadow-none">
           <div className="flex justify-center mb-2">
             <AlertTriangle className="h-7 w-7 sm:h-8 sm:w-8 text-rose-500" />
           </div>
-          <p className="text-xs sm:text-sm font-semibold text-rose-600">{error}</p>
+          <p className="text-xs sm:text-sm font-semibold text-rose-600 dark:text-rose-400">{error}</p>
           <button
             type="button"
-            onClick={cargarDatos}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 cursor-pointer"
+            onClick={recargarDatos}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 cursor-pointer"
           >
             Reintentar
           </button>
         </div>
       ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/60 shadow-sm dark:shadow-none overflow-hidden">
           {/* MOBILE: cards */}
-          <div className="block md:hidden divide-y divide-slate-100">
+          <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-600">
             {salidasFiltradas.length > 0 ? salidasFiltradas.map((salida) => {
               const esManana = (salida.turno || '').toLowerCase() === 'mañana';
               const docUrl = getStorageUrl(salida);
@@ -486,27 +495,27 @@ export function SalidasCaja() {
                 <div key={salida.id_salida} className="p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] sm:text-xs text-slate-500 tabular-nums">{formatearFecha(salida.fecha)}</p>
-                      <p className="text-sm font-bold text-slate-900 break-words">{salida.motivo}</p>
+                      <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatearFecha(salida.fecha)}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-100 break-words">{salida.motivo}</p>
                       {salida.observacion && (
-                        <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{salida.observacion}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{salida.observacion}</p>
                       )}
                     </div>
-                    <p className="text-base font-black text-rose-600 tabular-nums flex-shrink-0">
+                    <p className="text-base font-black text-rose-600 dark:text-rose-400 tabular-nums flex-shrink-0">
                       {formatCurrency(salida.monto)}
                     </p>
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-100">
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-800/60">
                       <ArrowDownRight className="h-3 w-3" />
                       {salida.tipo || salida.tipo_salida || 'Gasto'}
                     </span>
                     {salida.turno && (
                       <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold ${
                         esManana
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                          : 'bg-indigo-50 text-indigo-700 border border-indigo-200/60'
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60'
+                          : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60'
                       }`}>
                         {esManana ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
                         {salida.turno}
@@ -515,13 +524,13 @@ export function SalidasCaja() {
                   </div>
 
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] text-slate-500 truncate">{salida.usuario || 'Usuario'}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{salida.usuario || 'Usuario'}</p>
                     {docUrl && (
                       <a
                         href={docUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-bold"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-[10px] font-bold"
                       >
                         <Eye className="w-3 h-3" /> Ver doc
                       </a>
@@ -530,17 +539,17 @@ export function SalidasCaja() {
                 </div>
               );
             }) : (
-              <div className="p-8 text-center text-slate-500 text-sm">
+              <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
                 No hay salidas de caja registradas
               </div>
             )}
           </div>
 
           {/* DESKTOP: tabla */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
                   <th className="p-4">Fecha</th>
                   <th className="p-4">Motivo</th>
                   <th className="p-4">Tipo de Salida</th>
@@ -550,29 +559,29 @@ export function SalidasCaja() {
                   <th className="p-4 text-center">Comprobante</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-600 text-sm">
                 {salidasFiltradas.length > 0 ? salidasFiltradas.map((salida) => {
                   const esManana = (salida.turno || '').toLowerCase() === 'mañana';
                   const docUrl = getStorageUrl(salida);
 
                   return (
-                    <tr key={salida.id_salida} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-semibold text-slate-900 tabular-nums">
+                    <tr key={salida.id_salida} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                      <td className="p-4 font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
                         {formatearFecha(salida.fecha)}
                       </td>
                       <td className="p-4">
-                        <p className="font-semibold text-slate-900">{salida.motivo}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{salida.motivo}</p>
                         {salida.observacion && (
-                          <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{salida.observacion}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1">{salida.observacion}</p>
                         )}
                       </td>
                       <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 border border-rose-100">
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-800/60">
                           <ArrowDownRight className="h-3.5 w-3.5" />
                           {salida.tipo || salida.tipo_salida || 'Gasto'}
                         </span>
                       </td>
-                      <td className="p-4 text-right font-black text-rose-600 tabular-nums">
+                      <td className="p-4 text-right font-black text-rose-600 dark:text-rose-400 tabular-nums">
                         {formatCurrency(salida.monto)}
                       </td>
                       <td className="p-4">
@@ -580,20 +589,20 @@ export function SalidasCaja() {
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${
                               esManana
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                                : 'bg-indigo-50 text-indigo-700 border border-indigo-200/60'
+                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60'
+                                : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60'
                             }`}
                           >
                             {esManana ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
                             Turno {salida.turno}
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400">
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
                             #{salida.id_cierre || 'N/A'}
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-slate-600 font-medium">
+                      <td className="p-4 text-slate-600 dark:text-slate-300 font-medium">
                         {salida.usuario || 'Usuario'}
                       </td>
                       <td className="p-4 text-center">
@@ -602,21 +611,21 @@ export function SalidasCaja() {
                             href={docUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold transition active:scale-95"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950/60 text-xs font-bold transition active:scale-95"
                             title="Ver comprobante adjunto"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             Ver
                           </a>
                         ) : (
-                          <span className="text-xs text-slate-400">-</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                         )}
                       </td>
                     </tr>
                   );
                 }) : (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                    <td colSpan={7} className="p-8 text-center text-slate-500 dark:text-slate-400">
                       No hay salidas de caja registradas
                     </td>
                   </tr>
@@ -629,8 +638,8 @@ export function SalidasCaja() {
 
       {/* MODAL */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-3 sm:p-6">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm p-3 sm:p-6">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-none max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 sm:p-6 text-white relative overflow-hidden shrink-0">
               <div className="relative z-10 flex justify-between items-center">
                 <div className="min-w-0">
@@ -643,30 +652,45 @@ export function SalidasCaja() {
               </div>
             </div>
 
-            <form onSubmit={handleGuardarSalida} className="p-3 sm:p-6 overflow-y-auto flex-1 bg-slate-50 space-y-3 sm:space-y-4">
+            <form onSubmit={handleGuardarSalida} className="p-3 sm:p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-800 space-y-3 sm:space-y-4 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
               {errorModal && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 sm:p-4 text-xs sm:text-sm text-rose-800 flex items-start gap-2 sm:gap-3">
-                  <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="font-bold">No se pudo registrar la salida</p>
-                    <p className="mt-0.5 text-[11px] sm:text-xs text-rose-700">{errorModal}</p>
+                <div className={`rounded-xl border p-3 sm:p-4 flex flex-col gap-3 ${
+                  errorModal.isTurnoError
+                    ? 'border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-400 shadow-sm dark:shadow-none'
+                    : 'border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-400'
+                }`}>
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertTriangle className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 mt-0.5 ${errorModal.isTurnoError ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold">{errorModal.isTurnoError ? 'Turno Pendiente de Cierre' : 'No se pudo registrar la salida'}</p>
+                      <p className="mt-0.5 text-[11px] sm:text-xs leading-relaxed">{errorModal.message}</p>
+                    </div>
                   </div>
+                  {errorModal.isTurnoError && (
+                    <button
+                      type="button"
+                      onClick={() => { cerrarModal(); navigate('/cierres-de-caja'); }} // <-- RUTA CORREGIDA
+                      className="self-start px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors shadow-sm dark:shadow-none cursor-pointer"
+                    >
+                      Ir a Cierres de Caja
+                    </button>
+                  )}
                 </div>
               )}
 
               {exitoModal && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 sm:p-4 text-xs sm:text-sm text-emerald-800 flex items-center gap-2 sm:gap-3">
-                  <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 shrink-0" />
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 p-3 sm:p-4 text-xs sm:text-sm text-emerald-800 dark:text-emerald-400 flex items-center gap-2 sm:gap-3">
+                  <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <p className="font-bold">{exitoModal}</p>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Cierre de Caja <span className="text-rose-500">*</span>
                 </label>
                 {cargandoCierres ? (
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 py-2">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 py-2">
                     <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
                     Cargando turnos disponibles...
                   </div>
@@ -675,7 +699,7 @@ export function SalidasCaja() {
                     value={formSalida.id_cierre}
                     onChange={(e) => setFormSalida({ ...formSalida, id_cierre: e.target.value })}
                     required
-                    className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
+                    className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
                   >
                     {cierresDisponibles.map((c) => (
                       <option key={c.id_cierre} value={c.id_cierre}>
@@ -684,8 +708,8 @@ export function SalidasCaja() {
                     ))}
                   </select>
                 ) : (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] sm:text-xs font-medium text-amber-800 flex items-start gap-2">
-                    <Info className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-3 text-[11px] sm:text-xs font-medium text-amber-800 dark:text-amber-400 flex items-start gap-2">
+                    <Info className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <span>
                       No hay turnos abiertos. Dirígete a <strong>Cierres de Caja</strong> y crea un "Nuevo Cierre" para iniciar el turno antes de registrar salidas.
                     </span>
@@ -694,8 +718,8 @@ export function SalidasCaja() {
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
-                  <Search className="h-4 w-4 text-slate-500" />
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-2">
+                  <Search className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   Comprobante Asociado (Opcional)
                 </label>
                 <ComprobanteCombobox
@@ -706,7 +730,7 @@ export function SalidasCaja() {
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Monto (S/) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -717,12 +741,12 @@ export function SalidasCaja() {
                   value={formSalida.monto}
                   onChange={(e) => setFormSalida({ ...formSalida, monto: e.target.value })}
                   placeholder="0.00"
-                  className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all tabular-nums"
+                  className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none transition-all tabular-nums"
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Motivo de la Salida <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -731,12 +755,12 @@ export function SalidasCaja() {
                   value={formSalida.motivo}
                   onChange={(e) => setFormSalida({ ...formSalida, motivo: e.target.value })}
                   placeholder="Ej: Compra de agua de mesa..."
-                  className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Observación (Opcional)
                 </label>
                 <textarea
@@ -744,23 +768,23 @@ export function SalidasCaja() {
                   value={formSalida.observacion}
                   onChange={(e) => setFormSalida({ ...formSalida, observacion: e.target.value })}
                   placeholder="Información adicional..."
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
                 />
               </div>
 
-              <div className="pt-2 border-t border-slate-200 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-600 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={cerrarModal}
                   disabled={guardando}
-                  className="h-10 sm:h-11 flex-1 rounded-xl bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 cursor-pointer"
+                  className="h-10 sm:h-11 flex-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardando || cierresDisponibles.length === 0}
-                  className="h-10 sm:h-11 flex-1 rounded-xl bg-brand-orange text-xs sm:text-sm font-bold text-white shadow-md shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  className="h-10 sm:h-11 flex-1 rounded-xl bg-brand-orange text-xs sm:text-sm font-bold text-white shadow-md dark:shadow-none shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {guardando ? (
                     <>

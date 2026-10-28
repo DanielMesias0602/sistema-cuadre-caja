@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboard } from '../hooks/useDashboard';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
@@ -13,7 +13,6 @@ export function Dashboard() {
   const { user } = useAuth();
   const {
     metrics,
-    pagosPorMedio,
     operacionesRecientes,
     loading,
     error,
@@ -25,11 +24,7 @@ export function Dashboard() {
   const [selectedOp, setSelectedOp] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
 
-  useEffect(() => {
-    if (operacionesRecientes && operacionesRecientes.length > 0 && !selectedOp) {
-      setSelectedOp(operacionesRecientes[0]);
-    }
-  }, [operacionesRecientes, selectedOp]);
+  const operacionSeleccionada = selectedOp || operacionesRecientes[0] || null;
 
   const handleResetFilters = () => {
     updateFilters({
@@ -64,34 +59,34 @@ export function Dashboard() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Header */}
       <DashboardHeader user={user} />
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm font-medium flex items-center justify-between">
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-800/60 text-red-800 dark:text-rose-300 text-sm font-medium flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <AlertCircle className="w-5 h-5 text-red-500 dark:text-rose-400 flex-shrink-0" />
             <span>{error}</span>
           </div>
           <button
             type="button"
             onClick={refetch}
-            className="px-3.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 rounded-xl text-xs font-bold transition cursor-pointer"
+            className="px-3.5 py-1.5 bg-red-100 dark:bg-rose-900/50 hover:bg-red-200 dark:hover:bg-rose-900 text-red-800 dark:text-rose-200 rounded-xl text-xs font-bold transition cursor-pointer"
           >
             Reintentar
           </button>
         </div>
       )}
 
-      {/* Top KPI Cards Grid */}
+      {/* Top KPI Cards Grid (Skeletons) */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 h-32">
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+            <div key={i} className="bg-white dark:bg-slate-800/60 p-5 rounded-2xl border border-gray-100 dark:border-slate-600 h-32">
+              <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-1/2 mb-4"></div>
+              <div className="h-8 bg-gray-200 dark:bg-slate-700 rounded w-3/4"></div>
             </div>
           ))}
         </div>
@@ -106,11 +101,11 @@ export function Dashboard() {
         onReset={handleResetFilters}
       />
 
-      {/* Main Workspace Grid: Payments Breakdown & Operations Workspace + Detail Drawer */}
+      {/* Main Workspace Grid */}
       {loading && !metrics ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-xs space-y-4">
-          <RefreshCw className="w-8 h-8 text-brand-orange animate-spin" />
-          <span className="text-gray-500 font-semibold text-sm">Cargando métricas del Dashboard...</span>
+        <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800/60 rounded-2xl border border-gray-100 dark:border-slate-600 shadow-xs dark:shadow-none space-y-4">
+          <RefreshCw className="w-8 h-8 text-brand-orange dark:text-orange-400 animate-spin" />
+          <span className="text-gray-500 dark:text-slate-400 font-semibold text-sm">Cargando métricas del Dashboard...</span>
         </div>
       ) : (
         <div className={`grid grid-cols-1 gap-6 items-start ${drawerAbierto ? 'xl:grid-cols-12' : 'xl:grid-cols-1'}`}>
@@ -118,7 +113,7 @@ export function Dashboard() {
           <div className={`space-y-6 ${drawerAbierto ? 'xl:col-span-8' : 'xl:col-span-1'}`}>
             <OperacionesRecientesTable
               operaciones={filteredOps}
-              selectedOpId={selectedOp?.id_operacion}
+              selectedOpId={operacionSeleccionada?.id_operacion}
               onSelectOp={(op) => {
                 setSelectedOp(op);
                 setDrawerAbierto(true);
@@ -131,7 +126,7 @@ export function Dashboard() {
           {drawerAbierto && (
             <div className="xl:col-span-4 xl:sticky xl:top-24 animate-fade-in">
               <OperacionDetailDrawer
-                selectedOp={selectedOp}
+                selectedOp={operacionSeleccionada}
                 onClose={() => setDrawerAbierto(false)}
               />
             </div>

@@ -46,7 +46,7 @@ export function Paso4Confirmacion({ datos, onBack, onSuccess }) {
               'Content-Type': 'multipart/form-data',
             },
           });
-        } catch (evidenciaError) {
+        } catch {
           console.warn('No se pudo guardar la evidencia, pero la operación se registró');
         }
       }

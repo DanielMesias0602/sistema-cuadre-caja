@@ -12,8 +12,6 @@ import {
 
 /**
  * Error controlado de negocio.
- * Permite que el controller diferencie errores esperados
- * de errores internos reales del servidor.
  */
 class SalidaCajaError extends Error {
   constructor(message, statusCode = 400) {
@@ -79,47 +77,33 @@ export const registrarSalidaCaja = async ({
   // ============================
 
   if (!id_cierre) {
-    throw new SalidaCajaError(
-      'El cierre de caja es obligatorio'
-    );
+    throw new SalidaCajaError('El cierre de caja es obligatorio');
   }
 
   if (!id_tipo_salida) {
-    throw new SalidaCajaError(
-      'El tipo de salida es obligatorio'
-    );
+    throw new SalidaCajaError('El tipo de salida es obligatorio');
   }
 
   if (!id_usuario) {
-    throw new SalidaCajaError(
-      'El usuario es obligatorio'
-    );
+    throw new SalidaCajaError('El usuario es obligatorio');
   }
 
   if (!fecha) {
-    throw new SalidaCajaError(
-      'La fecha es obligatoria'
-    );
+    throw new SalidaCajaError('La fecha es obligatoria');
   }
 
   if (!motivo || !motivo.trim()) {
-    throw new SalidaCajaError(
-      'El motivo es obligatorio'
-    );
+    throw new SalidaCajaError('El motivo es obligatorio');
   }
 
   const montoNumerico = Number(monto);
 
   if (!Number.isFinite(montoNumerico)) {
-    throw new SalidaCajaError(
-      'El monto debe ser numérico'
-    );
+    throw new SalidaCajaError('El monto debe ser numérico');
   }
 
   if (montoNumerico <= 0) {
-    throw new SalidaCajaError(
-      'El monto debe ser mayor que cero'
-    );
+    throw new SalidaCajaError('El monto debe ser mayor que cero');
   }
 
   // ============================
@@ -127,6 +111,39 @@ export const registrarSalidaCaja = async ({
   // ============================
 
   return await withTransaction(async (client) => {
+
+    // =================================================================
+    // OPCIÓN A: BLOQUEO ESTRICTO DE TURNOS
+    // =================================================================
+    const dateCheck = await client.query(`SELECT CURRENT_DATE::text as hoy`);
+    const hoyStr = dateCheck.rows[0].hoy;
+    
+    // Solo validamos si la salida es para el día de HOY
+    if (fecha === hoyStr) {
+      const timeCheck = await client.query(`SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima')::time::text as hora_actual`);
+      const horaActual = timeCheck.rows[0].hora_actual;
+      
+      // Si es después de las 2:00 PM (14:00:00)
+      if (horaActual > '14:00:00') {
+        const cierreMananaResult = await client.query(
+          `SELECT id_cierre, estado 
+           FROM cierre_caja 
+           WHERE fecha = $1 AND UPPER(turno) = 'MAÑANA' 
+           LIMIT 1`,
+          [hoyStr]
+        );
+        
+        const cierreManana = cierreMananaResult.rows[0];
+        
+        if (!cierreManana || cierreManana.estado.toUpperCase() !== 'CERRADO') {
+          throw new SalidaCajaError(
+            'Debes cerrar la caja del Turno Mañana antes de registrar nuevas operaciones en la tarde. Por favor, dirígete al módulo de "Cierres de Caja" para realizarlo.', 
+            409
+          );
+        }
+      }
+    }
+    // =================================================================
 
     // ============================
     // 1. OBTENER Y BLOQUEAR CIERRE
@@ -154,39 +171,25 @@ export const registrarSalidaCaja = async ({
     const cierre = cierreResult.rows[0] ?? null;
 
     if (!cierre) {
-      throw new SalidaCajaError(
-        'El cierre de caja no existe',
-        404
-      );
+      throw new SalidaCajaError('El cierre de caja no existe', 404);
     }
 
     if (cierre.estado && cierre.estado.toUpperCase() === 'CERRADO') {
-      throw new SalidaCajaError(
-        'No se pueden registrar salidas en un turno que ya ha sido cerrado',
-        400
-      );
+      throw new SalidaCajaError('No se pueden registrar salidas en un turno que ya ha sido cerrado', 400);
     }
 
     // ============================
     // 2. VALIDAR TIPO DE SALIDA
     // ============================
 
-    const tipoSalida = await obtenerTipoSalida(
-      id_tipo_salida,
-      client
-    );
+    const tipoSalida = await obtenerTipoSalida(id_tipo_salida, client);
 
     if (!tipoSalida) {
-      throw new SalidaCajaError(
-        'El tipo de salida no existe',
-        404
-      );
+      throw new SalidaCajaError('El tipo de salida no existe', 404);
     }
 
     if (!tipoSalida.estado) {
-      throw new SalidaCajaError(
-        'El tipo de salida está inactivo'
-      );
+      throw new SalidaCajaError('El tipo de salida está inactivo');
     }
 
     // ============================
@@ -194,39 +197,28 @@ export const registrarSalidaCaja = async ({
     // ============================
 
     const totalActualResult = await client.query(
-      `SELECT
-         COALESCE(SUM(monto), 0) AS total_salidas
+      `SELECT COALESCE(SUM(monto), 0) AS total_salidas
        FROM salida_caja
        WHERE id_cierre = $1`,
       [id_cierre]
     );
 
-    const totalSalidasActuales = Number(
-      totalActualResult.rows[0].total_salidas
-    );
+    const totalSalidasActuales = Number(totalActualResult.rows[0].total_salidas);
 
     // ============================
     // 4. CALCULAR NUEVOS TOTALES
     // ============================
 
-    const nuevoTotalSalidas =
-      totalSalidasActuales + montoNumerico;
-
-    const efectivoEsperado =
-      Number(cierre.efectivo_esperado || 0);
-
-    const efectivoDespuesSalidas =
-      efectivoEsperado - nuevoTotalSalidas;
+    const nuevoTotalSalidas = totalSalidasActuales + montoNumerico;
+    const efectivoEsperado = Number(cierre.efectivo_esperado || 0);
+    const efectivoDespuesSalidas = efectivoEsperado - nuevoTotalSalidas;
 
     // ============================
     // 5. VALIDAR EFECTIVO DISPONIBLE
     // ============================
 
     if (efectivoDespuesSalidas < 0) {
-      throw new SalidaCajaError(
-        'La salida supera el efectivo disponible del cierre',
-        400
-      );
+      throw new SalidaCajaError('La salida supera el efectivo disponible del cierre', 400);
     }
 
     // ============================
@@ -252,40 +244,35 @@ export const registrarSalidaCaja = async ({
     // 7. CALCULAR DIFERENCIA
     // ============================
 
-    const efectivoFisico =
-      Number(cierre.efectivo_fisico || 0);
-
-    const diferencia =
-      efectivoFisico - efectivoDespuesSalidas;
+    const efectivoFisico = Number(cierre.efectivo_fisico || 0);
+    const diferencia = efectivoFisico - efectivoDespuesSalidas;
 
     // ============================
     // 8. ACTUALIZAR CIERRE
     // ============================
 
-    const cierreActualizadoResult =
-      await client.query(
-        `UPDATE cierre_caja
-         SET
-           total_salidas = $1,
-           efectivo_despues_salidas = $2,
-           diferencia = $3
-         WHERE id_cierre = $4
-         RETURNING
-           id_cierre,
-           total_salidas,
-           efectivo_despues_salidas,
-           efectivo_fisico,
-           diferencia`,
-        [
-          nuevoTotalSalidas,
-          efectivoDespuesSalidas,
-          diferencia,
-          id_cierre
-        ]
-      );
+    const cierreActualizadoResult = await client.query(
+      `UPDATE cierre_caja
+       SET
+         total_salidas = $1,
+         efectivo_despues_salidas = $2,
+         diferencia = $3
+       WHERE id_cierre = $4
+       RETURNING
+         id_cierre,
+         total_salidas,
+         efectivo_despues_salidas,
+         efectivo_fisico,
+         diferencia`,
+      [
+        nuevoTotalSalidas,
+        efectivoDespuesSalidas,
+        diferencia,
+        id_cierre
+      ]
+    );
 
-    const cierreActualizado =
-      cierreActualizadoResult.rows[0];
+    const cierreActualizado = cierreActualizadoResult.rows[0];
 
     // ============================
     // 9. RETORNAR
@@ -306,10 +293,7 @@ export const listarSalidasPorCierre = async (idCierre) => {
   const cierre = await obtenerCierre(idCierre);
 
   if (!cierre) {
-    throw new SalidaCajaError(
-      'El cierre de caja no existe',
-      404
-    );
+    throw new SalidaCajaError('El cierre de caja no existe', 404);
   }
 
   return findSalidasByCierre(idCierre);

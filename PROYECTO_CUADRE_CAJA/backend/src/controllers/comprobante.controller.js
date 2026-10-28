@@ -1,7 +1,8 @@
 import {
   registerComprobante,
   getComprobanteById,
-  getComprobantes
+  getComprobantes,
+  checkComprobanteExistente // <-- NUEVO IMPORT
 } from '../services/comprobante.service.js';
 
 export const create = async (req, res, next) => {
@@ -45,6 +46,30 @@ export const getAll = async (req, res, next) => {
     res.json({
       status: 'ok',
       data: comprobantes
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// NUEVO CONTROLADOR: Verificar si un comprobante ya existe
+export const checkExists = async (req, res, next) => {
+  try {
+    const { tipo_comprobante, serie, numero } = req.query;
+
+    if (!tipo_comprobante || !serie || !numero) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Faltan parámetros para verificar el comprobante'
+      });
+    }
+
+    const comprobante = await checkComprobanteExistente(tipo_comprobante, serie, numero);
+
+    res.json({
+      status: 'ok',
+      exists: !!comprobante,
+      data: comprobante || null
     });
   } catch (error) {
     next(error);

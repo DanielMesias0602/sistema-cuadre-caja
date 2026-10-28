@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { AlertCircle, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { AlertCircle, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
 import { SingleDatePicker } from '../../../components/ui/SingleDatePicker';
 
@@ -64,22 +64,9 @@ export function Paso2RevisionOCR({ evidencia, tipoEvidencia, onNext, onBack }) {
         urlRef.current = null;
       }
     };
-  }, []); // Solo en unmount
-
-  useEffect(() => {
-    if (ejecutadoRef.current) return;
-    
-    if (!evidencia) {
-      setLoading(false);
-      onNext(formData);
-      return;
-    }
-
-    ejecutadoRef.current = true;
-    procesarOCR();
   }, [evidencia]);
 
-  const procesarOCR = async () => {
+  const procesarOCR = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -142,7 +129,19 @@ export function Paso2RevisionOCR({ evidencia, tipoEvidencia, onNext, onBack }) {
       setError('No se pudo procesar la imagen con OCR. Por favor, completa los datos manualmente.');
       setLoading(false);
     }
-  };
+  }, [evidencia, tipoEvidencia]);
+
+  useEffect(() => {
+    if (ejecutadoRef.current) return;
+
+    ejecutadoRef.current = true;
+    if (!evidencia) {
+      onNext(formData);
+      return;
+    }
+
+    void Promise.resolve().then(procesarOCR);
+  }, [evidencia, formData, onNext, procesarOCR]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

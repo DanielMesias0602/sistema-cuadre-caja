@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-brand-orange: #ea580c;
   --color-brand-orange-hover: #c2410c;
@@ -144,4 +146,55 @@ html, body, #root {
   color: #e2e8f0 !important;
   cursor: not-allowed !important;
   background: transparent !important;
+}
+
+/* =========================================
+   DARK MODE CALENDAR
+   ========================================= */
+html.dark .premium-calendar.react-datepicker {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.dark .premium-calendar .react-datepicker__header {
+  background-color: #1e293b !important;
+}
+
+html.dark .premium-calendar .react-datepicker__current-month {
+  color: #f8fafc !important;
+}
+
+html.dark .premium-calendar .react-datepicker__day-name {
+  color: #94a3b8 !important;
+}
+
+html.dark .premium-calendar .react-datepicker__day {
+  color: #cbd5e1 !important;
+}
+
+html.dark .premium-calendar .react-datepicker__day:hover {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+html.dark .premium-calendar .react-datepicker__day--outside-month {
+  color: #475569 !important;
+}
+
+html.dark .premium-calendar .react-datepicker__day--disabled {
+  color: #334155 !important;
+}
+/* =========================================
+   FONDO GLOBAL ANTI-FOUC (Evita destellos)
+   ========================================= */
+body {
+  background-color: #f1f5f9; /* slate-100 en modo claro */
+  color: #0f172a; /* slate-900 */
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html.dark body {
+  background-color: #0f172a; /* slate-900 en modo oscuro */
+  color: #f8fafc; /* slate-50 */
 }

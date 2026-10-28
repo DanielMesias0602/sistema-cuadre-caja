@@ -2,7 +2,8 @@ import {
   registrarCierreCaja,
   obtenerCierreCaja,
   listarCierresCaja,
-  obtenerPreCalculoCierre as obtenerPreCalculoCierreService
+  obtenerPreCalculoCierre as obtenerPreCalculoCierreService,
+  reabrirCierreCaja // <-- NUEVO
 } from '../services/cierreCaja.service.js';
 
 export const createCierre = async (req, res, next) => {
@@ -70,6 +71,20 @@ export const obtenerPreCalculoCierre = async (req, res, next) => {
     return res.json({
       status: 'success',
       data: preCalculo
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// NUEVO: Controlador para reabrir turno
+export const reabrirCierre = async (req, res, next) => {
+  try {
+    const cierre = await reabrirCierreCaja(Number(req.params.id));
+    return res.json({
+      status: 'success',
+      message: 'Turno reabierto correctamente',
+      data: cierre
     });
   } catch (error) {
     next(error);

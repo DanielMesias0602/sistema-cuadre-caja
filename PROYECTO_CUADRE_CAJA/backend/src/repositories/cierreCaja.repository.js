@@ -123,8 +123,6 @@ export const findCierresCaja = async () => {
   return result.rows;
 };
 
-// FIX: usa comprobante.hora para el cálculo del turno (cuando la operación
-// se registró hoy pero la boleta es de otro día)
 export const getTotalesParaCierre = async (fecha, turno) => {
   const result = await query(
     `SELECT
@@ -137,7 +135,7 @@ export const getTotalesParaCierre = async (fecha, turno) => {
      WHERE o.fecha = $1
        AND o.id_cierre IS NULL
        AND o.estado != 'ANULADA'
-       AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') -- FIX CRÍTICO: Excluir pagos anulados
+       AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
        AND (
          (UPPER($2) = 'MAÑANA' AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) <= '14:00:00'::time)
          OR
@@ -168,4 +166,16 @@ export const contarOperacionesSinEvidenciaEmpresa = async (idCierre) => {
   );
 
   return result.rows[0]?.total || 0;
+};
+
+// NUEVO: Función para actualizar solo el estado
+export const updateEstadoCierre = async (idCierre, nuevoEstado) => {
+  const result = await query(
+    `UPDATE cierre_caja 
+     SET estado = $1 
+     WHERE id_cierre = $2 
+     RETURNING id_cierre, estado`,
+    [nuevoEstado, idCierre]
+  );
+  return result.rows[0] ?? null;
 };

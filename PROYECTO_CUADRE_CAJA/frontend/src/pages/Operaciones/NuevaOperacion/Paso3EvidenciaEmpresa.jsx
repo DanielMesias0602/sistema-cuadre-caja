@@ -12,7 +12,7 @@ const ICONOS = {
 };
 const COLORES = {
   emerald: 'text-emerald-500', blue: 'text-blue-500', purple: 'text-purple-500',
-  indigo: 'text-indigo-500', orange: 'text-orange-500', teal: 'text-teal-500', slate: 'text-slate-500',
+  indigo: 'text-indigo-500', orange: 'text-orange-500', teal: 'text-teal-500', slate: 'text-slate-500 dark:text-slate-500',
 };
 
 const getCamposOCR = (datosOCR) => {
@@ -48,12 +48,12 @@ function CampoOCRDinamico({ icon, label, value, color }) {
   const Icon = ICONOS[icon] || Info;
   const colorClass = COLORES[color] || 'text-slate-500';
   return (
-    <div className="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 min-w-0">
+    <div className="bg-slate-50 dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-100 dark:border-slate-700 min-w-0">
       <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
         <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${colorClass}`} />
-        <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold tracking-wider">{label}</span>
+        <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">{label}</span>
       </div>
-      <p className="text-xs sm:text-sm font-bold text-slate-900 break-words">{value}</p>
+      <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 break-words">{value}</p>
     </div>
   );
 }
@@ -158,12 +158,12 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
   const camposOCR = ocrData ? getCamposOCR(ocrData) : [];
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 dark:bg-slate-900">
       <div className="text-center mb-3 sm:mb-6">
-        <h2 className="text-lg sm:text-2xl font-bold text-slate-900 mb-1 sm:mb-2">
+        <h2 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1 sm:mb-2">
           Paso 3: Evidencia de la Empresa
         </h2>
-        <p className="text-xs sm:text-base text-slate-500 px-2">
+        <p className="text-xs sm:text-base text-slate-500 dark:text-slate-400 px-2">
           {requiereEvidenciaBancaria
             ? 'Adjunta la captura del movimiento bancario para respaldar los pagos no realizados en efectivo.'
             : 'Esta operación no requiere captura bancaria si todos los pagos son en efectivo.'}
@@ -171,39 +171,39 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
       </div>
 
       {requiereEvidenciaBancaria && !evidencia && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
-          <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs sm:text-sm text-amber-800">
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
+          <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-300">
             <strong>Evidencia bancaria pendiente.</strong> Puedes registrar la operación y adjuntar el comprobante posteriormente.
           </p>
         </div>
       )}
 
       {!requiereEvidenciaBancaria && !evidencia && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
-          <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs sm:text-sm text-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
+          <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-300">
             No necesitas subir una captura bancaria para pagos en efectivo.
           </p>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
-          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-red-800 text-xs sm:text-sm">{error}</p>
+        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
+          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <p className="text-red-800 dark:text-red-300 text-xs sm:text-sm">{error}</p>
         </div>
       )}
 
       {ocrData && camposOCR.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-6 max-w-2xl mx-auto shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-5 pb-3 sm:pb-4 border-b border-slate-100">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-600 rounded-2xl p-3 sm:p-6 max-w-2xl mx-auto shadow-sm dark:shadow-none">
+          <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-5 pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-700">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center flex-shrink-0">
               <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-slate-900 text-sm sm:text-lg">Datos extraídos por OCR</h3>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium">Verifica que coincidan con la captura.</p>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-lg">Datos extraídos por OCR</h3>
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">Verifica que coincidan con la captura.</p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
@@ -215,11 +215,11 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
       )}
 
       {(requiereEvidenciaBancaria || evidencia) && (
-        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-200 max-w-2xl mx-auto">
+        <div className="bg-white dark:bg-slate-800/60 p-3 sm:p-6 rounded-xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-600 max-w-2xl mx-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 sm:py-20">
               <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-brand-orange animate-spin mb-3 sm:mb-4" />
-              <p className="text-slate-600 font-medium text-sm">Procesando evidencia...</p>
+              <p className="text-slate-600 dark:text-slate-400 font-medium text-sm">Procesando evidencia...</p>
             </div>
           ) : !evidencia ? (
             <div
@@ -232,19 +232,19 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
                   fileInputRef.current?.click();
                 }
               }}
-              className="border-2 border-dashed border-slate-300 hover:bg-slate-50 rounded-xl p-6 sm:p-10 flex flex-col items-center justify-center cursor-pointer transition-colors"
+              className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl p-6 sm:p-10 flex flex-col items-center justify-center cursor-pointer transition-colors"
             >
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400 rounded-full flex items-center justify-center mb-3 sm:mb-4">
                 <UploadCloud className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <p className="font-semibold text-slate-700 text-sm sm:text-base text-center">
+              <p className="font-semibold text-slate-700 dark:text-slate-200 text-sm sm:text-base text-center">
                 {requiereEvidenciaBancaria ? 'Adjuntar captura bancaria (opcional)' : 'Adjuntar archivo (opcional)'}
               </p>
-              <p className="text-xs sm:text-sm text-slate-400 mt-1">PNG, JPG o PDF · Máx. 10 MB</p>
+              <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-1">PNG, JPG o PDF · Máx. 10 MB</p>
             </div>
           ) : (
             <div className="relative">
-              <div className="flex items-start gap-2 mb-3 sm:mb-4 bg-green-50 text-green-700 p-2.5 sm:p-3 rounded-lg border border-green-200">
+              <div className="flex items-start gap-2 mb-3 sm:mb-4 bg-green-50 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 p-2.5 sm:p-3 rounded-lg border border-green-200 dark:border-emerald-800/60">
                 <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 mt-0.5" />
                 <span className="text-xs sm:text-sm font-medium break-words min-w-0">
                   {evidencia.name}
@@ -254,19 +254,19 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
                 <img
                   src={preview}
                   alt="Vista previa"
-                  className="w-full max-h-[220px] sm:max-h-96 object-contain rounded-lg border border-slate-200 bg-slate-50"
+                  className="w-full max-h-[220px] sm:max-h-96 object-contain rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
                 />
               ) : (
-                <div className="flex items-center gap-2 sm:gap-3 p-4 sm:p-5 bg-slate-50 rounded-lg border border-slate-200">
-                  <ImageIcon className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 flex-shrink-0" />
-                  <p className="text-xs sm:text-sm text-slate-600">El archivo está seleccionado. Sin vista previa.</p>
+                <div className="flex items-center gap-2 sm:gap-3 p-4 sm:p-5 bg-slate-50 dark:bg-slate-900/70 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <ImageIcon className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 dark:text-slate-500 flex-shrink-0" />
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">El archivo está seleccionado. Sin vista previa.</p>
                 </div>
               )}
               <button
                 type="button"
                 onClick={removeImage}
                 aria-label="Quitar evidencia"
-                className="absolute top-14 right-2 bg-red-100 text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-200 transition shadow-sm"
+                className="absolute top-14 right-2 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 p-1.5 sm:p-2 rounded-full hover:bg-red-200 dark:hover:bg-red-900/60 transition shadow-sm dark:shadow-none"
               >
                 <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
@@ -287,7 +287,7 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-semibold text-sm transition"
+          className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-200 rounded-xl font-semibold text-sm transition"
         >
           <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           Atrás
@@ -296,7 +296,7 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
           type="button"
           onClick={handleNext}
           disabled={loading}
-          className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl font-semibold text-sm transition shadow-md disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl font-semibold text-sm transition shadow-md dark:shadow-none disabled:opacity-50"
         >
           Continuar
           <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" />

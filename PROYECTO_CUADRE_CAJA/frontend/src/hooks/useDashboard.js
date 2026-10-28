@@ -43,8 +43,6 @@ export function useDashboard() {
   }, [filters]);
 
   const fetchDashboardData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const activeFilters = {};
       if (filters.fecha_desde) activeFilters.fecha_desde = filters.fecha_desde;
@@ -59,6 +57,7 @@ export function useDashboard() {
       setMetrics(dashData);
       setPagosPorMedio(pagosData || []);
       setOperacionesRecientes(opsData || []);
+      setError(null);
     } catch (err) {
       setError(
         err.response?.data?.message || err.message || 'Error al cargar los datos del Dashboard'
@@ -69,12 +68,20 @@ export function useDashboard() {
   }, [filters]);
 
   useEffect(() => {
-    fetchDashboardData();
+    void Promise.resolve().then(fetchDashboardData);
   }, [fetchDashboardData]);
 
   const updateFilters = (newFilters) => {
+    setLoading(true);
+    setError(null);
     setFilters((prev) => ({ ...prev, ...newFilters }));
   };
+
+  const refetch = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    return fetchDashboardData();
+  }, [fetchDashboardData]);
 
   return {
     metrics,
@@ -84,7 +91,7 @@ export function useDashboard() {
     error,
     filters,
     updateFilters,
-    refetch: fetchDashboardData,
+    refetch,
     kpis: metrics?.kpis || {
       operaciones_registradas: 0,
       operaciones_con_pago: 0,
