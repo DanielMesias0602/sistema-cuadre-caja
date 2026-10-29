@@ -9,11 +9,7 @@ import { createPago } from '../repositories/pago.repository.js';
 import { createEvidencia } from '../repositories/evidencia.repository.js';
 import { createVerificacionPago } from '../repositories/verificacionPago.repository.js';
 import { generatePreauthenticatedRequest } from './ociStorage.service.js';
-import {
-  normalizarTurnoCaja,
-  obtenerTurnoPorHora,
-  validarHorarioRegistroOperacion,
-} from '../utils/turnoCaja.js';
+import { obtenerTurnoPorHora } from '../utils/turnoCaja.js';
 
 // --- FUNCIONES EXISTENTES ---
 
@@ -30,43 +26,47 @@ const validarHorarioRegistro = async (client, fechaOperacion, horaComprobante) =
   );
 
   const horaCheck = await client.query(
-    `WITH hora_local AS (
-       SELECT clock_timestamp() AT TIME ZONE 'America/Lima' AS ahora
-     )
-     SELECT
-       TO_CHAR(ahora, 'YYYY-MM-DD') AS hoy,
-       TO_CHAR(ahora, 'HH24:MI:SS') AS hora_actual
-     FROM hora_local`
+    `SELECT TO_CHAR(
+       clock_timestamp() AT TIME ZONE 'America/Lima',
+       'YYYY-MM-DD'
+     ) AS hoy`
   );
-  const { hoy, hora_actual: horaActual } = horaCheck.rows[0];
-  if (fechaOperacion !== hoy) return;
-
-  const cierresResult = await client.query(
-    `SELECT
-       TRANSLATE(UPPER(turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') AS turno,
-       UPPER(estado) AS estado
-     FROM cierre_caja
-     WHERE fecha = $1
-       AND TRANSLATE(UPPER(turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') = ANY($2::text[])`,
-    [hoy, ['MANANA', 'TARDE']]
-  );
-  const cierres = new Map(cierresResult.rows.map((cierre) => [
-    normalizarTurnoCaja(cierre.turno),
-    String(cierre.estado || '').toUpperCase(),
-  ]));
-  const resultadoValidacion = validarHorarioRegistroOperacion({
-    horaActual,
-    horaComprobante,
-    cierreMananaCerrado: cierres.get('MANANA') === 'CERRADO',
-    cierreTurnoActualCerrado: cierres.get(
-      obtenerTurnoPorHora(horaActual) || ''
-    ) === 'CERRADO',
-  });
-  if (resultadoValidacion.statusCode) {
-    const error = new Error(resultadoValidacion.message);
-    error.statusCode = resultadoValidacion.statusCode;
+  const { hoy } = horaCheck.rows[0];
+  if (fechaOperacion > hoy) {
+    const error = new Error('No se pueden registrar operaciones con fecha futura.');
+    error.statusCode = 400;
     throw error;
   }
+
+  if (fechaOperacion < hoy) {
+    const turnoComprobante = obtenerTurnoPorHora(horaComprobante || '12:00:00');
+    if (!turnoComprobante) {
+      const error = new Error('La hora del comprobante no es válida o está fuera del horario de caja (8:00 AM a 11:59 PM).');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const cierreResult = await client.query(
+      `SELECT UPPER(estado) AS estado
+       FROM cierre_caja
+       WHERE fecha = $1
+         AND TRANSLATE(UPPER(turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') = $2`,
+      [fechaOperacion, turnoComprobante]
+    );
+
+    if (cierreResult.rows[0]?.estado === 'CERRADO') {
+      const turnoNombre = turnoComprobante === 'MANANA' ? 'Mañana' : 'Tarde';
+      const error = new Error(
+        `El turno ${turnoNombre} del ${fechaOperacion} ya está cerrado. Debe reabrir el turno en el módulo de Cierres para poder registrar esta operación.`
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return;
+  }
+
+  return;
 };
 
 const normalizarFechaComparada = (valor) => {

@@ -43,6 +43,7 @@ export function CierresCaja() {
   const [modalReabrirAbierto, setModalReabrirAbierto] = useState(false);
   const [cierreAReabrir, setCierreAReabrir] = useState(null);
   const [errorReabrir, setErrorReabrir] = useState(null);
+  const [cierreAEditar, setCierreAEditar] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
@@ -125,10 +126,12 @@ export function CierresCaja() {
     return { totalCierres, efectivoEsperadoTotal, diferenciaAcumulada };
   }, [cierresFiltrados]);
 
-  const calcularEfectivoEsperado = async (turno, fechaSeleccionada) => {
+  const calcularEfectivoEsperado = async (turno, fechaSeleccionada, idCierre = null) => {
     try {
       const fecha = fechaSeleccionada || formCierre.fecha || getFechaPeru();
-      const res = await api.get(`/cierres-caja/pre-calculo?fecha=${fecha}&turno=${turno}`);
+      const params = new URLSearchParams({ fecha, turno });
+      if (idCierre != null) params.set('id_cierre', idCierre);
+      const res = await api.get(`/cierres-caja/pre-calculo?${params.toString()}`);
       const data = res.data.data;
       setEfectivoEsperado(Number(data.efectivo_esperado || 0));
       setPreCalculo({
@@ -153,22 +156,19 @@ export function CierresCaja() {
     const nuevoDeshabilitados = { manana: false, tarde: false };
     const nuevoMotivo = { manana: '', tarde: '' };
 
-    if (esHoy) {
-      if (horaActual < '14:00:00') {
-        nuevoDeshabilitados.tarde = true;
-        nuevoMotivo.tarde = 'El turno Tarde comienza a las 2:00 PM';
-      } else if (!cierreManana) {
-        nuevoMotivo.manana = 'Cierre pendiente de regularización';
-      }
-    }
-
-    if (cierreManana) {
+    if (cierreManana?.estado?.toUpperCase() === 'CERRADO') {
       nuevoDeshabilitados.manana = true;
       nuevoMotivo.manana = 'Este turno ya fue cerrado';
+    } else if (!cierreManana && esHoy && horaActual >= '14:00:00') {
+      nuevoMotivo.manana = 'Cierre pendiente de regularización';
     }
-    if (cierreTarde) {
+
+    if (cierreTarde?.estado?.toUpperCase() === 'CERRADO') {
       nuevoDeshabilitados.tarde = true;
       nuevoMotivo.tarde = 'Este turno ya fue cerrado';
+    } else if (!cierreTarde && esHoy && horaActual < '14:00:00') {
+      nuevoDeshabilitados.tarde = true;
+      nuevoMotivo.tarde = 'El turno Tarde comienza a las 2:00 PM';
     }
 
     setTurnosDeshabilitados(nuevoDeshabilitados);
@@ -177,6 +177,7 @@ export function CierresCaja() {
 
   const abrirModal = () => {
     const hoy = getFechaPeru();
+    setCierreAEditar(null);
     setFormCierre({ fecha: hoy, turno: '', efectivoFisico: '', observaciones: '' });
     setEfectivoEsperado(0);
     setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
@@ -185,8 +186,25 @@ export function CierresCaja() {
     setModalAbierto(true);
   };
 
+  const abrirCierrePendiente = async (cierre) => {
+    setCierreAEditar(cierre);
+    setFormCierre({
+      fecha: cierre.fecha,
+      turno: cierre.turno,
+      efectivoFisico: '',
+      observaciones: ''
+    });
+    setEfectivoEsperado(0);
+    setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
+    setConfirmacionAbierta(false);
+    await calcularEfectivoEsperado(cierre.turno, cierre.fecha, cierre.id_cierre);
+    setPasoModal(2);
+    setModalAbierto(true);
+  };
+
   const cerrarModal = () => {
     setModalAbierto(false);
+    setCierreAEditar(null);
     setPasoModal(1);
     setConfirmacionAbierta(false);
     setFormCierre({
@@ -218,6 +236,7 @@ export function CierresCaja() {
     setGuardando(true);
     try {
       const payload = {
+        id_cierre: cierreAEditar?.id_cierre ?? null,
         fecha: formCierre.fecha,
         turno: formCierre.turno,
         total_ingresos: preCalculo.total_ingresos,
@@ -268,6 +287,9 @@ export function CierresCaja() {
   };
 
   const nombreResponsable = user ? `${user.nombres || ''} ${user.apellidos || ''}`.trim() : 'Usuario autenticado';
+  const hayTurnosAbiertos = cierres.some(
+    (cierre) => String(cierre.estado).toUpperCase() === 'ABIERTO'
+  );
 
   return (
     <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up dark:bg-slate-900">
@@ -303,6 +325,15 @@ export function CierresCaja() {
           </button>
         </div>
       </div>
+
+      {hayTurnosAbiertos && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm font-medium">
+            Atención: Tienes turnos abiertos pendientes de cierre. Por favor, finalízalos para mantener la caja cuadrada.
+          </p>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -514,6 +545,16 @@ export function CierresCaja() {
                         Reabrir
                       </button>
                     )}
+                    {String(cierre.estado).toUpperCase() === 'ABIERTO' && (
+                      <button
+                        type="button"
+                        onClick={() => abrirCierrePendiente(cierre)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold transition active:scale-95"
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Cerrar Turno
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -610,6 +651,17 @@ export function CierresCaja() {
                             >
                               <Unlock className="h-3.5 w-3.5" />
                               Reabrir
+                            </button>
+                          )}
+                          {String(cierre.estado).toUpperCase() === 'ABIERTO' && (
+                            <button
+                              type="button"
+                              onClick={() => abrirCierrePendiente(cierre)}
+                              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold transition cursor-pointer active:scale-95"
+                              title="Cerrar este turno"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              Cerrar Turno
                             </button>
                           )}
                         </div>

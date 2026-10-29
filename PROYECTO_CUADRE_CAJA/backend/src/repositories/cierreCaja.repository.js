@@ -124,7 +124,7 @@ export const findCierresCaja = async () => {
   return result.rows;
 };
 
-export const getTotalesParaCierre = async (fecha, turno, client = null) => {
+export const getTotalesParaCierre = async (fecha, turno, client = null, id_cierre = null) => {
   const turnoNormalizado = normalizarTurnoCaja(turno);
   const rangoTurno = obtenerRangoTurno(turno);
   if (!turnoNormalizado || !rangoTurno) {
@@ -141,12 +141,12 @@ export const getTotalesParaCierre = async (fecha, turno, client = null) => {
      JOIN pago p ON p.id_operacion = o.id_operacion
      JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
      WHERE o.fecha = $1
-       AND o.id_cierre IS NULL
+       AND (o.id_cierre IS NULL OR o.id_cierre = $4)
        AND o.estado != 'ANULADA'
        AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
        AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) ${rangoTurno.operadorInicio} $2::time
        AND COALESCE(c.hora, (o.fecha_registro AT TIME ZONE 'America/Lima')::time) ${rangoTurno.operadorFin} $3::time`,
-    [fecha, rangoTurno.inicio, rangoTurno.fin]
+    [fecha, rangoTurno.inicio, rangoTurno.fin, id_cierre]
   );
   return result.rows[0];
 };

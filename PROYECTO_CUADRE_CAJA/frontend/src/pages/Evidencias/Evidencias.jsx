@@ -89,25 +89,19 @@ export function Evidencias() {
   };
 
   const getEvidenciasDeOperacion = (operacion) => {
-    const evidencias = [];
     const evidenciasArray = Array.isArray(operacion.evidencias) ? operacion.evidencias : [];
-    const tiposMostrar = ['COMPROBANTE', 'CLIENTE', 'EMPRESA'];
 
-    for (const tipo of tiposMostrar) {
-      const evidencia = evidenciasArray.find(e => e.tipo_evidencia === tipo);
-      if (evidencia) {
-        const url = evidencia.url_firmada
-          || (evidencia.storage_key?.startsWith('http') ? evidencia.storage_key : null);
+    return evidenciasArray.map((evidencia) => {
+      const tipo = String(evidencia.tipo_evidencia || 'EVIDENCIA');
+      const url = evidencia.url_firmada
+        || (evidencia.storage_key?.startsWith('http') ? evidencia.storage_key : null);
 
-        evidencias.push({
-          tipo: tipo.charAt(0) + tipo.slice(1).toLowerCase(),
-          url,
-          tieneUrl: Boolean(url),
-        });
-      }
-    }
-
-    return evidencias;
+      return {
+        tipo: tipo.charAt(0) + tipo.slice(1).toLowerCase(),
+        url,
+        tieneUrl: Boolean(url),
+      };
+    });
   };
 
   const handleAprobarPagos = async () => {

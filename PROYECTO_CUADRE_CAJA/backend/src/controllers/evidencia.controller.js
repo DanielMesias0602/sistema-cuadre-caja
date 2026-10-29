@@ -53,6 +53,15 @@ export const create = async (req, res, next) => {
       throw error;
     }
 
+    const idPago = req.body.id_pago == null || req.body.id_pago === ''
+      ? null
+      : Number(req.body.id_pago);
+    if (idPago !== null && (!Number.isInteger(idPago) || idPago <= 0)) {
+      const error = new Error('id_pago debe ser un identificador válido');
+      error.statusCode = 400;
+      throw error;
+    }
+
     const esImagen = req.file.mimetype.startsWith('image/');
 
     let archivoParaSubir = tempFilePath;
@@ -112,6 +121,7 @@ export const create = async (req, res, next) => {
     try {
       const evidencia = await registerEvidencia({
         id_operacion: idOperacion,
+        id_pago: idPago,
         id_usuario: req.user.id_usuario,
         tipo_evidencia: req.body.tipo_evidencia,
         storage_key: objectName,

@@ -117,7 +117,14 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
     String(estadoActual).toUpperCase() === 'COMPLETADO';
 
   const esOperacionAnulada = pago.esAnulada || String(pago.estado_operacion || '').toUpperCase() === 'ANULADA';
-  const urlEvidencia = pago.evidencia_url;
+  const operacion = pago.operacionCompleta;
+  const verificacion = operacion?.verificaciones?.find(
+    (item) => String(item.id_pago) === String(pago.id_pago)
+  );
+  const evidenciaCliente = operacion?.evidencias?.find(
+    (item) => String(item.id_evidencia) === String(verificacion?.id_evidencia_cliente)
+  );
+  const urlEvidencia = evidenciaCliente?.url_firmada || null;
   const esPagoEfectivo = esEfectivo(pago);
   
   const esEdicionEfectivo = (() => {
@@ -471,11 +478,6 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                           ? 'Este pago ha sido verificado y conciliado con el arqueo o extracto correspondiente.'
                           : 'Este pago se encuentra registrado pero requiere validación contra el estado de cuenta bancario o arqueo de caja físico.'}
                       </p>
-                      {!esPagoEfectivo && (
-                        <p className="text-[11px] text-brand-orange dark:text-orange-400 font-medium bg-orange-50 dark:bg-orange-950/30 p-2 rounded-lg border border-orange-100 dark:border-orange-900/50">
-                          Nota: Para adjuntar la evidencia de la empresa, dirígete al módulo de Operaciones.
-                        </p>
-                      )}
                     </>
                   )}
                 </section>

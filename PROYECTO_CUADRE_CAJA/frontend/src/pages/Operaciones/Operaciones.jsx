@@ -83,6 +83,29 @@ export function Operaciones() {
     return 'FUERA DE TURNO';
   };
 
+  const getTurnoAsignado = (hora) => {
+    if (!hora) return null;
+    const textoHora = String(hora).trim();
+    let horaComparar;
+
+    if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(textoHora)) {
+      const [horas, minutos, segundos = '00'] = textoHora.split(':');
+      horaComparar = `${horas.padStart(2, '0')}:${minutos}:${segundos}`;
+    } else {
+      const fecha = new Date(textoHora);
+      if (Number.isNaN(fecha.getTime())) return null;
+      horaComparar = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Lima',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      }).format(fecha);
+    }
+
+    return horaComparar >= '14:00:00' ? 'Tarde' : 'Mañana';
+  };
+
   const getTurnoBadge = (hora) => {
     const turno = getTurno(hora);
     if (turno === 'MAÑANA') {
@@ -263,7 +286,7 @@ export function Operaciones() {
                       <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>
                         {op.fecha}
                       </span>
-                      {getTurnoBadge(op.hora || op.fecha_registro)}
+                      {getTurnoBadge(op.hora)}
                     </div>
                     <p className={`text-sm font-bold break-words ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mr-1">{op.tipo_comprobante || 'DOC'}</span>
@@ -350,6 +373,8 @@ export function Operaciones() {
                   (e) => e.tipo_evidencia === 'EMPRESA'
                 );
                 const evidenciaEmpresaPendiente = hayPagoNoEfectivo && !tieneEvidenciaEmpresa && !esAnulada;
+                const turnoAsignado = getTurnoAsignado(op.hora || op.fecha_registro);
+                const mostrarTurnoAsignado = turnoAsignado && getTurno(op.hora) !== turnoAsignado.toUpperCase();
 
                 return (
                   <tr key={op.id_operacion} className={`hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors group ${esAnulada ? 'bg-rose-50/30 dark:bg-rose-950/20' : ''}`}>
@@ -361,7 +386,18 @@ export function Operaciones() {
                     </td>
 
                     <td className="p-4">
-                      {getTurnoBadge(op.hora || op.fecha_registro)}
+                      <div className="flex flex-col items-start gap-1">
+                        {getTurnoBadge(op.hora)}
+                        {mostrarTurnoAsignado && (
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                            turnoAsignado === 'Tarde'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60'
+                          }`}>
+                            Turno {turnoAsignado}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="p-4">

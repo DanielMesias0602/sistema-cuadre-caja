@@ -57,7 +57,7 @@ export const getCierres = async (req, res, next) => {
 
 export const obtenerPreCalculoCierre = async (req, res, next) => {
   try {
-    const { fecha, turno } = req.query;
+    const { fecha, turno, id_cierre } = req.query;
 
     if (!fecha || !turno) {
       return res.status(400).json({
@@ -66,7 +66,7 @@ export const obtenerPreCalculoCierre = async (req, res, next) => {
       });
     }
 
-    const preCalculo = await obtenerPreCalculoCierreService(fecha, turno);
+    const preCalculo = await obtenerPreCalculoCierreService(fecha, turno, id_cierre || null);
 
     return res.json({
       status: 'success',

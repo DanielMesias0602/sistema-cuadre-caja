@@ -117,6 +117,194 @@ const BadgeEstado = ({ evaluacion }) => {
   );
 };
 
+function EvidenciaEmpresaPagoForm({ idOperacion, pago, index, onUploaded, onPreview }) {
+  const [archivo, setArchivo] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [ocr, setOcr] = useState(null);
+  const [procesandoOcr, setProcesandoOcr] = useState(false);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState('');
+  const inputRef = useRef(null);
+
+  const formatPEN = (value) => `S/ ${Number(value || 0).toLocaleString('es-PE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setOcr(null);
+    setPreview(null);
+
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      setError('Selecciona una imagen o un documento PDF.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('El archivo no debe superar los 10 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    setArchivo(file);
+    if (!file.type.startsWith('image/')) return;
+
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      setPreview(dataUrl);
+    } catch {
+      setError('No se pudo generar la vista previa de la imagen.');
+    }
+
+    setProcesandoOcr(true);
+    try {
+      const response = await ocrService.procesar(file, 'TRANSFERENCIA');
+      const rawData = response?.data?.data || response?.data;
+      const datosExtraidos = rawData?.datos_extraidos || rawData || null;
+      if (datosExtraidos && Object.keys(datosExtraidos).length > 0) setOcr(datosExtraidos);
+    } catch (ocrError) {
+      console.warn('OCR no concluyente:', ocrError);
+    } finally {
+      setProcesandoOcr(false);
+    }
+  };
+
+  const cancelarSeleccion = () => {
+    setArchivo(null);
+    setPreview(null);
+    setOcr(null);
+    setError('');
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const subirEvidencia = async () => {
+    if (!archivo) {
+      setError('Selecciona un archivo antes de subirlo.');
+      return;
+    }
+
+    setSubiendo(true);
+    setError('');
+    try {
+      const formulario = new FormData();
+      formulario.append('archivo', archivo);
+      formulario.append('id_operacion', String(idOperacion));
+      formulario.append('id_pago', String(pago.id_pago));
+      formulario.append('tipo_evidencia', 'EMPRESA');
+      const ahora = new Date();
+      const fechaLocal = [
+        ahora.getFullYear(),
+        String(ahora.getMonth() + 1).padStart(2, '0'),
+        String(ahora.getDate()).padStart(2, '0'),
+      ].join('-');
+      formulario.append('fecha_evidencia', fechaLocal);
+      if (ocr) formulario.append('datos_ocr', JSON.stringify(ocr));
+
+      const response = await api.post('/evidencias', formulario, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const evidencia = response.data?.data?.evidencia || response.data?.data;
+      await onUploaded(evidencia, pago);
+      setArchivo(null);
+      setPreview(null);
+      setOcr(null);
+      if (inputRef.current) inputRef.current.value = '';
+    } catch (uploadError) {
+      setError(
+        uploadError.response?.data?.message
+        || uploadError.response?.data?.error
+        || 'No se pudo subir la evidencia. Inténtalo nuevamente.'
+      );
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  const medio = pago.medio_pago || pago.nombre_medio || 'Medio de pago';
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 p-4">
+      <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        Subir evidencia para Pago #{index + 1} ({medio} - {formatPEN(pago.monto)})
+      </h4>
+
+      {!archivo ? (
+        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+          Seleccionar archivo (imagen o PDF)
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*,.pdf,application/pdf"
+            onChange={handleFileChange}
+            className="mt-2 block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:cursor-pointer file:border-0 file:bg-orange-50 dark:file:bg-orange-950/40 file:px-3 file:py-2.5 file:text-xs file:font-semibold file:text-brand-orange dark:file:text-orange-400 hover:file:bg-orange-100 dark:hover:file:bg-orange-900/50"
+          />
+        </label>
+      ) : (
+        <>
+          <div className="mb-3 flex items-start gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-3">
+            {archivo.type === 'application/pdf'
+              ? <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+              : <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />}
+            <div className="min-w-0 flex-1">
+              <p className="break-all text-xs font-medium text-slate-700 dark:text-slate-200">{archivo.name}</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {(archivo.size / (1024 * 1024)).toFixed(2)} MB
+              </p>
+            </div>
+            <button type="button" onClick={cancelarSeleccion} disabled={subiendo} title="Quitar archivo">
+              <X className="h-4 w-4 text-slate-400" />
+            </button>
+          </div>
+
+          {preview && (
+            <button type="button" onClick={() => onPreview(preview, archivo)} className="mb-3 block w-full cursor-zoom-in">
+              <img src={preview} alt={`Vista previa de evidencia del pago ${index + 1}`} className="max-h-64 w-full rounded-lg border border-slate-200 dark:border-slate-700 object-contain" />
+            </button>
+          )}
+
+          {procesandoOcr && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 p-3 text-sm text-blue-800 dark:text-blue-300">
+              <LoaderCircle className="h-4 w-4 animate-spin" /> Procesando OCR automáticamente...
+            </div>
+          )}
+
+          {!procesandoOcr && ocr && (
+            <div className="mb-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-3">
+              <h5 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Datos extraídos por OCR</h5>
+              <div className="grid grid-cols-2 gap-2">
+                {ocr.monto != null && <DatoOCR icon={<Banknote className="h-3.5 w-3.5 text-emerald-500" />} label="Monto">{formatPEN(ocr.monto)}</DatoOCR>}
+                {ocr.fecha_operacion && <DatoOCR icon={<Calendar className="h-3.5 w-3.5 text-blue-500" />} label="Fecha">{ocr.fecha_operacion}</DatoOCR>}
+                {(ocr.referencia_bancaria || ocr.numero_operacion) && <DatoOCR icon={<Hash className="h-3.5 w-3.5 text-purple-500" />} label="N.º operación">{ocr.referencia_bancaria || ocr.numero_operacion}</DatoOCR>}
+                {(ocr.aplicacion_banco || ocr.banco) && <DatoOCR icon={<Landmark className="h-3.5 w-3.5 text-indigo-500" />} label="Banco">{ocr.aplicacion_banco || ocr.banco}</DatoOCR>}
+                {ocr.destinatario && <DatoOCR icon={<User className="h-3.5 w-3.5 text-orange-500" />} label="Beneficiario">{ocr.destinatario}</DatoOCR>}
+              </div>
+            </div>
+          )}
+
+          {!procesandoOcr && !ocr && archivo.type.startsWith('image/') && (
+            <div className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 p-3 text-xs text-amber-800 dark:text-amber-300">
+              El OCR no pudo extraer datos de esta imagen. Puedes subirla igual; quedará disponible para revisión manual.
+            </div>
+          )}
+
+          <button type="button" onClick={subirEvidencia} disabled={subiendo || procesandoOcr} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-orange-hover disabled:cursor-not-allowed disabled:opacity-50">
+            {subiendo ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Subiendo evidencia...</> : <><Upload className="h-4 w-4" /> Confirmar y subir</>}
+          </button>
+        </>
+      )}
+
+      {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 dark:border-rose-800/60 bg-red-50 dark:bg-rose-950/40 p-3 text-sm text-red-700 dark:text-rose-300">{error}</p>}
+    </div>
+  );
+}
+
 // ============================================================
 // COMPONENTE PRINCIPAL
 // ============================================================
@@ -126,7 +314,6 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   if (op && op !== lastOperation) setLastOperation(op);
   const initialOpData = op || lastOperation;
   const closeRef = useRef(null);
-  const fileInputEmpresaRef = useRef(null);
   const [freshOperation, setFreshOperation] = useState(null);
   const [operationLoadError, setOperationLoadError] = useState(null);
   const [operationRefreshKey, setOperationRefreshKey] = useState(0);
@@ -135,14 +322,8 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
   const [visorEsPreview, setVisorEsPreview] = useState(false);
   const [zoom, setZoom] = useState(false);
-
-  const [archivoEmpresa, setArchivoEmpresa] = useState(null);
-  const [previewEmpresa, setPreviewEmpresa] = useState(null);
-  const [ocrEmpresa, setOcrEmpresa] = useState(null);
-  const [procesandoOcr, setProcesandoOcr] = useState(false);
-  const [subiendoEvidencia, setSubiendoEvidencia] = useState(false);
+  const [archivoVisorPreview, setArchivoVisorPreview] = useState(null);
   const [mensajeEvidencia, setMensajeEvidencia] = useState('');
-  const [errorEvidencia, setErrorEvidencia] = useState('');
   const [evidenciasLocales, setEvidenciasLocales] = useState([]);
 
   const idOperacion = Number(
@@ -162,18 +343,15 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       setIsImageOpen(false);
       setSelectedImageUrl(null);
       setVisorEsPreview(false);
+      setArchivoVisorPreview(null);
       setZoom(false);
     }
   }
 
   if (!Object.is(previousOperationId, idOperacion)) {
     setPreviousOperationId(idOperacion);
-    setArchivoEmpresa(null);
-    setPreviewEmpresa(null);
-    setOcrEmpresa(null);
-    setProcesandoOcr(false);
+    setArchivoVisorPreview(null);
     setMensajeEvidencia('');
-    setErrorEvidencia('');
     setEvidenciasLocales([]);
   }
 
@@ -227,6 +405,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
           setIsImageOpen(false);
           setSelectedImageUrl(null);
           setVisorEsPreview(false);
+          setArchivoVisorPreview(null);
           setZoom(false);
         } else {
           onClose();
@@ -245,12 +424,6 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       document.removeEventListener('keydown', onKey);
     };
   }, [open, onClose, isImageOpen]);
-
-  useEffect(() => {
-    if (fileInputEmpresaRef.current) {
-      fileInputEmpresaRef.current.value = '';
-    }
-  }, [idOperacion]);
 
   if (!opData) return null;
 
@@ -373,14 +546,25 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     ...evidenciasLocales,
   ];
 
-  // CAMBIO: separar evidencias por tipo para la validación cruzada
-  const evidenciaEmpresaObj = [...evidencias]
-    .reverse()
-    .find((e) => e.tipo_evidencia === 'EMPRESA');
+  const verificaciones = Array.isArray(opData.verificaciones)
+    ? opData.verificaciones
+    : [];
+  const evidenciasEmpresa = evidencias.filter(
+    (evidencia) => evidencia.tipo_evidencia === 'EMPRESA'
+  );
+  const buscarEvidenciaDePago = (pago, tipo) => {
+    const verificacion = verificaciones.find(
+      (item) => Number(item.id_pago) === Number(pago?.id_pago)
+    );
+    const idEvidencia = tipo === 'EMPRESA'
+      ? verificacion?.id_evidencia_empresa
+      : verificacion?.id_evidencia_cliente;
 
-  const evidenciaClienteObj = [...evidencias]
-    .reverse()
-    .find((e) => e.tipo_evidencia === 'CLIENTE');
+    if (idEvidencia == null) return null;
+    return evidencias.find(
+      (evidencia) => Number(evidencia.id_evidencia) === Number(idEvidencia)
+    ) || null;
+  };
 
   const getEvidenciaUrl = (evidenciaObj) => {
     if (!evidenciaObj) return null;
@@ -394,9 +578,10 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   // CONTROL DEL VISOR
   // ============================================================
 
-  const abrirVisorPreview = (dataUrl) => {
+  const abrirVisorPreview = (dataUrl, file) => {
     setSelectedImageUrl(dataUrl);
     setVisorEsPreview(true);
+    setArchivoVisorPreview(file);
     setIsImageOpen(true);
     setZoom(false);
   };
@@ -404,6 +589,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const abrirVisorEvidencia = (url) => {
     setSelectedImageUrl(url);
     setVisorEsPreview(false);
+    setArchivoVisorPreview(null);
     setIsImageOpen(true);
     setZoom(false);
   };
@@ -412,185 +598,67 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     setIsImageOpen(false);
     setSelectedImageUrl(null);
     setVisorEsPreview(false);
+    setArchivoVisorPreview(null);
     setZoom(false);
   };
 
-  // ============================================================
-  // SELECCIÓN DE ARCHIVO + OCR AUTOMÁTICO
-  // ============================================================
+  const pagosEmpresaPendientes = pagos
+    .map((pago, index) => ({ pago, index }))
+    .filter(({ pago }) => {
+      const medioPago = String(pago.medio_pago || pago.nombre_medio || '')
+        .trim()
+        .toLowerCase();
+      return medioPago !== '' &&
+        !medioPago.includes('efectivo') &&
+        !buscarEvidenciaDePago(pago, 'EMPRESA');
+    });
 
-  const handleFileChangeEmpresa = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setErrorEvidencia('');
-    setMensajeEvidencia('');
-    setOcrEmpresa(null);
-    setPreviewEmpresa(null);
-
-    const esImagen = file.type.startsWith('image/');
-    const esPdf = file.type === 'application/pdf';
-
-    if (!esImagen && !esPdf) {
-      setErrorEvidencia('Selecciona una imagen o un documento PDF.');
-      e.target.value = '';
-      return;
+  const handleEvidenciaPagoSubida = async (evidencia, pago) => {
+    if (evidencia && typeof evidencia === 'object' && evidencia.storage_key) {
+      setEvidenciasLocales((actuales) => [...actuales, evidencia]);
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorEvidencia('El archivo no debe superar los 10 MB.');
-      e.target.value = '';
-      return;
-    }
-
-    setArchivoEmpresa(file);
-
-    if (!esImagen) {
-      return;
-    }
-
-    try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      setPreviewEmpresa(dataUrl);
-      abrirVisorPreview(dataUrl);
-    } catch {
-      // Sin preview, no bloquea
-    }
-
-    setProcesandoOcr(true);
-    try {
-      const response = await ocrService.procesar(file, 'TRANSFERENCIA');
-      const rawData = response?.data?.data || response?.data;
-      const datosExtraidos = rawData?.datos_extraidos || rawData || null;
-
-      if (datosExtraidos && Object.keys(datosExtraidos).length > 0) {
-        setOcrEmpresa(datosExtraidos);
-      }
-    } catch (ocrError) {
-      console.warn('OCR no concluyente:', ocrError);
-    } finally {
-      setProcesandoOcr(false);
-    }
-  };
-
-  const cancelarSeleccionEmpresa = () => {
-    setArchivoEmpresa(null);
-    setPreviewEmpresa(null);
-    setOcrEmpresa(null);
-    setErrorEvidencia('');
-    setMensajeEvidencia('');
-    cerrarVisor();
-    if (fileInputEmpresaRef.current) {
-      fileInputEmpresaRef.current.value = '';
-    }
-  };
-
-  const subirEvidenciaEmpresa = async () => {
-    if (!archivoEmpresa) {
-      setErrorEvidencia('Selecciona un archivo antes de subirlo.');
-      return;
-    }
-    if (!Number.isInteger(idOperacion) || idOperacion <= 0) {
-      setErrorEvidencia('No se pudo identificar la operación.');
-      return;
-    }
-
-    try {
-      setSubiendoEvidencia(true);
-      setErrorEvidencia('');
-      setMensajeEvidencia('');
-
-      const formulario = new FormData();
-      formulario.append('archivo', archivoEmpresa);
-      formulario.append('id_operacion', String(idOperacion));
-      formulario.append('tipo_evidencia', 'EMPRESA');
-
-      const ahora = new Date();
-      const fechaLocal = [
-        ahora.getFullYear(),
-        String(ahora.getMonth() + 1).padStart(2, '0'),
-        String(ahora.getDate()).padStart(2, '0'),
-      ].join('-');
-      formulario.append('fecha_evidencia', fechaLocal);
-
-      if (ocrEmpresa) {
-        formulario.append('datos_ocr', JSON.stringify(ocrEmpresa));
-      }
-
-      const respuesta = await api.post('/evidencias', formulario, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      const evidenciaCreada =
-        respuesta.data?.data?.evidencia || respuesta.data?.data;
-
-      if (
-        evidenciaCreada &&
-        typeof evidenciaCreada === 'object' &&
-        evidenciaCreada.storage_key
-      ) {
-        setEvidenciasLocales((actuales) => [...actuales, evidenciaCreada]);
-      }
-
-      try {
-        const consulta = await api.get(
-          `/evidencias/operacion/${idOperacion}`
+    if (evidencia?.id_evidencia != null) {
+      setFreshOperation((actual) => {
+        if (actual?.id !== idOperacion) return actual;
+        const verificacionesActuales = Array.isArray(actual.data.verificaciones)
+          ? actual.data.verificaciones
+          : [];
+        const existe = verificacionesActuales.some(
+          (item) => String(item.id_pago) === String(pago.id_pago)
         );
-        const resultado = consulta.data?.data;
-        const lista = Array.isArray(resultado)
-          ? resultado
-          : Array.isArray(resultado?.evidencias)
-            ? resultado.evidencias
-            : null;
-        if (lista) setEvidenciasLocales(lista);
-      } catch {
-        // No invalida la subida
-      }
+        const verificacionesActualizadas = existe
+          ? verificacionesActuales.map((item) => (
+            String(item.id_pago) === String(pago.id_pago)
+              ? { ...item, id_evidencia_empresa: evidencia.id_evidencia }
+              : item
+          ))
+          : [...verificacionesActuales, {
+            id_pago: pago.id_pago,
+            id_evidencia_empresa: evidencia.id_evidencia,
+          }];
+        return {
+          ...actual,
+          data: { ...actual.data, verificaciones: verificacionesActualizadas },
+        };
+      });
+    }
 
-      setArchivoEmpresa(null);
-      setPreviewEmpresa(null);
-      setOcrEmpresa(null);
-      cerrarVisor();
-      if (fileInputEmpresaRef.current) {
-        fileInputEmpresaRef.current.value = '';
-      }
+    setOperationRefreshKey((actual) => actual + 1);
+    setMensajeEvidencia('Evidencia de empresa registrada y asociada al pago.');
 
-      setMensajeEvidencia(
-        ocrEmpresa
-          ? 'Evidencia de empresa registrada. El OCR extrajo datos que se usarán en la verificación cruzada.'
-          : 'Evidencia de empresa registrada. No se pudo extraer información por OCR; queda disponible para revisión manual.'
-      );
-
-      if (typeof onEvidenciaSubida === 'function') {
-        try {
-          await onEvidenciaSubida(idOperacion);
-        } catch (e) {
-          console.warn('No se pudo notificar al padre:', e);
-        }
+    if (typeof onEvidenciaSubida === 'function') {
+      try {
+        await onEvidenciaSubida(idOperacion);
+      } catch (error) {
+        console.warn('No se pudo notificar al padre:', error);
       }
-    } catch (error) {
-      setErrorEvidencia(
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        'No se pudo subir la evidencia. Inténtalo nuevamente.'
-      );
-    } finally {
-      setSubiendoEvidencia(false);
     }
   };
-
-  const evidenciaEmpresaUrl = getEvidenciaUrl(evidenciaEmpresaObj);
-  const evidenciaClienteUrl = getEvidenciaUrl(evidenciaClienteObj);
-  const evidenciaEmpresaYaExiste = Boolean(evidenciaEmpresaObj);
 
   const esArchivoPdf = (() => {
-    if (!selectedImageUrl && !archivoEmpresa) return false;
-    const mime = String(archivoEmpresa?.type || '').toLowerCase();
+    if (!selectedImageUrl && !archivoVisorPreview) return false;
+    const mime = String(archivoVisorPreview?.type || '').toLowerCase();
     if (mime === 'application/pdf') return true;
     return String(selectedImageUrl || '').toLowerCase().includes('.pdf');
   })();
@@ -726,213 +794,72 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     </span>
                     Evidencia de la empresa
                   </span>
-                  {!evidenciaEmpresaYaExiste && (
+                  {pagosEmpresaPendientes.length > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700/50">
                       <Clock className="h-3 w-3" />
-                      PENDIENTE
+                      {pagosEmpresaPendientes.length} PENDIENTE{pagosEmpresaPendientes.length > 1 ? 'S' : ''}
                     </span>
                   )}
                 </h3>
 
-                {evidenciaEmpresaYaExiste ? (
-                  <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                    La evidencia de la empresa ya está registrada y vinculada
-                    a esta operación. Puedes consultarla con el botón de abajo.
+                <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  Adjunta una evidencia por cada pago. El OCR extraerá los datos automáticamente para la validación cruzada.
+                </p>
+
+                {evidenciasEmpresa.length > 0 && (
+                  <div className="mb-4 flex flex-col gap-2">
+                    {evidenciasEmpresa.map((evidencia, index) => {
+                      const pagoVinculado = pagos.find(
+                        (pago) => String(verificaciones.find(
+                          (item) => String(item.id_evidencia_empresa) === String(evidencia.id_evidencia)
+                        )?.id_pago) === String(pago.id_pago)
+                      );
+                      const url = getEvidenciaUrl(evidencia);
+                      return (
+                        <button
+                          key={evidencia.id_evidencia || index}
+                          type="button"
+                          onClick={() => url && abrirVisorEvidencia(url)}
+                          disabled={!url}
+                          className="inline-flex w-full items-center justify-between gap-2 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 px-3 py-2.5 text-left text-sm font-semibold text-blue-700 dark:text-blue-300 transition hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <span className="inline-flex min-w-0 items-center gap-2">
+                            <Eye className="h-4 w-4 shrink-0" />
+                            <span className="truncate">
+                              Evidencia #{index + 1} · {pagoVinculado ? `Pago de ${formatPEN(pagoVinculado.monto)}` : 'Pago asociado'}
+                            </span>
+                          </span>
+                          {evidencia.datos_ocr?.monto != null && (
+                            <span className="shrink-0 tabular-nums">{formatPEN(evidencia.datos_ocr.monto)}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {pagosEmpresaPendientes.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {pagosEmpresaPendientes.map(({ pago, index }) => (
+                      <EvidenciaEmpresaPagoForm
+                        key={pago.id_pago}
+                        idOperacion={idOperacion}
+                        pago={pago}
+                        index={index}
+                        onUploaded={handleEvidenciaPagoSubida}
+                        onPreview={abrirVisorPreview}
+                      />
+                    ))}
+                  </div>
+                ) : evidenciasEmpresa.length === 0 ? (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    No hay pagos pendientes de evidencia de empresa.
                   </p>
-                ) : (
-                  <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                    Adjunta el comprobante de la empresa cuando esté disponible.
-                    Puede subirse horas o días después de la operación. El OCR
-                    extraerá los datos automáticamente y la imagen se mostrará
-                    a la izquierda para que compares con los datos extraídos.
-                  </p>
-                )}
+                ) : null}
 
-                {evidenciaEmpresaYaExiste && (
-                  <>
-                    <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/30 p-3">
-                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                      <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                        Evidencia de empresa registrada
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => abrirVisorEvidencia(evidenciaEmpresaUrl)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 px-3 py-2.5 text-sm font-semibold text-blue-700 dark:text-blue-300 transition hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Ver evidencia de la empresa
-                    </button>
-
-                    {mensajeEvidencia && (
-                      <p
-                        role="status"
-                        className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3 text-sm text-emerald-700 dark:text-emerald-300"
-                      >
-                        {mensajeEvidencia}
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {!evidenciaEmpresaYaExiste && !archivoEmpresa && (
-                  <>
-                    <label
-                      htmlFor="evidencia-empresa"
-                      className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300"
-                    >
-                      Seleccionar archivo (imagen o PDF)
-                    </label>
-
-                    <input
-                      id="evidencia-empresa"
-                      ref={fileInputEmpresaRef}
-                      type="file"
-                      accept="image/*,.pdf,application/pdf"
-                      onChange={handleFileChangeEmpresa}
-                      className="block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-600 dark:text-slate-300 file:mr-3 file:cursor-pointer file:border-0 file:bg-orange-50 dark:file:bg-orange-950/40 file:px-3 file:py-2.5 file:text-xs file:font-semibold file:text-brand-orange dark:file:text-orange-400 hover:file:bg-orange-100 dark:hover:file:bg-orange-900/50"
-                    />
-                  </>
-                )}
-
-                {!evidenciaEmpresaYaExiste && archivoEmpresa && (
-                  <>
-                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-transparent dark:border-slate-600 p-3">
-                      {archivoEmpresa.type === 'application/pdf' ? (
-                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                      ) : (
-                        <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="break-all text-xs font-medium text-slate-700 dark:text-slate-200">
-                          {archivoEmpresa.name}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {(archivoEmpresa.size / (1024 * 1024)).toFixed(2)} MB
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={cancelarSeleccionEmpresa}
-                        className="rounded-md p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200"
-                        title="Quitar archivo"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {previewEmpresa && (
-                      <button
-                        type="button"
-                        onClick={() => abrirVisorPreview(previewEmpresa)}
-                        className="mb-3 block w-full cursor-zoom-in"
-                        title="Ver imagen completa a la izquierda"
-                      >
-                        <img
-                          src={previewEmpresa}
-                          alt="Vista previa de evidencia"
-                          className="max-h-64 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 object-contain"
-                        />
-                      </button>
-                    )}
-
-                    {procesandoOcr && (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-transparent dark:border-blue-800/50 p-3 text-sm text-blue-800 dark:text-blue-300">
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                        Procesando OCR automáticamente... Compara la imagen
-                        (izquierda) con los datos extraídos.
-                      </div>
-                    )}
-
-                    {!procesandoOcr && ocrEmpresa && (
-                      <div className="mb-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/80 p-3">
-                        <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                          Datos extraídos por OCR
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {ocrEmpresa.monto != null && (
-                            <DatoOCR
-                              icon={<Banknote className="h-3.5 w-3.5 text-emerald-500" />}
-                              label="Monto"
-                            >
-                              S/ {Number(ocrEmpresa.monto).toFixed(2)}
-                            </DatoOCR>
-                          )}
-                          {ocrEmpresa.fecha_operacion && (
-                            <DatoOCR
-                              icon={<Calendar className="h-3.5 w-3.5 text-blue-500" />}
-                              label="Fecha"
-                            >
-                              {ocrEmpresa.fecha_operacion}
-                            </DatoOCR>
-                          )}
-                          {(ocrEmpresa.referencia_bancaria ||
-                            ocrEmpresa.numero_operacion) && (
-                              <DatoOCR
-                                icon={<Hash className="h-3.5 w-3.5 text-purple-500" />}
-                                label="N.º operación"
-                              >
-                                {ocrEmpresa.referencia_bancaria ||
-                                  ocrEmpresa.numero_operacion}
-                              </DatoOCR>
-                            )}
-                          {(ocrEmpresa.aplicacion_banco ||
-                            ocrEmpresa.banco) && (
-                              <DatoOCR
-                                icon={<Landmark className="h-3.5 w-3.5 text-indigo-500" />}
-                                label="Banco"
-                              >
-                                {ocrEmpresa.aplicacion_banco || ocrEmpresa.banco}
-                              </DatoOCR>
-                            )}
-                          {ocrEmpresa.destinatario && (
-                            <DatoOCR
-                              icon={<User className="h-3.5 w-3.5 text-orange-500" />}
-                              label="Beneficiario"
-                            >
-                              {ocrEmpresa.destinatario}
-                            </DatoOCR>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {!procesandoOcr && !ocrEmpresa && archivoEmpresa.type.startsWith('image/') && (
-                      <div className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-transparent dark:border-amber-800/50 p-3 text-xs text-amber-800 dark:text-amber-300">
-                        El OCR no pudo extraer datos de esta imagen. Puedes
-                        subirla igual; quedará disponible para revisión manual.
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={subirEvidenciaEmpresa}
-                      disabled={subiendoEvidencia || procesandoOcr}
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-orange-hover disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {subiendoEvidencia ? (
-                        <>
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          Subiendo evidencia...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-4 w-4" />
-                          Confirmar y subir
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
-
-                {errorEvidencia && (
-                  <p
-                    role="alert"
-                    className="mt-3 rounded-lg bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-800/60 p-3 text-sm text-red-700 dark:text-rose-300"
-                  >
-                    {errorEvidencia}
+                {mensajeEvidencia && (
+                  <p role="status" className="mt-3 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+                    {mensajeEvidencia}
                   </p>
                 )}
               </section>
@@ -956,11 +883,21 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
 
                 <ul className="flex flex-col gap-3">
                   {pagos.map((pago, idx) => {
-                    const evaluacion = evaluarPago(pago, evidenciaEmpresaObj);
-                    const datosOcr = evidenciaEmpresaObj?.datos_ocr || {};
+                    const evidenciaEmpresaPago = buscarEvidenciaDePago(pago, 'EMPRESA');
+                    const evidenciaClientePago = buscarEvidenciaDePago(pago, 'CLIENTE');
+                    const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
+                    const pagoParaEvaluacion = {
+                      ...pago,
+                      referencia: pago?.referencia
+                        || datosOcrCliente.referencia_bancaria
+                        || datosOcrCliente.numero_operacion
+                        || null,
+                    };
+                    const evaluacion = evaluarPago(pagoParaEvaluacion, evidenciaEmpresaPago);
+                    const datosOcr = evidenciaEmpresaPago?.datos_ocr || {};
                     const refEmpresa = datosOcr.referencia_bancaria || datosOcr.numero_operacion || null;
                     const montoEmpresa = datosOcr.monto ?? null;
-                    const refPago = pago?.referencia || null;
+                    const refPago = pagoParaEvaluacion.referencia;
 
                     return (
                       <li key={idx} className="rounded-lg border border-slate-100 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/50 p-3">
@@ -1082,7 +1019,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                       p.medio_pago || p.nombre_medio || ''
                     ).toLowerCase();
                     const esEfectivo = medio.includes('efectivo');
-                    const puedeVerCliente = !esEfectivo && evidenciaClienteUrl;
+                    const evidenciaClientePago = buscarEvidenciaDePago(p, 'CLIENTE');
+                    const evidenciaClientePagoUrl = getEvidenciaUrl(evidenciaClientePago);
+                    const puedeVerCliente = !esEfectivo && evidenciaClientePagoUrl;
                     const estadoPago = String(p.estado || 'REGISTRADO').toUpperCase();
                     const pagoVerificado = ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(estadoPago);
                     const pagoAnulado = estadoPago === 'ANULADO';
@@ -1102,7 +1041,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                               <button
                                 type="button"
                                 onClick={() =>
-                                  abrirVisorEvidencia(evidenciaClienteUrl)
+                                  abrirVisorEvidencia(evidenciaClientePagoUrl)
                                 }
                                 className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 transition hover:bg-blue-100 dark:hover:bg-blue-900/50"
                                 title="Ver evidencia del cliente"

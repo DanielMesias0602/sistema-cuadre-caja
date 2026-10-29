@@ -34,9 +34,25 @@ export const findOperacionById = async (idOperacion) => {
        observacion,
        fecha_registro,
        fecha_modificacion,
-       id_usuario_modificacion
-     FROM operacion
-     WHERE id_operacion = $1`,
+       id_usuario_modificacion,
+       COALESCE(
+         (
+           SELECT jsonb_agg(
+             jsonb_build_object(
+               'id_pago', vp.id_pago,
+               'id_evidencia_cliente', vp.id_evidencia_cliente,
+               'id_evidencia_empresa', vp.id_evidencia_empresa,
+               'estado_verificacion', vp.estado_verificacion
+             )
+           )
+           FROM verificacion_pago vp
+           JOIN pago p ON p.id_pago = vp.id_pago
+           WHERE p.id_operacion = o.id_operacion
+         ),
+         '[]'::jsonb
+       ) AS verificaciones
+     FROM operacion o
+     WHERE o.id_operacion = $1`,
     [idOperacion]
   );
 
@@ -99,7 +115,20 @@ export const findAllOperaciones = async () => {
          ) FROM evidencia e
          WHERE e.id_operacion = o.id_operacion),
          '[]'::jsonb
-       ) AS evidencias
+       ) AS evidencias,
+       COALESCE(
+         (SELECT jsonb_agg(
+           jsonb_build_object(
+             'id_pago', vp.id_pago,
+             'id_evidencia_cliente', vp.id_evidencia_cliente,
+             'id_evidencia_empresa', vp.id_evidencia_empresa,
+             'estado_verificacion', vp.estado_verificacion
+           )
+         ) FROM verificacion_pago vp
+         JOIN pago p ON p.id_pago = vp.id_pago
+         WHERE p.id_operacion = o.id_operacion),
+         '[]'::jsonb
+       ) AS verificaciones
      FROM operacion o
      INNER JOIN usuario u
        ON u.id_usuario = o.id_usuario

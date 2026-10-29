@@ -3,6 +3,7 @@ import {
   findEvidenciaById,
   findEvidenciasByOperacion
 } from '../repositories/evidencia.repository.js';
+import { withTransaction } from '../repositories/base.repository.js';
 
 import {
   findOperacionById
@@ -40,6 +41,7 @@ const enrichWithUrl = async (evidencia) => {
 export const registerEvidencia = async (data) => {
   const {
     id_operacion,
+    id_pago = null,
     id_usuario,
     tipo_evidencia,
     storage_key,
@@ -63,6 +65,17 @@ export const registerEvidencia = async (data) => {
     throw error;
   }
 
+  if (id_pago != null && (!Number.isInteger(Number(id_pago)) || Number(id_pago) <= 0)) {
+    const error = new Error('id_pago debe ser un identificador válido');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (id_pago != null && String(tipo_evidencia).toUpperCase() !== 'EMPRESA') {
+    const error = new Error('La evidencia asociada al pago debe ser de tipo EMPRESA');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const operacion = await findOperacionById(id_operacion);
 
   if (!operacion) {
@@ -72,15 +85,48 @@ export const registerEvidencia = async (data) => {
   }
 
   try {
-    const creada = await createEvidencia({
-      id_operacion,
-      id_usuario,
-      tipo_evidencia,
-      storage_key,
-      fecha_evidencia,
-      observacion,
-      texto_ocr,
-      datos_ocr
+    const creada = await withTransaction(async (client) => {
+      if (id_pago != null) {
+        const pagoResult = await client.query(
+          `SELECT id_pago
+           FROM pago
+           WHERE id_pago = $1 AND id_operacion = $2
+           FOR UPDATE`,
+          [id_pago, id_operacion]
+        );
+        if (pagoResult.rows.length === 0) {
+          const error = new Error('El pago no pertenece a la operación indicada');
+          error.statusCode = 404;
+          throw error;
+        }
+      }
+
+      const evidencia = await createEvidencia({
+        id_operacion,
+        id_usuario,
+        tipo_evidencia,
+        storage_key,
+        fecha_evidencia,
+        observacion,
+        texto_ocr,
+        datos_ocr
+      }, client);
+
+      if (id_pago != null) {
+        const asociacionResult = await client.query(
+          `UPDATE verificacion_pago
+           SET id_evidencia_empresa = $1
+           WHERE id_pago = $2`,
+          [evidencia.id_evidencia, id_pago]
+        );
+        if (asociacionResult.rowCount === 0) {
+          const error = new Error('No existe una verificación para el pago indicado');
+          error.statusCode = 404;
+          throw error;
+        }
+      }
+
+      return evidencia;
     });
 
     return enrichWithUrl(creada);

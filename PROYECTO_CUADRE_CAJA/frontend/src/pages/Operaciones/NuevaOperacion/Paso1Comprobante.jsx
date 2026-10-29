@@ -23,6 +23,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
   const urlRef = useRef(null);
   const blobRef = useRef(null);
+  const horaEditadaManualmenteRef = useRef(Boolean(datosIniciales?.hora));
 
   const [formData, setFormData] = useState(datosIniciales || {
     tipo_comprobante: '', serie: '', numero: '',
@@ -160,7 +161,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         serie: datos.serie || '',
         numero: datos.numero || '',
         fecha: convertirFecha(datos.fecha) || '',
-        hora: datos.hora || '',
+        hora: horaEditadaManualmenteRef.current ? formData.hora : datos.hora || '',
         vendedor: datos.vendedor || '',
         cliente: datos.cliente || '',
         producto: '',
@@ -385,6 +386,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                   medio_pago: '', producto: '', items: [],
                   evidencia: null, previewUrl: null,
                 };
+                horaEditadaManualmenteRef.current = false;
                 setFormData(nuevo);
                 onDataChange(nuevo);
               }}
@@ -621,7 +623,10 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 type="time"
                 name="hora"
                 value={formData.hora}
-                onChange={(e) => handleChange('hora', e.target.value)}
+                onChange={(e) => {
+                  horaEditadaManualmenteRef.current = true;
+                  handleChange('hora', e.target.value);
+                }}
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
