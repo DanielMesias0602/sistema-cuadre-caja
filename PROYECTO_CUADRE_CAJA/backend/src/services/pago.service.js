@@ -16,6 +16,7 @@ import {
 import {
   withTransaction
 } from '../repositories/base.repository.js';
+import { emitirEvento } from './socket.service.js';
 
 export const registerPago = async (data) => {
   const {
@@ -42,7 +43,25 @@ export const registerPago = async (data) => {
     throw error;
   }
 
-  return withTransaction(async (client) => {
+  const pago = await withTransaction(async (client) => {
+    const fechaOperacionResult = await client.query(
+      `SELECT fecha
+       FROM operacion
+       WHERE id_operacion = $1`,
+      [id_operacion]
+    );
+
+    if (fechaOperacionResult.rows.length === 0) {
+      const error = new Error('La operación no existe');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
+      [fechaOperacionResult.rows[0].fecha]
+    );
+
     /*
      * Consultamos el medio de pago para determinar el estado inicial.
      * Lógica de Caja Real: El efectivo se auto-verifica (validación física en Cierre de Caja).
@@ -93,6 +112,23 @@ export const registerPago = async (data) => {
     }
 
     const operacion = operacionResult.rows[0];
+
+    const cierreResult = await client.query(
+      `SELECT cc.estado AS estado_cierre
+       FROM operacion o
+       LEFT JOIN cierre_caja cc ON cc.id_cierre = o.id_cierre
+       WHERE o.id_operacion = $1`,
+      [id_operacion]
+    );
+    const cierre = cierreResult.rows[0];
+
+    if (String(cierre?.estado_cierre || '').toUpperCase() === 'CERRADO') {
+      const error = new Error(
+        'No se pueden agregar pagos a una operación que pertenece a un cierre ya cerrado. Reabra el turno primero.'
+      );
+      error.statusCode = 409;
+      throw error;
+    }
 
     /*
      * Recuperamos los pagos registrados dentro
@@ -163,6 +199,9 @@ export const registerPago = async (data) => {
 
     return pago;
   });
+
+  emitirEvento('pago_actualizado', { id: pago.id_pago });
+  return pago;
 };
 
 export const modifyPago = async (idPago, data) => {
@@ -190,7 +229,26 @@ export const modifyPago = async (idPago, data) => {
     }
   }
 
-  return withTransaction(async (client) => {
+  const resultado = await withTransaction(async (client) => {
+    const fechaOperacionResult = await client.query(
+      `SELECT o.fecha
+       FROM pago p
+       INNER JOIN operacion o ON o.id_operacion = p.id_operacion
+       WHERE p.id_pago = $1`,
+      [idPago]
+    );
+
+    if (fechaOperacionResult.rows.length === 0) {
+      const error = new Error('El pago no existe');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
+      [fechaOperacionResult.rows[0].fecha]
+    );
+
     // 1. Lock and find the payment
     const pagoResult = await client.query(
       `SELECT id_pago, id_operacion, id_medio_pago, monto, referencia_bancaria, observacion, estado
@@ -227,6 +285,23 @@ export const modifyPago = async (idPago, data) => {
 
     if (operacion.estado === 'ANULADA') {
       const error = new Error('No se pueden modificar pagos de una operación anulada');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const cierreResult = await client.query(
+      `SELECT cc.estado AS estado_cierre
+       FROM operacion o
+       LEFT JOIN cierre_caja cc ON cc.id_cierre = o.id_cierre
+       WHERE o.id_operacion = $1`,
+      [operacion.id_operacion]
+    );
+    const cierre = cierreResult.rows[0];
+
+    if (String(cierre?.estado_cierre || '').toUpperCase() === 'CERRADO') {
+      const error = new Error(
+        'No se puede modificar un pago que pertenece a un cierre ya cerrado. Reabra el turno primero.'
+      );
       error.statusCode = 409;
       throw error;
     }
@@ -289,6 +364,9 @@ export const modifyPago = async (idPago, data) => {
 
     return pagoActualizado;
   });
+
+  emitirEvento('pago_actualizado', { id: resultado.id_pago });
+  return resultado;
 };
 
 export const getPagoById = async (idPago) => {

@@ -70,8 +70,10 @@ export const registerEvidencia = async (data) => {
     error.statusCode = 400;
     throw error;
   }
-  if (id_pago != null && String(tipo_evidencia).toUpperCase() !== 'EMPRESA') {
-    const error = new Error('La evidencia asociada al pago debe ser de tipo EMPRESA');
+
+  const tipoEvidenciaNormalizado = String(tipo_evidencia).toUpperCase();
+  if (id_pago != null && !['CLIENTE', 'EMPRESA'].includes(tipoEvidenciaNormalizado)) {
+    const error = new Error('La evidencia asociada al pago debe ser de tipo CLIENTE o EMPRESA');
     error.statusCode = 400;
     throw error;
   }
@@ -113,9 +115,12 @@ export const registerEvidencia = async (data) => {
       }, client);
 
       if (id_pago != null) {
+        const columnaEvidencia = tipoEvidenciaNormalizado === 'EMPRESA'
+          ? 'id_evidencia_empresa'
+          : 'id_evidencia_cliente';
         const asociacionResult = await client.query(
           `UPDATE verificacion_pago
-           SET id_evidencia_empresa = $1
+           SET ${columnaEvidencia} = $1
            WHERE id_pago = $2`,
           [evidencia.id_evidencia, id_pago]
         );

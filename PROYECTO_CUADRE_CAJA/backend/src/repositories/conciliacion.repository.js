@@ -42,8 +42,49 @@ export const findAllConciliaciones = async () => {
 
 export const findCierresByFecha = async (fecha) => {
   const result = await query(
-    `SELECT id_cierre, turno, total_ingresos, total_no_efectivo, efectivo_esperado, total_salidas, efectivo_fisico, diferencia, estado
-     FROM cierre_caja WHERE fecha = $1 ORDER BY turno ASC`, [fecha]
+    `SELECT
+       c.id_cierre,
+       c.turno,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos ELSE c.total_ingresos END AS total_ingresos,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_no_efectivo ELSE c.total_no_efectivo END AS total_no_efectivo,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos - totales.total_no_efectivo
+         ELSE c.efectivo_esperado END AS efectivo_esperado,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN salidas.total_salidas ELSE c.total_salidas END AS total_salidas,
+       c.efectivo_fisico,
+       c.diferencia,
+       c.estado
+     FROM cierre_caja c
+     LEFT JOIN LATERAL (
+       SELECT
+         COALESCE(SUM(p.monto), 0) AS total_ingresos,
+         COALESCE(
+           SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END),
+           0
+         ) AS total_no_efectivo
+       FROM operacion o
+       JOIN pago p ON p.id_operacion = o.id_operacion
+       JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+       WHERE o.id_cierre = c.id_cierre
+         AND UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         AND COALESCE(o.estado, '') <> 'ANULADA'
+         AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
+     ) totales ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT COALESCE(SUM(sc.monto), 0) AS total_salidas
+       FROM salida_caja sc
+       WHERE sc.id_cierre = c.id_cierre
+         AND UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+     ) salidas ON TRUE
+     WHERE c.fecha = $1
+     ORDER BY CASE
+       WHEN TRANSLATE(UPPER(c.turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') = 'MANANA' THEN 0
+       ELSE 1
+     END`,
+    [fecha]
   );
   return result.rows;
 };

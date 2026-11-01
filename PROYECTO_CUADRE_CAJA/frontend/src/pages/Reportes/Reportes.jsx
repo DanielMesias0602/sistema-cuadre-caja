@@ -1,23 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom/client';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 import jsPDF from 'jspdf';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import html2canvas from 'html2canvas';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import {
   Download,
   RefreshCw,
-  Lock
+  Lock,
+  CalendarDays,
+  History,
+  CalendarRange,
+  Calendar,
 } from 'lucide-react';
+import { notifyToast } from '../../components/ui/toastEvents';
 
 export function Reportes() {
+  const socket = useSocket();
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-  const [agruparPor, setAgruparPor] = useState('day');
+  const [filtroRapidoActivo, setFiltroRapidoActivo] = useState('custom');
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
@@ -27,7 +45,7 @@ export function Reportes() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -36,12 +54,146 @@ export function Reportes() {
 
   useEffect(() => {
     void Promise.resolve().then(cargarDatos);
-  }, []);
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarReportes = () => {
+      void cargarDatos();
+    };
+    const eventos = [
+      'operacion_creada',
+      'pago_actualizado',
+      'salida_creada',
+      'ajuste_creado',
+    ];
+    eventos.forEach((evento) => socket.on(evento, actualizarReportes));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarReportes));
+    };
+  }, [socket, cargarDatos]);
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+
+  const formatearFechaISO = (fecha) => {
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+  };
+
+  const aplicarFiltroRapido = (filtro) => {
+    setFiltroRapidoActivo(filtro);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    let desde = new Date(hoy);
+    let hasta = new Date(hoy);
+
+    if (filtro === 'yesterday') {
+      desde.setDate(desde.getDate() - 1);
+      hasta = new Date(desde);
+    } else if (filtro === 'week') {
+      desde.setDate(desde.getDate() - ((desde.getDay() + 6) % 7));
+      hasta = new Date(desde);
+      hasta.setDate(hasta.getDate() + 6);
+    } else if (filtro === 'month') {
+      desde.setDate(1);
+      hasta = new Date(desde.getFullYear(), desde.getMonth() + 1, 0);
+    } else if (filtro === 'custom') {
+      setFechaDesde('');
+      setFechaHasta('');
+      return;
+    }
+
+    setFechaDesde(formatearFechaISO(desde));
+    setFechaHasta(formatearFechaISO(hasta));
+  };
+
+  const normalizarFechaISO = (valor) => {
+    const texto = String(valor || '').trim();
+    const coincidenciaISO = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const coincidenciaLocal = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const fecha = coincidenciaISO
+      ? `${coincidenciaISO[1]}-${coincidenciaISO[2]}-${coincidenciaISO[3]}`
+      : coincidenciaLocal
+        ? `${coincidenciaLocal[3]}-${coincidenciaLocal[2]}-${coincidenciaLocal[1]}`
+        : '';
+
+    if (!fecha) return '';
+    const fechaUTC = new Date(`${fecha}T00:00:00.000Z`);
+    return Number.isNaN(fechaUTC.getTime()) || fechaUTC.toISOString().slice(0, 10) !== fecha
+      ? ''
+      : fecha;
+  };
+
+  const formatearFecha = (fecha) => {
+    const fechaISO = normalizarFechaISO(fecha);
+    if (!fechaISO) return '';
+    return new Date(`${fechaISO}T00:00:00.000Z`).toLocaleDateString('es-PE', {
+      timeZone: 'UTC'
+    });
+  };
+
+  const obtenerRangoFechasTexto = () => {
+    const desde = formatearFecha(fechaDesde);
+    const hasta = formatearFecha(fechaHasta);
+    if (desde && hasta) return `${desde} al ${hasta}`;
+    if (desde) return `Desde ${desde}`;
+    if (hasta) return `Hasta ${hasta}`;
+    return 'Todas las fechas';
+  };
+
+  const obtenerEtiquetaReporte = () =>
+    `Filtro: ${obtenerRangoFechasTexto()}`;
+
+  const obtenerDatosProcesados = () => {
+    const desdeISO = fechaDesde ? normalizarFechaISO(fechaDesde) : '';
+    const hastaISO = fechaHasta ? normalizarFechaISO(fechaHasta) : '';
+    const operacionesFiltradas = operaciones.filter((op) => {
+      const fecha = normalizarFechaISO(op.fecha);
+      if (!fecha || (fechaDesde && !desdeISO) || (fechaHasta && !hastaISO)) return false;
+      if (desdeISO && fecha < desdeISO) return false;
+      if (hastaISO && fecha > hastaISO) return false;
+      if (String(op.estado_operacion || op.estado || '').trim().toUpperCase() === 'ANULADA') return false;
+      return true;
+    });
+
+    const obtenerGrupo = (op) => {
+      const fecha = normalizarFechaISO(op.fecha);
+      return {
+        clave: fecha,
+        fecha,
+        titulo: `Día ${formatearFecha(fecha)}`,
+      };
+    };
+
+    const gruposPorClave = operacionesFiltradas.reduce((grupos, op) => {
+      const grupo = obtenerGrupo(op);
+      if (!grupos[grupo.clave]) {
+        grupos[grupo.clave] = { ...grupo, operaciones: [] };
+      }
+      grupos[grupo.clave].operaciones.push(op);
+      return grupos;
+    }, {});
+
+    const grupos = Object.values(gruposPorClave)
+      .sort((a, b) => b.clave.localeCompare(a.clave))
+      .map((grupo) => ({
+        ...grupo,
+        total: grupo.operaciones.reduce(
+          (total, op) => total + Number(op.monto ?? op.monto_operacion ?? 0),
+          0
+        ),
+      }));
+
+    return { operacionesFiltradas, grupos };
+  };
+
+  const obtenerMontoOperacion = (op) => Number(op.monto ?? op.monto_operacion ?? 0);
 
   const cargarImagenBase64 = (url) => {
     return new Promise((resolve, reject) => {
@@ -62,14 +214,10 @@ export function Reportes() {
 
   // --- EXPORTACIÓN TABULAR A PDF ---
   const exportarPDF = async () => {
-    const operacionesFiltradas = operaciones.filter((op) => {
-      if (fechaDesde && op.fecha < fechaDesde) return false;
-      if (fechaHasta && op.fecha > fechaHasta) return false;
-      return true;
-    });
+    const { operacionesFiltradas, grupos } = obtenerDatosProcesados();
 
     if (operacionesFiltradas.length === 0) {
-      alert('No hay operaciones para exportar con los filtros seleccionados.');
+      notifyToast('No hay operaciones para exportar con los filtros seleccionados.', 'warning');
       return;
     }
 
@@ -109,13 +257,33 @@ export function Reportes() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Generado el: ${new Date().toLocaleDateString('es-PE')} | Filtro: ${fechaDesde || 'Inicio'} al ${fechaHasta || 'Fin'}`, pageWidth / 2, 33, { align: 'center' });
+      doc.text(`Generado el: ${new Date().toLocaleDateString('es-PE')} | ${obtenerEtiquetaReporte()}`, pageWidth / 2, 33, { align: 'center' });
 
       y = 42;
 
-      const totalGeneral = operacionesFiltradas.reduce((acc, op) => acc + Number(op.monto || 0), 0);
+      const totalGeneral = grupos.reduce((total, grupo) => total + grupo.total, 0);
+      const itemsToRender = grupos.flatMap((grupo) => [
+        { type: 'header', title: grupo.titulo },
+        ...grupo.operaciones.map((op) => ({ type: 'operation', data: op })),
+      ]);
 
-      operacionesFiltradas.forEach(op => {
+      itemsToRender.forEach((item) => {
+        if (item.type === 'header') {
+          if (y + 10 > 190) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.setFillColor(30, 58, 138);
+          doc.rect(14, y, pageWidth - 28, 7, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(255, 255, 255);
+          doc.text(item.title, pageWidth / 2, y + 4.8, { align: 'center' });
+          y += 10;
+          return;
+        }
+
+        const op = item.data;
         const pagos = Array.isArray(op.pagos) ? op.pagos : [];
         const alturaFila = 15 + (pagos.length > 1 ? (pagos.length - 1) * 6.5 : 0);
 
@@ -199,7 +367,7 @@ export function Reportes() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10.5);
         doc.setTextColor(232, 93, 44);
-        doc.text(`S/ ${Number(op.monto || 0).toFixed(2)}`, X_MONTO, y + 9.5, { align: 'right' });
+        doc.text(`S/ ${obtenerMontoOperacion(op).toFixed(2)}`, X_MONTO, y + 9.5, { align: 'right' });
 
         y += alturaFila + 3;
       });
@@ -227,60 +395,141 @@ export function Reportes() {
       doc.save(`REPORTE_CONCILIACION_CAJA_${new Date().toLocaleDateString('en-CA')}.pdf`);
     } catch (err) {
       console.error("Error al generar PDF:", err);
-      alert(`Hubo un error al generar el PDF: ${err.message}`);
+      notifyToast(`Hubo un error al generar el PDF: ${err.message}`, 'error');
     }
   };
 
-  // --- EXPORTACIÓN A EXCEL ---
-  const exportarExcel = () => {
-    const operacionesFiltradas = operaciones.filter((op) => {
-      if (fechaDesde && op.fecha < fechaDesde) return false;
-      if (fechaHasta && op.fecha > fechaHasta) return false;
-      return true;
-    });
+  // --- EXPORTACIÓN A EXCEL (CON GRÁFICO Y EXCELJS) ---
+  const exportarExcel = async () => {
+    const { operacionesFiltradas, grupos } = obtenerDatosProcesados();
 
     if (operacionesFiltradas.length === 0) {
-      alert('No hay operaciones para exportar con los filtros seleccionados.');
+      notifyToast('No hay operaciones para exportar con los filtros seleccionados.', 'warning');
       return;
     }
 
-    const datos = [];
-    operacionesFiltradas.forEach(op => {
-      const pagos = Array.isArray(op.pagos) ? op.pagos : [];
-      pagos.forEach(p => {
-        datos.push({
-          'Fecha': op.fecha,
-          'Comprobante': `${op.tipo_comprobante} ${op.serie}-${op.numero}`,
-          'Cliente': op.cliente || '-',
-          'Medio de Pago': p.medio_pago || p.nombre_medio || 'Efectivo',
-          'Referencia': p.referencia || '-',
-          'Monto': Number(p.monto || 0),
-          'Estado': p.estado || op.estado || 'PENDIENTE',
-          'Registrado por': `${op.nombres} ${op.apellidos}`.trim() || 'Sistema'
-        });
-      });
-    });
+    try {
+      // 1. Preparar datos para el gráfico (Ventas por periodo)
+      const chartData = grupos.map((grupo) => ({
+        periodo: grupo.titulo || grupo.fecha,
+        monto: grupo.total,
+      }));
 
-    const worksheet = XLSX.utils.json_to_sheet(datos);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Operaciones");
-    worksheet['!cols'] = [
-      { wch: 12 }, { wch: 25 }, { wch: 35 }, { wch: 20 },
-      { wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 25 }
-    ];
-    XLSX.writeFile(workbook, `REPORTE_OPERACIONES_${new Date().toLocaleDateString('en-CA')}.xlsx`);
+      // 2. Crear un contenedor invisible para renderizar el gráfico
+      const chartContainer = document.createElement('div');
+      chartContainer.style.position = 'fixed';
+      chartContainer.style.left = '-9999px';
+      chartContainer.style.width = '800px';
+      chartContainer.style.height = '400px';
+      chartContainer.style.backgroundColor = '#ffffff';
+      document.body.appendChild(chartContainer);
+
+      // 3. Renderizar Recharts en el contenedor
+      const root = ReactDOM.createRoot(chartContainer);
+      root.render(
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="periodo" />
+            <YAxis />
+            <Tooltip formatter={(value) => `S/ ${Number(value).toFixed(2)}`} />
+            <Bar dataKey="monto" fill="#1E3A8A" name="Ventas (S/)" />
+          </BarChart>
+        </ResponsiveContainer>
+      );
+
+      // 4. Esperar a que Recharts se renderice
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 5. Convertir el gráfico a imagen
+      const canvas = await html2canvas(chartContainer, { scale: 2, backgroundColor: '#ffffff' });
+      const imagenBase64 = canvas.toDataURL('image/png');
+
+      // 6. Limpiar el contenedor
+      root.unmount();
+      document.body.removeChild(chartContainer);
+
+      // 7. Crear el archivo Excel con ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Reporte de Ventas', {
+        views: [{ state: 'frozen', ySplit: 1 }]
+      });
+      worksheet.headerFooter.oddHeader = `&C${obtenerEtiquetaReporte()}`;
+
+      worksheet.columns = [
+        { header: 'Periodo', key: 'periodo', width: 24 },
+        { header: 'Fecha de referencia', key: 'fecha', width: 18 },
+        { header: 'Operaciones', key: 'operaciones', width: 15 },
+        { header: 'Comprobantes', key: 'comprobantes', width: 40 },
+        { header: 'Clientes', key: 'clientes', width: 35 },
+        { header: 'Medios de pago', key: 'medios', width: 28 },
+        { header: 'Total (S/)', key: 'monto', width: 16 },
+      ];
+
+      // Estilo de la cabecera
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      grupos.forEach((grupo, index) => {
+        const comprobantes = [...new Set(grupo.operaciones.map(
+          (op) => `${op.tipo_comprobante || 'COMPROBANTE'} ${op.serie || ''}-${op.numero || ''}`.trim()
+        ))];
+        const clientes = [...new Set(grupo.operaciones.map((op) => op.cliente).filter(Boolean))];
+        const medios = [...new Set(grupo.operaciones.flatMap((op) => (
+          Array.isArray(op.pagos) ? op.pagos : []
+        )).map((pago) => pago.medio_pago || pago.nombre_medio || 'Efectivo'))];
+        const row = worksheet.addRow({
+          periodo: grupo.titulo || grupo.fecha,
+          fecha: grupo.fecha,
+          operaciones: grupo.operaciones.length,
+          comprobantes: comprobantes.join(', ') || '-',
+          clientes: clientes.join(', ') || '-',
+          medios: medios.join(', ') || '-',
+          monto: grupo.total,
+        });
+        row.getCell('monto').numFmt = '"S/" #,##0.00';
+        row.getCell('operaciones').alignment = { horizontal: 'center' };
+
+        if (index % 2 === 0) {
+          row.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          });
+        }
+      });
+
+      // Insertar la imagen del gráfico en el Excel (Columna H, Fila 2)
+      const imageId = workbook.addImage({
+        base64: imagenBase64,
+        extension: 'png',
+      });
+      worksheet.addImage(imageId, {
+        tl: { col: 7, row: 1 }, // Columna H, Fila 2
+        ext: { width: 600, height: 300 }
+      });
+
+      // 8. Descargar el archivo
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `REPORTE_OPERACIONES_${new Date().toLocaleDateString('en-CA')}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error('Error al generar Excel:', err);
+      notifyToast(`Hubo un error al generar el Excel: ${err.message}`, 'error');
+    }
   };
 
-  // --- EXPORTACIÓN PDF VISUAL (CON AGRUPACIÓN Y BLOQUES GRANDES) ---
+  // --- EXPORTACIÓN PDF VISUAL ---
   const exportarPDFVisual = async () => {
     try {
-      const operacionesFiltradas = operaciones.filter((op) => {
-        if (fechaDesde && op.fecha < fechaDesde) return false;
-        if (fechaHasta && op.fecha > fechaHasta) return false;
-        return true;
-      });
-
-      const opsRelevantes = operacionesFiltradas.filter((op) => {
+      const { grupos: gruposProcesados } = obtenerDatosProcesados();
+      const esOperacionRelevante = (op) => {
         const pagos = Array.isArray(op.pagos) ? op.pagos : [];
         const tienePagoNoEfectivo = pagos.some((p) => {
           const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();
@@ -291,56 +540,23 @@ export function Reportes() {
           (e) => e.tipo_evidencia === 'EMPRESA'
         );
         return tienePagoNoEfectivo || tieneEvidenciaEmpresa;
-      });
+      };
+      const gruposRelevantes = gruposProcesados
+        .map((grupo) => ({
+          ...grupo,
+          operaciones: grupo.operaciones.filter(esOperacionRelevante),
+        }))
+        .filter((grupo) => grupo.operaciones.length > 0);
 
-      if (opsRelevantes.length === 0) {
-        alert('No hay operaciones con pago no efectivo ni evidencias de empresa para exportar.');
+      if (gruposRelevantes.length === 0) {
+        notifyToast('No hay operaciones con pago no efectivo ni evidencias de empresa para exportar.', 'warning');
         return;
       }
 
-      const todasLasOps = [...opsRelevantes].sort((a, b) =>
-        String(a.fecha || '').localeCompare(String(b.fecha || ''))
-      );
-
-      const groups = {};
-      todasLasOps.forEach((op) => {
-        let key = op.fecha;
-        if (agruparPor === 'month') {
-          key = op.fecha.substring(0, 7);
-        } else if (agruparPor === 'week') {
-          const d = new Date(op.fecha + 'T00:00:00');
-          const day = d.getDay() || 7;
-          if (day !== 1) d.setHours(-24 * (day - 1));
-          key = d.toISOString().split('T')[0];
-        }
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(op);
-      });
-
-      const meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-
-      const formatGroupTitle = (key, type) => {
-        if (type === 'month') {
-          const [y, m] = key.split('-');
-          return `MES: ${meses[parseInt(m) - 1]} ${y}`;
-        }
-        if (type === 'week') {
-          const start = new Date(key + 'T00:00:00');
-          const end = new Date(start);
-          end.setDate(end.getDate() + 6);
-          const format = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-          return `SEMANA DEL ${format(start)} AL ${format(end)}`;
-        }
-        const [y, m, d] = key.split('-');
-        return `FECHA: ${d}/${m}/${y}  —  MES: ${meses[parseInt(m) - 1]}`;
-      };
-
       const itemsToRender = [];
-      Object.entries(groups).forEach(([key, ops]) => {
-        if (agruparPor !== 'none') {
-          itemsToRender.push({ type: 'header', title: formatGroupTitle(key, agruparPor) });
-        }
-        ops.forEach(op => itemsToRender.push({ type: 'op', data: op }));
+      gruposRelevantes.forEach((grupo) => {
+        itemsToRender.push({ type: 'header', title: grupo.titulo });
+        grupo.operaciones.forEach((op) => itemsToRender.push({ type: 'op', data: op }));
       });
 
       const doc = new jsPDF();
@@ -380,7 +596,7 @@ export function Reportes() {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Generado el: ${new Date().toLocaleDateString('es-PE')} | Filtro: ${fechaDesde || 'Inicio'} al ${fechaHasta || 'Fin'}`, pageWidth / 2, 23, { align: 'center' });
+        doc.text(`Generado el: ${new Date().toLocaleDateString('es-PE')} | ${obtenerEtiquetaReporte()}`, pageWidth / 2, 23, { align: 'center' });
       };
 
       const COLS = 3;
@@ -468,7 +684,6 @@ export function Reportes() {
           doc.setFontSize(8);
           doc.setTextColor(255, 255, 255);
 
-          // TEXTO DEL TÍTULO AZUL CENTRADO
           doc.text(item.title, pageWidth / 2, y + 4, { align: 'center' });
 
           y += 8;
@@ -495,7 +710,6 @@ export function Reportes() {
           const clienteOp = String(op.cliente || '-').substring(0, 30);
           const montoOp = Number(op.monto || 0).toFixed(2);
 
-          // TEXTOS COMPACTADOS PARA DEJAR ESPACIO A LA IMAGEN
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(5.5);
           doc.setTextColor(30, 58, 138);
@@ -516,7 +730,17 @@ export function Reportes() {
           doc.text(`Monto: S/ ${montoOp}`, centerX, y + 13.5, { align: 'center' });
 
           const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
-          const evidenciaEmpresa = evidencias.find((e) => e.tipo_evidencia === 'EMPRESA');
+          const verificaciones = Array.isArray(op.verificaciones) ? op.verificaciones : [];
+          const evidenciasEmpresa = [
+            ...new Map(
+              verificaciones
+                .map((verificacion) => evidencias.find(
+                  (evidencia) => String(evidencia.id_evidencia) === String(verificacion.id_evidencia_empresa)
+                ))
+                .filter(Boolean)
+                .map((evidencia) => [String(evidencia.id_evidencia), evidencia])
+            ).values(),
+          ];
           const pagos = Array.isArray(op.pagos) ? op.pagos : [];
           const pagoEvidencia = pagos.find((p) => !String(p.medio_pago || p.nombre_medio || '').toLowerCase().includes('efectivo'));
           const medioEvidencia = pagoEvidencia?.medio_pago || pagoEvidencia?.nombre_medio || 'Transferencia';
@@ -527,40 +751,50 @@ export function Reportes() {
           doc.setTextColor(100, 116, 139);
           doc.text(`Evidencia: ${medioEvidencia} ${montoEvidencia}`, centerX, y + 16.5, { align: 'center' });
 
-          // IMAGEN MÁS GRANDE (Inicia más arriba y tiene más altura)
           const imgY = y + 17;
           const imgMaxWidth = blockWidth - 2;
           const imgMaxHeight = blockHeight - 17.5;
 
-          if (evidenciaEmpresa) {
-            const isDuplicate = renderedCompanyEvidenceKeys.has(evidenciaEmpresa.storage_key);
+          if (evidenciasEmpresa.length > 0) {
+            const evidenceGap = 1.5;
+            const evidenceHeight = (imgMaxHeight - evidenceGap * (evidenciasEmpresa.length - 1)) / evidenciasEmpresa.length;
 
-            if (isDuplicate) {
-              doc.setDrawColor(200, 200, 200);
-              doc.setFillColor(245, 245, 245);
-              doc.roundedRect(xPos + 3, imgY, blockWidth - 6, imgMaxHeight, 1, 1, 'FD');
-              doc.setFont('helvetica', 'bold');
-              doc.setFontSize(5);
-              doc.setTextColor(150, 150, 150);
-              doc.text('Voucher BCP', centerX, imgY + imgMaxHeight / 2 - 2, { align: 'center' });
-              doc.text('Consolidado', centerX, imgY + imgMaxHeight / 2 + 2, { align: 'center' });
-            } else {
+            for (const [evidenceIndex, evidenciaEmpresa] of evidenciasEmpresa.entries()) {
+              const evidenceY = imgY + evidenceIndex * (evidenceHeight + evidenceGap);
+              const storageKey = evidenciaEmpresa.storage_key;
+              const isDuplicate = Boolean(
+                storageKey && renderedCompanyEvidenceKeys.has(storageKey)
+              );
+
+              if (isDuplicate) {
+                doc.setDrawColor(200, 200, 200);
+                doc.setFillColor(245, 245, 245);
+                doc.roundedRect(xPos + 3, evidenceY, blockWidth - 6, evidenceHeight, 1, 1, 'FD');
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(5);
+                doc.setTextColor(150, 150, 150);
+                doc.text('Voucher BCP', centerX, evidenceY + evidenceHeight / 2 - 2, { align: 'center' });
+                doc.text('Consolidado', centerX, evidenceY + evidenceHeight / 2 + 2, { align: 'center' });
+                continue;
+              }
+
               const base64 = await obtenerImagenBase64(evidenciaEmpresa);
               if (base64) {
                 const img = new Image();
                 img.src = base64;
                 await new Promise((resolve) => { img.onload = resolve; });
-                const ratio = Math.min(imgMaxWidth / img.width, imgMaxHeight / img.height);
+                const ratio = Math.min(imgMaxWidth / img.width, evidenceHeight / img.height);
                 const finalWidth = img.width * ratio;
                 const finalHeight = img.height * ratio;
                 const xImg = xPos + blockWidth / 2 - finalWidth / 2;
-                doc.addImage(base64, 'JPEG', xImg, imgY, finalWidth, finalHeight);
-                renderedCompanyEvidenceKeys.add(evidenciaEmpresa.storage_key);
+                const yImg = evidenceY + (evidenceHeight - finalHeight) / 2;
+                doc.addImage(base64, 'JPEG', xImg, yImg, finalWidth, finalHeight);
+                if (storageKey) renderedCompanyEvidenceKeys.add(storageKey);
               } else {
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(5);
                 doc.setTextColor(180, 83, 9);
-                doc.text('Imagen no disponible', centerX, imgY + imgMaxHeight / 2, { align: 'center' });
+                doc.text('Imagen no disponible', centerX, evidenceY + evidenceHeight / 2, { align: 'center' });
               }
             }
           } else {
@@ -594,9 +828,11 @@ export function Reportes() {
       doc.save(`REPORTE_CONCILIACION_VISUAL_${new Date().toLocaleDateString('en-CA')}.pdf`);
     } catch (err) {
       console.error('Error al generar PDF visual:', err);
-      alert(`Hubo un error al generar el PDF visual: ${err.message}`);
+      notifyToast(`Hubo un error al generar el PDF visual: ${err.message}`, 'error');
     }
   };
+
+  const datosProcesados = obtenerDatosProcesados();
 
   return (
     <div className="w-full max-w-screen-2xl mx-auto space-y-4 sm:space-y-6 animate-fade-in-up dark:bg-slate-900">
@@ -622,52 +858,57 @@ export function Reportes() {
         </button>
       </div>
 
-      {/* Filtros de fecha y agrupación */}
+      {/* Filtros de fecha */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800/60 dark:shadow-none">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-3 sm:gap-4 w-full">
-
-          <div className="flex-1 min-w-0">
-            <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 dark:text-slate-400">
-              Rango de fechas
-            </label>
-            <div className="w-full">
-              <DateRangePicker
-                fechaDesde={fechaDesde}
-                fechaHasta={fechaHasta}
-                onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
-                  setFechaDesde(newDesde);
-                  setFechaHasta(newHasta);
-                }}
-              />
+        <div className="flex w-full flex-col items-stretch gap-3 sm:gap-4">
+          <div>
+            <p className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Acceso rápido
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Filtros rápidos de fecha">
+              {[
+                ['today', 'Hoy', CalendarDays],
+                ['yesterday', 'Ayer', History],
+                ['week', 'Esta Semana', CalendarRange],
+                ['month', 'Este Mes', Calendar],
+                ['custom', 'Personalizado', null],
+              ].map(([filtro, etiqueta, Icono]) => (
+                <button
+                  key={filtro}
+                  type="button"
+                  onClick={() => aplicarFiltroRapido(filtro)}
+                  aria-pressed={filtroRapidoActivo === filtro}
+                  className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                    filtroRapidoActivo === filtro
+                      ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                      : 'border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {typeof Icono === 'function' && <Icono className="h-4 w-4" aria-hidden="true" />}
+                  {etiqueta}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="w-full lg:w-56 flex-shrink-0">
-            <label className="block text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 dark:text-slate-400">
-              Agrupar por
-            </label>
-            <select
-              value={agruparPor}
-              onChange={(e) => setAgruparPor(e.target.value)}
-              className="w-full h-[42px] px-3.5 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-700 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 cursor-pointer transition-all dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-            >
-              <option value="day">Día (Fecha)</option>
-              <option value="week">Semana</option>
-              <option value="month">Mes</option>
-              <option value="none">Sin agrupar (Continuo)</option>
-            </select>
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 sm:text-xs">
+                Rango de fechas
+              </label>
+              <div className="w-full">
+                <DateRangePicker
+                  fechaDesde={fechaDesde}
+                  fechaHasta={fechaHasta}
+                  onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                    setFechaDesde(newDesde);
+                    setFechaHasta(newHasta);
+                    setFiltroRapidoActivo('custom');
+                  }}
+                />
+              </div>
+            </div>
           </div>
-
-          <div className="flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => { setFechaDesde(''); setFechaHasta(''); setAgruparPor('day'); }}
-              className="h-[42px] px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors w-full lg:w-auto dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-slate-100"
-            >
-              Limpiar
-            </button>
-          </div>
-
         </div>
       </div>
 
@@ -756,7 +997,13 @@ export function Reportes() {
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">Resumen del Periodo</p>
               <p className="text-[10px] sm:text-xs text-slate-500 truncate dark:text-slate-400">
-                {fechaDesde || 'Inicio'} al {fechaHasta || 'Fin'}
+                {fechaDesde && fechaHasta
+                  ? `Mostrando operaciones del ${formatearFecha(fechaDesde)} al ${formatearFecha(fechaHasta)}`
+                  : fechaDesde
+                    ? `Mostrando operaciones desde ${formatearFecha(fechaDesde)}`
+                    : fechaHasta
+                      ? `Mostrando operaciones hasta ${formatearFecha(fechaHasta)}`
+                      : 'Mostrando operaciones de todas las fechas'}
               </p>
             </div>
           </div>
@@ -764,11 +1011,7 @@ export function Reportes() {
             <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">Total Conciliado</p>
             <p className="text-2xl sm:text-4xl font-black text-brand-orange tabular-nums break-words">
               {formatCurrency(
-                operaciones.filter(op => {
-                  if (fechaDesde && op.fecha < fechaDesde) return false;
-                  if (fechaHasta && op.fecha > fechaHasta) return false;
-                  return true;
-                }).reduce((sum, op) => sum + Number(op.monto || 0), 0)
+                datosProcesados.grupos.reduce((total, grupo) => total + grupo.total, 0)
               )}
             </p>
           </div>

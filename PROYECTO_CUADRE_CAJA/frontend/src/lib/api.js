@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { notifyToast } from '../components/ui/toastEvents';
 
 const AUTH_TOKEN_KEY = 'finito_auth_token';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/cuadrecaja/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -25,11 +26,17 @@ api.interceptors.response.use(
   (error) => {
     const url = error.config?.url || '';
     const esLogin = url.includes('/auth/login');
+    const status = error.response?.status;
 
-    if (error.response?.status === 401 && !esLogin) {
+    if (status === 401 && !esLogin) {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem('finito_auth_user');
       window.location.href = `${import.meta.env.BASE_URL}login`;
+    } else if (status >= 400) {
+      const message = error.response?.data?.message || `La solicitud falló (${status}).`;
+      notifyToast(message, 'error');
+    } else if (error.code !== 'ERR_CANCELED' && !error.response) {
+      notifyToast('No se pudo conectar con el servidor. Inténtalo nuevamente.', 'error');
     }
     return Promise.reject(error);
   }

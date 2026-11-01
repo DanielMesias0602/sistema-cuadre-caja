@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { dashboardService } from '../services/dashboard.service';
+import { useSocket } from './useSocket';
 
 export function useDashboard() {
+  const socket = useSocket();
   const [metrics, setMetrics] = useState(null);
   const [pagosPorMedio, setPagosPorMedio] = useState([]);
   const [operacionesRecientes, setOperacionesRecientes] = useState([]);
@@ -71,6 +73,19 @@ export function useDashboard() {
     void Promise.resolve().then(fetchDashboardData);
   }, [fetchDashboardData]);
 
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarDashboard = () => {
+      void fetchDashboardData();
+    };
+    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    eventos.forEach((evento) => socket.on(evento, actualizarDashboard));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarDashboard));
+    };
+  }, [socket, fetchDashboardData]);
+
   const updateFilters = (newFilters) => {
     setLoading(true);
     setError(null);
@@ -83,10 +98,32 @@ export function useDashboard() {
     return fetchDashboardData();
   }, [fetchDashboardData]);
 
+  const operacionesFiltradas = useMemo(() => operacionesRecientes.filter((op) => {
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const matchComp = `${op.tipo_comprobante || ''} ${op.serie || ''}-${op.numero || ''}`.toLowerCase();
+      const matchUser = (op.usuario || '').toLowerCase();
+      if (!matchComp.includes(q) && !matchUser.includes(q)) return false;
+    }
+
+    if (filters.turno) {
+      const turnoOperacion = String(op.turno || '').trim().toLocaleUpperCase();
+      if (turnoOperacion !== filters.turno.trim().toLocaleUpperCase()) return false;
+    }
+
+    if (filters.estado) {
+      const estadoOperacion = String(op.estado_operacion || op.estado || '').trim().toUpperCase();
+      if (estadoOperacion !== filters.estado.trim().toUpperCase()) return false;
+    }
+
+    return true;
+  }), [operacionesRecientes, filters.search, filters.turno, filters.estado]);
+
   return {
     metrics,
     pagosPorMedio,
     operacionesRecientes,
+    operacionesFiltradas,
     loading,
     error,
     filters,

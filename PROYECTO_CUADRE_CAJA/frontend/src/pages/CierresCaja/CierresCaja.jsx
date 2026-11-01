@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useSocket } from '../../hooks/useSocket';
 import api from '../../lib/api';
 import { 
   Plus, 
@@ -27,6 +28,7 @@ import { getFechaPeru, getHoraPeru } from '../../utils/horaPeru';
 
 export function CierresCaja() {
   const { user } = useAuth();
+  const socket = useSocket();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cierres, setCierres] = useState([]);
@@ -65,7 +67,6 @@ export function CierresCaja() {
     observaciones: ''
   });
   const [efectivoEsperado, setEfectivoEsperado] = useState(0);
-  const [preCalculo, setPreCalculo] = useState({ total_ingresos: 0, total_no_efectivo: 0 });
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);
@@ -74,7 +75,7 @@ export function CierresCaja() {
 
   const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/cierres-caja');
       const data = res.data?.data || res.data;
@@ -87,7 +88,7 @@ export function CierresCaja() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -97,7 +98,25 @@ export function CierresCaja() {
 
   useEffect(() => {
     void Promise.resolve().then(cargarDatos);
-  }, []);
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarCierres = () => {
+      void cargarDatos();
+    };
+    const eventos = [
+      'operacion_creada',
+      'pago_actualizado',
+      'salida_creada',
+      'cierre_actualizado',
+    ];
+    eventos.forEach((evento) => socket.on(evento, actualizarCierres));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarCierres));
+    };
+  }, [socket, cargarDatos]);
 
   const cierresFiltrados = useMemo(() => {
     return cierres.filter(c => {
@@ -111,6 +130,27 @@ export function CierresCaja() {
       return true;
     });
   }, [cierres, busqueda, fechaDesde, fechaHasta, turnoFiltro]);
+
+  const cierresAgrupados = useMemo(() => {
+    const gruposPorFecha = new Map();
+    cierresFiltrados.forEach((cierre) => {
+      const fecha = String(cierre.fecha || '').slice(0, 10);
+      if (!gruposPorFecha.has(fecha)) {
+        gruposPorFecha.set(fecha, { fecha, cierres: [] });
+      }
+      gruposPorFecha.get(fecha).cierres.push(cierre);
+    });
+    return Array.from(gruposPorFecha.values());
+  }, [cierresFiltrados]);
+
+  const formatearFechaCierre = (fecha) => {
+    const fechaISO = String(fecha || '').slice(0, 10);
+    if (!fechaISO) return '-';
+    const fechaLocal = new Date(`${fechaISO}T00:00:00`);
+    return Number.isNaN(fechaLocal.getTime())
+      ? fechaISO
+      : fechaLocal.toLocaleDateString('es-PE');
+  };
 
   const kpis = useMemo(() => {
     const totalCierres = cierresFiltrados.length;
@@ -134,10 +174,6 @@ export function CierresCaja() {
       const res = await api.get(`/cierres-caja/pre-calculo?${params.toString()}`);
       const data = res.data.data;
       setEfectivoEsperado(Number(data.efectivo_esperado || 0));
-      setPreCalculo({
-        total_ingresos: Number(data.total_ingresos || 0),
-        total_no_efectivo: Number(data.total_no_efectivo || 0)
-      });
     } catch (err) {
       console.error('Error al calcular efectivo esperado:', err);
       setEfectivoEsperado(0);
@@ -180,7 +216,6 @@ export function CierresCaja() {
     setCierreAEditar(null);
     setFormCierre({ fecha: hoy, turno: '', efectivoFisico: '', observaciones: '' });
     setEfectivoEsperado(0);
-    setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
     recalcularTurnosDisponibles(hoy);
     setPasoModal(1);
     setModalAbierto(true);
@@ -195,7 +230,6 @@ export function CierresCaja() {
       observaciones: ''
     });
     setEfectivoEsperado(0);
-    setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
     setConfirmacionAbierta(false);
     await calcularEfectivoEsperado(cierre.turno, cierre.fecha, cierre.id_cierre);
     setPasoModal(2);
@@ -214,7 +248,6 @@ export function CierresCaja() {
       observaciones: ''
     });
     setEfectivoEsperado(0);
-    setPreCalculo({ total_ingresos: 0, total_no_efectivo: 0 });
   };
 
   const seleccionarTurno = async (turno) => {
@@ -239,9 +272,6 @@ export function CierresCaja() {
         id_cierre: cierreAEditar?.id_cierre ?? null,
         fecha: formCierre.fecha,
         turno: formCierre.turno,
-        total_ingresos: preCalculo.total_ingresos,
-        total_no_efectivo: preCalculo.total_no_efectivo,
-        total_salidas: 0,
         efectivo_fisico: Number(formCierre.efectivoFisico),
         observaciones: formCierre.observaciones,
         fecha_fin: new Date().toISOString()
@@ -252,11 +282,6 @@ export function CierresCaja() {
       cerrarModal();
     } catch (err) {
       console.error('Error al guardar cierre:', err);
-      if (err.response && err.response.data && err.response.data.message) {
-        alert(`Error: ${err.response.data.message}`);
-      } else {
-        alert('Error al guardar el cierre de caja');
-      }
     } finally {
       setGuardando(false);
     }
@@ -472,15 +497,23 @@ export function CierresCaja() {
         <div className="rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/60 shadow-sm dark:shadow-none overflow-hidden">
           {/* MOBILE: cards */}
           <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-600">
-            {cierresFiltrados.length > 0 ? cierresFiltrados.map((cierre) => {
-              const difNum = Number(cierre.diferencia || 0);
-              return (
+            {cierresAgrupados.length > 0 ? cierresAgrupados.map((grupo) => (
+              <section key={grupo.fecha}>
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-900">
+                  <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                    {formatearFechaCierre(grupo.fecha)}
+                  </p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {grupo.cierres.length} {grupo.cierres.length === 1 ? 'turno' : 'turnos'}
+                  </span>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-slate-600">
+                  {grupo.cierres.map((cierre) => {
+                    const difNum = Number(cierre.diferencia || 0);
+                    return (
                 <div key={cierre.id_cierre} className="p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        {cierre.fecha ? (cierre.fecha.includes('T') ? new Date(cierre.fecha).toLocaleDateString('es-PE') : new Date(cierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')) : '-'}
-                      </p>
                       <div className="flex items-center gap-2 mt-1">
                         <User className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
                         <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
@@ -557,8 +590,11 @@ export function CierresCaja() {
                     )}
                   </div>
                 </div>
-              );
-            }) : (
+                    );
+                  })}
+                </div>
+              </section>
+            )) : (
               <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
                 No hay cierres de caja registrados
               </div>
@@ -581,12 +617,26 @@ export function CierresCaja() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-600 text-sm">
-                {cierresFiltrados.length > 0 ? cierresFiltrados.map((cierre) => {
-                  const difNum = Number(cierre.diferencia || 0);
-                  return (
+                {cierresAgrupados.length > 0 ? cierresAgrupados.map((grupo) => (
+                  <Fragment key={grupo.fecha}>
+                    <tr className="border-y border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-900">
+                      <td colSpan={8} className="px-4 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-extrabold text-slate-900 dark:text-slate-100">
+                            {formatearFechaCierre(grupo.fecha)}
+                          </span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {grupo.cierres.length} {grupo.cierres.length === 1 ? 'turno' : 'turnos'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {grupo.cierres.map((cierre) => {
+                      const difNum = Number(cierre.diferencia || 0);
+                      return (
                     <tr key={cierre.id_cierre} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                      <td className="p-4 font-semibold text-slate-900 dark:text-slate-100">
-                        {cierre.fecha ? (cierre.fecha.includes('T') ? new Date(cierre.fecha).toLocaleDateString('es-PE') : new Date(cierre.fecha + 'T00:00:00').toLocaleDateString('es-PE')) : '-'}
+                      <td className="p-4 text-slate-400 dark:text-slate-500">
+                        —
                       </td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold ${cierre.turno === 'Mañana'
@@ -667,8 +717,10 @@ export function CierresCaja() {
                         </div>
                       </td>
                     </tr>
-                  );
-                }) : (
+                      );
+                    })}
+                  </Fragment>
+                )) : (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-slate-500 dark:text-slate-400">
                       No hay cierres de caja registrados

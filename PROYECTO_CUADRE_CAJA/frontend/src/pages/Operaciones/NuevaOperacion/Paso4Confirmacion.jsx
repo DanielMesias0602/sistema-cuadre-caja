@@ -550,6 +550,11 @@ export function Paso4Confirmacion({
             )}
           </div>
         )}
+        {items.length === 0 && (
+          <p className="mt-4 border-t border-slate-100 pt-3 text-xs italic text-slate-600 dark:border-slate-700 dark:text-slate-400">
+            Productos no detallados por el OCR. Valida el monto total con el documento físico.
+          </p>
+        )}
       </div>
 
       {!esTodoEfectivo && (

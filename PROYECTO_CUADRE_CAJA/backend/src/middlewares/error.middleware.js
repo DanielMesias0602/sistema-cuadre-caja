@@ -8,6 +8,13 @@ export const notFoundHandler = (req, res) => {
 export const errorHandler = (error, req, res, next) => {
   console.error(error);
 
+  if (error.name === 'MulterError') {
+    const message = error.code === 'LIMIT_FILE_SIZE'
+      ? 'El archivo no debe superar los 10 MB.'
+      : error.message;
+    return res.status(400).json({ status: 'error', message });
+  }
+
   // PUNTO 2: Manejo específico para errores de PostgreSQL (Unique Violation)
   if (error.code === '23505') {
     let mensajeAmigable = 'El registro ya existe en el sistema.';

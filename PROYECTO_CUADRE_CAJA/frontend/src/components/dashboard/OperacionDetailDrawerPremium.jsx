@@ -14,6 +14,7 @@ import {
   Moon,
   Clock,
   Upload,
+  Pencil,
   LoaderCircle,
   FileText,
   Banknote,
@@ -21,12 +22,14 @@ import {
   Landmark,
   User,
   CheckCircle,
+  ShieldCheck,
   AlertTriangle,
   XCircle,
   Info,
 } from 'lucide-react';
 import api from '../../lib/api';
 import ocrService from '../../services/ocr.service';
+import { useAuth } from '../../hooks/useAuth';
 
 function DatoOCR({ icon, label, children }) {
   return (
@@ -73,6 +76,18 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
     return { estado: 'EFECTIVO', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Se verifica en el cierre de caja' };
   }
 
+  const pagoVerificadoManualmente =
+    ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(String(pago?.estado || '').toUpperCase()) &&
+    String(pago?.observacion || '').includes('Validación manual: referencias distintas, monto coincide');
+  if (pagoVerificadoManualmente) {
+    return {
+      estado: 'VERIFICADO',
+      color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60',
+      icono: 'check',
+      mensaje: 'Validación manual aprobada por el administrador',
+    };
+  }
+
   // Sin evidencia empresa
   if (!evidenciaEmpresa) {
     return { estado: 'SIN_EVIDENCIA', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Sin evidencia de empresa registrada' };
@@ -91,12 +106,21 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
   const refCoincide = normRefPago && normRefEmpresa && normRefPago === normRefEmpresa;
   const montoCoincide = compararMontos(pago?.monto, montoEmpresa);
 
-  if (!normRefPago && !normRefEmpresa) {
-    return { estado: 'SIN_REFERENCIA', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Sin número de operación en pago ni en evidencia' };
-  }
-
   if (refCoincide && montoCoincide) {
     return { estado: 'COINCIDE', color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60', icono: 'check', mensaje: 'Monto y referencia coinciden' };
+  }
+
+  if (montoCoincide && !refCoincide) {
+    return {
+      estado: 'REVISION_MANUAL',
+      color: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
+      icono: 'alert',
+      mensaje: 'Monto coincide, pero las referencias son distintas. Requiere validación manual.',
+    };
+  }
+
+  if (!normRefPago && !normRefEmpresa) {
+    return { estado: 'SIN_REFERENCIA', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Sin número de operación en pago ni en evidencia' };
   }
 
   if (refCoincide || montoCoincide) {
@@ -117,7 +141,14 @@ const BadgeEstado = ({ evaluacion }) => {
   );
 };
 
-function EvidenciaEmpresaPagoForm({ idOperacion, pago, index, onUploaded, onPreview }) {
+function EvidenciaEmpresaPagoForm({
+  idOperacion,
+  pago,
+  index,
+  tipoEvidencia = 'EMPRESA',
+  onUploaded,
+  onPreview,
+}) {
   const [archivo, setArchivo] = useState(null);
   const [preview, setPreview] = useState(null);
   const [ocr, setOcr] = useState(null);
@@ -198,7 +229,7 @@ function EvidenciaEmpresaPagoForm({ idOperacion, pago, index, onUploaded, onPrev
       formulario.append('archivo', archivo);
       formulario.append('id_operacion', String(idOperacion));
       formulario.append('id_pago', String(pago.id_pago));
-      formulario.append('tipo_evidencia', 'EMPRESA');
+      formulario.append('tipo_evidencia', tipoEvidencia);
       const ahora = new Date();
       const fechaLocal = [
         ahora.getFullYear(),
@@ -212,7 +243,7 @@ function EvidenciaEmpresaPagoForm({ idOperacion, pago, index, onUploaded, onPrev
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const evidencia = response.data?.data?.evidencia || response.data?.data;
-      await onUploaded(evidencia, pago);
+      await onUploaded(evidencia, pago, tipoEvidencia);
       setArchivo(null);
       setPreview(null);
       setOcr(null);
@@ -232,7 +263,7 @@ function EvidenciaEmpresaPagoForm({ idOperacion, pago, index, onUploaded, onPrev
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 p-4">
       <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-        Subir evidencia para Pago #{index + 1} ({medio} - {formatPEN(pago.monto)})
+        Subir evidencia {tipoEvidencia === 'CLIENTE' ? 'del cliente' : 'de la empresa'} para Pago #{index + 1} ({medio} - {formatPEN(pago.monto)})
       </h4>
 
       {!archivo ? (
@@ -309,6 +340,8 @@ function EvidenciaEmpresaPagoForm({ idOperacion, pago, index, onUploaded, onPrev
 // COMPONENTE PRINCIPAL
 // ============================================================
 export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida }) {
+  const { user } = useAuth();
+  const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
   const open = op !== null;
   const [lastOperation, setLastOperation] = useState(op);
   if (op && op !== lastOperation) setLastOperation(op);
@@ -325,6 +358,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const [archivoVisorPreview, setArchivoVisorPreview] = useState(null);
   const [mensajeEvidencia, setMensajeEvidencia] = useState('');
   const [evidenciasLocales, setEvidenciasLocales] = useState([]);
+  const [pagoAReemplazar, setPagoAReemplazar] = useState(null);
+  const [pagoEnValidacion, setPagoEnValidacion] = useState(null);
+  const [errorValidacionManual, setErrorValidacionManual] = useState(null);
 
   const idOperacion = Number(
     initialOpData?.id_operacion ??
@@ -345,6 +381,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       setVisorEsPreview(false);
       setArchivoVisorPreview(null);
       setZoom(false);
+      setPagoAReemplazar(null);
     }
   }
 
@@ -353,6 +390,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     setArchivoVisorPreview(null);
     setMensajeEvidencia('');
     setEvidenciasLocales([]);
+    setPagoAReemplazar(null);
   }
 
   useEffect(() => {
@@ -549,9 +587,18 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const verificaciones = Array.isArray(opData.verificaciones)
     ? opData.verificaciones
     : [];
-  const evidenciasEmpresa = evidencias.filter(
-    (evidencia) => evidencia.tipo_evidencia === 'EMPRESA'
-  );
+  const obtenerEvidenciasVinculadas = (campoIdEvidencia) => [
+    ...new Map(
+      verificaciones
+        .map((verificacion) => evidencias.find(
+          (evidencia) => String(evidencia.id_evidencia) === String(verificacion[campoIdEvidencia])
+        ))
+        .filter(Boolean)
+        .map((evidencia) => [String(evidencia.id_evidencia), evidencia])
+    ).values(),
+  ];
+  const evidenciasEmpresa = obtenerEvidenciasVinculadas('id_evidencia_empresa');
+  const evidenciasCliente = obtenerEvidenciasVinculadas('id_evidencia_cliente');
   const buscarEvidenciaDePago = (pago, tipo) => {
     const verificacion = verificaciones.find(
       (item) => Number(item.id_pago) === Number(pago?.id_pago)
@@ -561,8 +608,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       : verificacion?.id_evidencia_cliente;
 
     if (idEvidencia == null) return null;
-    return evidencias.find(
-      (evidencia) => Number(evidencia.id_evidencia) === Number(idEvidencia)
+    const evidenciasVinculadas = tipo === 'EMPRESA' ? evidenciasEmpresa : evidenciasCliente;
+    return evidenciasVinculadas.find(
+      (evidencia) => String(evidencia.id_evidencia) === String(idEvidencia)
     ) || null;
   };
 
@@ -610,10 +658,17 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
         .toLowerCase();
       return medioPago !== '' &&
         !medioPago.includes('efectivo') &&
-        !buscarEvidenciaDePago(pago, 'EMPRESA');
+        (
+          (
+            pagoAReemplazar?.tipoEvidencia === 'EMPRESA' &&
+            String(pago.id_pago) === String(pagoAReemplazar.pago.id_pago)
+          ) ||
+          !buscarEvidenciaDePago(pago, 'EMPRESA')
+        );
     });
 
-  const handleEvidenciaPagoSubida = async (evidencia, pago) => {
+  const handleEvidenciaPagoSubida = async (evidencia, pago, tipoEvidencia) => {
+    setPagoAReemplazar(null);
     if (evidencia && typeof evidencia === 'object' && evidencia.storage_key) {
       setEvidenciasLocales((actuales) => [...actuales, evidencia]);
     }
@@ -630,12 +685,15 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
         const verificacionesActualizadas = existe
           ? verificacionesActuales.map((item) => (
             String(item.id_pago) === String(pago.id_pago)
-              ? { ...item, id_evidencia_empresa: evidencia.id_evidencia }
-              : item
+            ? {
+              ...item,
+              [tipoEvidencia === 'EMPRESA' ? 'id_evidencia_empresa' : 'id_evidencia_cliente']: evidencia.id_evidencia,
+            }
+            : item
           ))
           : [...verificacionesActuales, {
             id_pago: pago.id_pago,
-            id_evidencia_empresa: evidencia.id_evidencia,
+            [tipoEvidencia === 'EMPRESA' ? 'id_evidencia_empresa' : 'id_evidencia_cliente']: evidencia.id_evidencia,
           }];
         return {
           ...actual,
@@ -645,7 +703,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     }
 
     setOperationRefreshKey((actual) => actual + 1);
-    setMensajeEvidencia('Evidencia de empresa registrada y asociada al pago.');
+    setMensajeEvidencia(`Evidencia ${tipoEvidencia === 'CLIENTE' ? 'del cliente' : 'de la empresa'} registrada y asociada al pago.`);
 
     if (typeof onEvidenciaSubida === 'function') {
       try {
@@ -653,6 +711,43 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       } catch (error) {
         console.warn('No se pudo notificar al padre:', error);
       }
+    }
+  };
+
+  const handleForzarValidacion = async (pago) => {
+    setPagoEnValidacion(pago.id_pago);
+    setErrorValidacionManual(null);
+    try {
+      const observacion = 'Validación manual: referencias distintas, monto coincide';
+      await api.put(`/pagos/${pago.id_pago}`, {
+        id_medio_pago: pago.id_medio_pago,
+        monto: Number(pago.monto),
+        referencia_bancaria: pago.referencia || null,
+        observacion,
+        estado: 'VERIFICADO',
+      });
+
+      setFreshOperation((actual) => {
+        const data = actual?.id === idOperacion ? actual.data : opData;
+        const pagosActualizados = (Array.isArray(data.pagos) ? data.pagos : []).map((pagoActual) => (
+          String(pagoActual.id_pago) === String(pago.id_pago)
+            ? { ...pagoActual, estado: 'VERIFICADO', observacion }
+            : pagoActual
+        ));
+        return {
+          id: idOperacion,
+          data: { ...data, pagos: pagosActualizados },
+        };
+      });
+      setOperationRefreshKey((actual) => actual + 1);
+    } catch (error) {
+      console.error('Error al forzar validación manual del pago:', error);
+      setErrorValidacionManual({
+        pagoId: pago.id_pago,
+        mensaje: error.response?.data?.message || 'No se pudo verificar el pago. Intenta nuevamente.',
+      });
+    } finally {
+      setPagoEnValidacion(null);
     }
   };
 
@@ -816,23 +911,41 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                       );
                       const url = getEvidenciaUrl(evidencia);
                       return (
-                        <button
+                        <div
                           key={evidencia.id_evidencia || index}
-                          type="button"
-                          onClick={() => url && abrirVisorEvidencia(url)}
-                          disabled={!url}
-                          className="inline-flex w-full items-center justify-between gap-2 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 px-3 py-2.5 text-left text-sm font-semibold text-blue-700 dark:text-blue-300 transition hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="flex items-center gap-2"
                         >
-                          <span className="inline-flex min-w-0 items-center gap-2">
-                            <Eye className="h-4 w-4 shrink-0" />
-                            <span className="truncate">
-                              Evidencia #{index + 1} · {pagoVinculado ? `Pago de ${formatPEN(pagoVinculado.monto)}` : 'Pago asociado'}
+                          <button
+                            type="button"
+                            onClick={() => url && abrirVisorEvidencia(url)}
+                            disabled={!url}
+                            className="inline-flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 px-3 py-2.5 text-left text-sm font-semibold text-blue-700 dark:text-blue-300 transition hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <span className="inline-flex min-w-0 items-center gap-2">
+                              <Eye className="h-4 w-4 shrink-0" />
+                              <span className="truncate">
+                                Evidencia #{index + 1} · {pagoVinculado ? `Pago de ${formatPEN(pagoVinculado.monto)}` : 'Pago asociado'}
+                              </span>
                             </span>
-                          </span>
-                          {evidencia.datos_ocr?.monto != null && (
-                            <span className="shrink-0 tabular-nums">{formatPEN(evidencia.datos_ocr.monto)}</span>
+                            {evidencia.datos_ocr?.monto != null && (
+                              <span className="shrink-0 tabular-nums">{formatPEN(evidencia.datos_ocr.monto)}</span>
+                            )}
+                          </button>
+                          {pagoVinculado && (
+                            <button
+                              type="button"
+                              onClick={() => setPagoAReemplazar({
+                                pago: pagoVinculado,
+                                tipoEvidencia: 'EMPRESA',
+                              })}
+                              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-700"
+                              aria-label={`Reemplazar evidencia del pago ${index + 1}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Reemplazar
+                            </button>
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -842,10 +955,11 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                   <div className="flex flex-col gap-3">
                     {pagosEmpresaPendientes.map(({ pago, index }) => (
                       <EvidenciaEmpresaPagoForm
-                        key={pago.id_pago}
+                        key={`empresa-${pago.id_pago}`}
                         idOperacion={idOperacion}
                         pago={pago}
                         index={index}
+                        tipoEvidencia="EMPRESA"
                         onUploaded={handleEvidenciaPagoSubida}
                         onPreview={abrirVisorPreview}
                       />
@@ -948,6 +1062,25 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 italic">
                           {evaluacion.mensaje}
                         </p>
+
+                        {esAdmin && evaluacion.estado === 'REVISION_MANUAL' && (
+                          <button
+                            type="button"
+                            onClick={() => handleForzarValidacion(pago)}
+                            disabled={pagoEnValidacion != null}
+                            className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-500 px-3 text-xs font-bold text-white transition-colors hover:bg-amber-600 dark:border-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {String(pagoEnValidacion) === String(pago.id_pago)
+                              ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                              : <ShieldCheck className="h-4 w-4" />}
+                            Forzar Validación
+                          </button>
+                        )}
+                        {errorValidacionManual && String(errorValidacionManual.pagoId) === String(pago.id_pago) && (
+                          <p role="alert" className="mt-2 text-xs font-medium text-rose-700 dark:text-rose-300">
+                            {errorValidacionManual.mensaje}
+                          </p>
+                        )}
                       </li>
                     );
                   })}
@@ -985,8 +1118,9 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     </li>
                   ))
                 ) : (
-                  <li className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
-                    No hay productos detallados.
+                  <li className="flex items-center gap-2 py-4 text-sm italic text-slate-600 dark:text-slate-300">
+                    <Package className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+                    <span>Productos no extraídos. Valida el comprobante físico.</span>
                   </li>
                 )}
               </ul>
@@ -1029,50 +1163,80 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     return (
                       <li
                         key={idx}
-                        className="flex items-center justify-between gap-4 py-4"
+                        className="py-4"
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                              {p.medio_pago || p.nombre_medio || 'Efectivo'}
-                            </p>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {p.medio_pago || p.nombre_medio || 'Efectivo'}
+                              </p>
 
-                            {puedeVerCliente && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  abrirVisorEvidencia(evidenciaClientePagoUrl)
-                                }
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 transition hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                                title="Ver evidencia del cliente"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                Ver Evidencia
-                              </button>
-                            )}
+                              {p.referencia && p.referencia !== 'None' && (
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                                  Ref: {p.referencia}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                                {formatPEN(p.monto)}
+                              </span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                pagoVerificado
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                  : pagoAnulado
+                                    ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                              }`}>
+                                {pagoVerificado ? 'Verificado' : pagoAnulado ? 'Anulado' : 'Pendiente'}
+                              </span>
+                            </div>
                           </div>
 
-                          {p.referencia && p.referencia !== 'None' && (
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                              Ref: {p.referencia}
-                            </p>
+                          {!esEfectivo && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {puedeVerCliente && (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirVisorEvidencia(evidenciaClientePagoUrl)}
+                                  className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 transition hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                  title="Ver evidencia del cliente"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  Ver Evidencia
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setPagoAReemplazar({
+                                  pago: p,
+                                  tipoEvidencia: 'CLIENTE',
+                                })}
+                                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-700"
+                                aria-label={`Reemplazar evidencia del cliente del pago ${idx + 1}`}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Reemplazar
+                              </button>
+                            </div>
                           )}
                         </div>
-
-                        <div className="flex shrink-0 flex-col items-end gap-1">
-                          <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-                            {formatPEN(p.monto)}
-                          </span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            pagoVerificado
-                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                              : pagoAnulado
-                                ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
-                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
-                          }`}>
-                            {pagoVerificado ? 'Verificado' : pagoAnulado ? 'Anulado' : 'Pendiente'}
-                          </span>
-                        </div>
+                        {pagoAReemplazar?.tipoEvidencia === 'CLIENTE' &&
+                          String(pagoAReemplazar.pago.id_pago) === String(p.id_pago) && (
+                            <div className="mt-3">
+                              <EvidenciaEmpresaPagoForm
+                                key={`cliente-${p.id_pago}`}
+                                idOperacion={idOperacion}
+                                pago={p}
+                                index={idx}
+                                tipoEvidencia="CLIENTE"
+                                onUploaded={handleEvidenciaPagoSubida}
+                                onPreview={abrirVisorPreview}
+                              />
+                            </div>
+                          )}
                       </li>
                     );
                   })

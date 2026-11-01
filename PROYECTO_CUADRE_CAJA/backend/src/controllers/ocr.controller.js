@@ -1,6 +1,8 @@
+import { unlink } from 'node:fs/promises';
 import { extractEvidenceData } from '../services/ocr.service.js';
 
 export const procesarComprobante = async (req, res, next) => {
+  let filePath;
   try {
     console.log('[OCR Controller] req.file:', req.file ? 'presente' : 'AUSENTE');
     console.log('[OCR Controller] req.file.path:', req.file?.path);
@@ -15,7 +17,7 @@ export const procesarComprobante = async (req, res, next) => {
       throw error;
     }
 
-    const filePath = req.file.path;
+    filePath = req.file.path;
     const mimeType = req.file.mimetype;
 
     // El tipo de evidencia viene del body; default COMPROBANTE
@@ -46,5 +48,15 @@ export const procesarComprobante = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  } finally {
+    if (filePath) {
+      try {
+        await unlink(filePath);
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          console.error('[OCR Controller] No se pudo eliminar el archivo temporal:', error);
+        }
+      }
+    }
   }
 };

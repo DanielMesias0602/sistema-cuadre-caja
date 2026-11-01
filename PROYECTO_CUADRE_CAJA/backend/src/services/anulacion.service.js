@@ -6,12 +6,14 @@ import {
 } from '../repositories/anulacion.repository.js';
 
 import { query, withTransaction } from '../repositories/base.repository.js';
+import { emitirEvento } from './socket.service.js';
 
 const comprobarComprobante = async (idComprobante) => {
   const result = await query(
     `SELECT
        id_comprobante, tipo_comprobante, serie, numero, fecha, monto,
-       (SELECT id_operacion FROM operacion WHERE id_comprobante = $1 LIMIT 1) AS id_operacion
+       (SELECT id_operacion FROM operacion WHERE id_comprobante = $1 LIMIT 1) AS id_operacion,
+       (SELECT id_cierre FROM operacion WHERE id_comprobante = $1 LIMIT 1) AS id_cierre
      FROM comprobante
      WHERE id_comprobante = $1`,
     [idComprobante]
@@ -45,7 +47,30 @@ export const registrarAnulacion = async ({
     throw error;
   }
 
-  return withTransaction(async (client) => {
+  // ============================================================
+  // NUEVO: Validar que el cierre no esté CERRADO
+  // ============================================================
+  if (comprobante.id_operacion) {
+    const cierreResult = await query(
+      `SELECT cc.estado AS estado_cierre
+       FROM operacion o
+       LEFT JOIN cierre_caja cc ON cc.id_cierre = o.id_cierre
+       WHERE o.id_operacion = $1`,
+      [comprobante.id_operacion]
+    );
+
+    const cierre = cierreResult.rows[0];
+    if (cierre && String(cierre.estado_cierre || '').toUpperCase() === 'CERRADO') {
+      const error = new Error(
+        'No se puede anular una operación que pertenece a un cierre ya cerrado. Debe reabrir el turno en el módulo de Cierres de Caja para poder anular.'
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+  // ============================================================
+
+  const anulacion = await withTransaction(async (client) => {
     const anulacion = await createAnulacion({
       id_comprobante,
       id_usuario,
@@ -66,6 +91,10 @@ export const registrarAnulacion = async ({
 
     return anulacion;
   });
+
+  emitirEvento('ajuste_creado', { id: anulacion.id_anulacion, tipo: 'ANULACION' });
+  emitirEvento('cierre_actualizado', { id: comprobante.id_cierre });
+  return anulacion;
 };
 
 export const obtenerAnulacion = async (idAnulacion) => {

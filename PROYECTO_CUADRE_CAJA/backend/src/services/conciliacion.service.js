@@ -21,8 +21,9 @@ export const obtenerPreCalculoConciliacion = async (fecha) => {
 
   const diferencia_total = cierres.reduce((acc, c) => acc + Number(c.diferencia || 0), 0);
   const total_ingresos = cierres.reduce((acc, c) => acc + Number(c.total_ingresos || 0), 0);
-  const total_efectivo_esperado = cierres.reduce((acc, c) => acc + Number(c.efectivo_esperado || 0), 0);
+  const total_no_efectivo = cierres.reduce((acc, c) => acc + Number(c.total_no_efectivo || 0), 0);
   const total_salidas = cierres.reduce((acc, c) => acc + Number(c.total_salidas || 0), 0);
+  const total_efectivo_esperado = total_ingresos - total_no_efectivo - total_salidas;
 
   const operaciones_pendientes_evidencia = await contarOperacionesSinEvidenciaEmpresaPorFecha(fecha);
   const operaciones_con_numeros = await findOperacionesConNumeros(fecha);
@@ -31,6 +32,7 @@ export const obtenerPreCalculoConciliacion = async (fecha) => {
     cierres,
     diferencia_total,
     total_ingresos,
+    total_no_efectivo,
     total_efectivo_esperado,
     total_salidas,
     operaciones_pendientes_evidencia,

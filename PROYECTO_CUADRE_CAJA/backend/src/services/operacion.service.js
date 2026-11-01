@@ -1,4 +1,5 @@
 ﻿import { withTransaction } from '../repositories/base.repository.js';
+import { emitirEvento } from './socket.service.js';
 import {
   createOperacion,
   findOperacionById,
@@ -8,12 +9,17 @@ import { createComprobante } from '../repositories/comprobante.repository.js';
 import { createPago } from '../repositories/pago.repository.js';
 import { createEvidencia } from '../repositories/evidencia.repository.js';
 import { createVerificacionPago } from '../repositories/verificacionPago.repository.js';
+import { createCierreCaja } from '../repositories/cierreCaja.repository.js';
 import { generatePreauthenticatedRequest } from './ociStorage.service.js';
-import { obtenerTurnoPorHora } from '../utils/turnoCaja.js';
+import {
+  normalizarHoraCaja,
+  obtenerEtiquetaTurno,
+  obtenerTurnoPorHora
+} from '../utils/turnoCaja.js';
 
 // --- FUNCIONES EXISTENTES ---
 
-const validarHorarioRegistro = async (client, fechaOperacion, horaComprobante) => {
+const validarHorarioRegistro = async (client, fechaOperacion, horaComprobante, idUsuario) => {
   if (!fechaOperacion) {
     const error = new Error('La fecha de la operación es obligatoria');
     error.statusCode = 400;
@@ -29,16 +35,17 @@ const validarHorarioRegistro = async (client, fechaOperacion, horaComprobante) =
     `SELECT TO_CHAR(
        clock_timestamp() AT TIME ZONE 'America/Lima',
        'YYYY-MM-DD'
-     ) AS hoy`
+     ) AS hoy,
+     CURRENT_TIMESTAMP AS fecha_fin`
   );
-  const { hoy } = horaCheck.rows[0];
+  const { hoy, fecha_fin: fechaFin } = horaCheck.rows[0];
   if (fechaOperacion > hoy) {
     const error = new Error('No se pueden registrar operaciones con fecha futura.');
     error.statusCode = 400;
     throw error;
   }
 
-  if (fechaOperacion < hoy) {
+  if (fechaOperacion <= hoy) {
     const turnoComprobante = obtenerTurnoPorHora(horaComprobante || '12:00:00');
     if (!turnoComprobante) {
       const error = new Error('La hora del comprobante no es válida o está fuera del horario de caja (8:00 AM a 11:59 PM).');
@@ -47,26 +54,43 @@ const validarHorarioRegistro = async (client, fechaOperacion, horaComprobante) =
     }
 
     const cierreResult = await client.query(
-      `SELECT UPPER(estado) AS estado
+      `SELECT id_cierre, UPPER(estado) AS estado
        FROM cierre_caja
        WHERE fecha = $1
          AND TRANSLATE(UPPER(turno), 'ÑÁÉÍÓÚÜ', 'NAEIOUU') = $2`,
       [fechaOperacion, turnoComprobante]
     );
 
-    if (cierreResult.rows[0]?.estado === 'CERRADO') {
+    let cierre = cierreResult.rows[0];
+    if (cierre?.estado === 'CERRADO') {
       const turnoNombre = turnoComprobante === 'MANANA' ? 'Mañana' : 'Tarde';
       const error = new Error(
-        `El turno ${turnoNombre} del ${fechaOperacion} ya está cerrado. Debe reabrir el turno en el módulo de Cierres para poder registrar esta operación.`
+        `El turno ${turnoNombre} del ${fechaOperacion} ya está cerrado. Reabra el turno para registrar operaciones.`
       );
       error.statusCode = 409;
       throw error;
     }
 
-    return;
-  }
+    if (!cierre) {
+      const turnoEtiqueta = obtenerEtiquetaTurno(turnoComprobante);
+      cierre = await createCierreCaja({
+        id_usuario_responsable: idUsuario,
+        fecha: fechaOperacion,
+        turno: turnoEtiqueta,
+        total_ingresos: 0,
+        total_no_efectivo: 0,
+        efectivo_esperado: 0,
+        total_salidas: 0,
+        efectivo_despues_salidas: 0,
+        efectivo_fisico: 0,
+        diferencia: 0,
+        estado: 'ABIERTO',
+        fecha_fin: fechaFin
+      }, client);
+    }
 
-  return;
+    return cierre.id_cierre;
+  }
 };
 
 const normalizarFechaComparada = (valor) => {
@@ -213,14 +237,22 @@ export const crearVerificacionesPendientesPorPago = async ({
 };
 
 export const registerOperacion = async (data) => {
-  return withTransaction(async (client) => {
+  const operacion = await withTransaction(async (client) => {
     const comprobanteResult = await client.query(
       'SELECT hora FROM comprobante WHERE id_comprobante = $1',
       [data.id_comprobante]
     );
-    await validarHorarioRegistro(client, data.fecha, comprobanteResult.rows[0]?.hora);
-    return createOperacion(data, client);
+    const idCierre = await validarHorarioRegistro(
+      client,
+      data.fecha,
+      comprobanteResult.rows[0]?.hora,
+      data.id_usuario
+    );
+    return createOperacion({ ...data, id_cierre: idCierre }, client);
   });
+
+  emitirEvento('operacion_creada', { id: operacion.id_operacion });
+  return operacion;
 };
 
 export const getOperacionById = async (idOperacion) => {
@@ -295,15 +327,28 @@ export const registerOperacionUnificada = async (data) => {
     throw error;
   }
 
-  return await withTransaction(async (client) => {
-    await validarHorarioRegistro(client, operacion?.fecha, comprobante?.hora);
+  const horaNormalizada = comprobante?.hora
+    ? normalizarHoraCaja(comprobante.hora)
+    : comprobante?.hora;
+  const comprobanteNormalizado = horaNormalizada
+    ? { ...comprobante, hora: horaNormalizada }
+    : comprobante;
+
+  const resultado = await withTransaction(async (client) => {
+    const idCierre = await validarHorarioRegistro(
+      client,
+      operacion?.fecha,
+      comprobanteNormalizado?.hora,
+      id_usuario
+    );
     
     // 1. Crear Comprobante con datos de OCR
-    const newComprobante = await createComprobante(comprobante, client);
+    const newComprobante = await createComprobante(comprobanteNormalizado, client);
 
     // 2. Crear Operación
     const newOperacion = await createOperacion({
       ...operacion,
+      id_cierre: idCierre,
       id_comprobante: newComprobante.id_comprobante,
       id_usuario: id_usuario
     }, client);
@@ -357,4 +402,7 @@ export const registerOperacionUnificada = async (data) => {
       evidencias: createdEvidencias
     };
   });
+
+  emitirEvento('operacion_creada', { id: resultado.id_operacion });
+  return resultado;
 };

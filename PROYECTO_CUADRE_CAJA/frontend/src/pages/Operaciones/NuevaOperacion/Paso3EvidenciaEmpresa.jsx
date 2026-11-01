@@ -2,7 +2,7 @@
 import {
   ArrowLeft, UploadCloud, Image as ImageIcon, X, Loader2, CheckCircle,
   Info, Banknote, Calendar, Hash, User, CreditCard, AlertCircle, Clock,
-  Building2, FileText,
+  Building2, FileText, AlertTriangle,
 } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
 
@@ -104,9 +104,12 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
       preview: null,
       ocrData: null,
       error: null,
+      avisoPdf: false,
       loading: false,
     });
     if (!esImagen) {
+      // NUEVO: Aviso visual para PDFs (banner amarillo, no error rojo)
+      actualizarEvidencia(index, { avisoPdf: true });
       return;
     }
     actualizarEvidencia(index, { loading: true });
@@ -151,6 +154,7 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
       ocrData: null,
       loading: false,
       error: null,
+      avisoPdf: false,
     });
     if (fileInputRefs.current[index]) fileInputRefs.current[index].value = '';
   };
@@ -209,6 +213,15 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
                 <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-300">
                   <strong>Evidencia bancaria pendiente.</strong> Puedes registrar la operación y adjuntar el comprobante posteriormente.
+                </p>
+              </div>
+            )}
+
+            {evidenciaPago.avisoPdf && (
+              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 sm:p-4 max-w-2xl mx-auto flex items-start gap-2 sm:gap-3">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-300">
+                  <strong>Archivo PDF seleccionado.</strong> El OCR solo funciona con imágenes. El PDF se guardará para revisión manual.
                 </p>
               </div>
             )}

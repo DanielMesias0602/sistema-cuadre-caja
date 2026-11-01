@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, X, FileImage, FileText } from 'lucide-react';
+import { notifyToast } from '../../../../components/ui/toastEvents';
 
 export function SubirArchivo({ onFileSelect, onCancel }) {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -38,12 +39,12 @@ export function SubirArchivo({ onFileSelect, onCancel }) {
     const maxSize = 10 * 1024 * 1024; // 10MB
 
     if (!validTypes.includes(file.type)) {
-      alert('Solo se permiten archivos JPG, PNG, WebP y PDF');
+      notifyToast('Solo se permiten archivos JPG, PNG, WebP y PDF.', 'error');
       return;
     }
 
     if (file.size > maxSize) {
-      alert('El archivo no puede superar los 10MB');
+      notifyToast('El archivo no puede superar los 10 MB.', 'error');
       return;
     }
 

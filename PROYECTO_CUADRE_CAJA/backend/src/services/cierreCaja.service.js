@@ -3,10 +3,12 @@ import {
   findCierreCajaById,
   findCierresCaja,
   getTotalesParaCierre,
+  getTotalSalidasParaCierre,
   contarOperacionesSinEvidenciaEmpresa
 } from '../repositories/cierreCaja.repository.js';
 
 import { withTransaction } from '../repositories/base.repository.js';
+import { emitirEvento } from './socket.service.js';
 import {
   construirAsociacionOperacionesSql,
   obtenerEtiquetaTurno,
@@ -16,9 +18,6 @@ import {
 export const registrarCierreCaja = async ({
   fecha,
   turno,
-  total_ingresos,
-  total_no_efectivo,
-  total_salidas,
   efectivo_fisico,
   estado = 'CERRADO',
   fecha_fin = null,
@@ -35,30 +34,12 @@ export const registrarCierreCaja = async ({
     throw error;
   }
 
-  const ingresos = Number(total_ingresos);
-  const noEfectivo = Number(total_no_efectivo);
-  const salidas = Number(total_salidas);
   const efectivoFisico = Number(efectivo_fisico);
 
-  const valores = [
-    ['total_ingresos', ingresos],
-    ['total_no_efectivo', noEfectivo],
-    ['total_salidas', salidas],
-    ['efectivo_fisico', efectivoFisico]
-  ];
+  if (!Number.isFinite(efectivoFisico)) throw new Error('efectivo_fisico debe ser numérico');
+  if (efectivoFisico < 0) throw new Error('efectivo_fisico no puede ser negativo');
 
-  for (const [nombre, valor] of valores) {
-    if (!Number.isFinite(valor)) throw new Error(`${nombre} debe ser numérico`);
-    if (valor < 0) throw new Error(`${nombre} no puede ser negativo`);
-  }
-
-  const efectivoEsperado = ingresos - noEfectivo;
-  if (efectivoEsperado < 0) throw new Error('El efectivo esperado no puede ser negativo');
-
-  const efectivoDespuesSalidas = efectivoEsperado - salidas;
-  if (efectivoDespuesSalidas < 0) throw new Error('El efectivo después de salidas no puede ser negativo');
-
-  return withTransaction(async (client) => {
+  const cierre = await withTransaction(async (client) => {
     await client.query(
       `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
       [fecha]
@@ -120,8 +101,11 @@ export const registrarCierreCaja = async ({
     const totalesReales = await getTotalesParaCierre(fecha, turnoEtiqueta, client);
     const ingresosReales = Number(totalesReales.total_ingresos);
     const noEfectivoReal = Number(totalesReales.total_no_efectivo);
+    const salidasReales = cierreExistente
+      ? await getTotalSalidasParaCierre(cierreExistente.id_cierre, client)
+      : 0;
     const efectivoEsperadoReal = ingresosReales - noEfectivoReal;
-    const efectivoDespuesSalidasReal = efectivoEsperadoReal - salidas;
+    const efectivoDespuesSalidasReal = efectivoEsperadoReal - salidasReales;
     if (efectivoEsperadoReal < 0 || efectivoDespuesSalidasReal < 0) {
       throw new Error('Los totales calculados para el cierre no son válidos');
     }
@@ -131,7 +115,7 @@ export const registrarCierreCaja = async ({
       ingresosReales,
       noEfectivoReal,
       efectivoEsperadoReal,
-      salidas,
+      salidasReales,
       efectivoDespuesSalidasReal,
       efectivoFisico,
       efectivoFisico - efectivoDespuesSalidasReal,
@@ -163,7 +147,7 @@ export const registrarCierreCaja = async ({
         total_ingresos: ingresosReales,
         total_no_efectivo: noEfectivoReal,
         efectivo_esperado: efectivoEsperadoReal,
-        total_salidas: salidas,
+        total_salidas: salidasReales,
         efectivo_despues_salidas: efectivoDespuesSalidasReal,
         efectivo_fisico: efectivoFisico,
         diferencia: efectivoFisico - efectivoDespuesSalidasReal,
@@ -181,6 +165,9 @@ export const registrarCierreCaja = async ({
 
     return cierre;
   });
+
+  emitirEvento('cierre_actualizado', { id: cierre.id_cierre });
+  return cierre;
 };
 
 export const obtenerCierreCaja = async (idCierre) => {
@@ -231,7 +218,7 @@ export const reabrirCierreCaja = async (idCierre) => {
     throw error;
   }
 
-  return withTransaction(async (client) => {
+  const cierreReabierto = await withTransaction(async (client) => {
     const conciliacionResult = await client.query(
       'SELECT id_conciliacion FROM conciliacion WHERE fecha = $1',
       [cierre.fecha]
@@ -253,4 +240,7 @@ export const reabrirCierreCaja = async (idCierre) => {
     );
     return result.rows[0] ?? null;
   });
+
+  emitirEvento('cierre_actualizado', { id: cierreReabierto?.id_cierre ?? Number(idCierre) });
+  return cierreReabierto;
 };

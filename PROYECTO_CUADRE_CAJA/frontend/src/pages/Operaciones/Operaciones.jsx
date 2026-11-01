@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 import { OperacionDetailDrawerPremium } from '../../components/dashboard/OperacionDetailDrawerPremium';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
@@ -11,6 +12,7 @@ import {
 
 export function Operaciones() {
   const navigate = useNavigate();
+  const socket = useSocket();
 
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +25,7 @@ export function Operaciones() {
   const [selectedOp, setSelectedOp] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
 
-  async function cargarOperaciones() {
+  const cargarOperaciones = useCallback(async () => {
     try {
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
@@ -36,7 +38,7 @@ export function Operaciones() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarOperaciones = () => {
     setLoading(true);
@@ -45,7 +47,20 @@ export function Operaciones() {
 
   useEffect(() => {
     void Promise.resolve().then(cargarOperaciones);
-  }, []);
+  }, [cargarOperaciones]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarOperaciones = () => {
+      void cargarOperaciones();
+    };
+    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    eventos.forEach((evento) => socket.on(evento, actualizarOperaciones));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarOperaciones));
+    };
+  }, [socket, cargarOperaciones]);
 
   const limpiarFiltros = () => {
     setBusqueda('');

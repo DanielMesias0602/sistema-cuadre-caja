@@ -1,12 +1,12 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/cuadrecaja/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/cuadrecaja/api';
 const AUTH_TOKEN_KEY = 'finito_auth_token';
 const AUTH_USER_KEY = 'finito_auth_user';
 
 export const authService = {
   async login(username, password) {
-    const response = await axios.post(`${API_URL}/auth/login`, {
+    const response = await axios.post(`${BASE_URL}/auth/login`, {
       username,
       password,
     });
@@ -30,7 +30,7 @@ export const authService = {
     if (!token) return null;
 
     try {
-      const response = await axios.get(`${API_URL}/auth/me`, {
+      const response = await axios.get(`${BASE_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

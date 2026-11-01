@@ -185,6 +185,11 @@ export const findOperacionesReport = async (filters) => {
 
 export const findPagosPorMedioReport = async (filters) => {
   const filter = buildDateFilters(filters, 'o');
+  
+  // Agregamos la condición para excluir pagos anulados
+  const whereCondition = filter.sql
+    ? `${filter.sql} AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') AND o.estado != 'ANULADA'`
+    : `WHERE COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') AND o.estado != 'ANULADA'`;
 
   const result = await query(
     `SELECT
@@ -199,7 +204,7 @@ export const findPagosPorMedioReport = async (filters) => {
        ON o.id_operacion = p.id_operacion
      INNER JOIN medio_pago mp
        ON mp.id_medio_pago = p.id_medio_pago
-     ${filter.sql}
+     ${whereCondition}
      GROUP BY mp.id_medio_pago, mp.nombre, mp.es_efectivo
      ORDER BY mp.nombre`,
     filter.params
@@ -493,7 +498,9 @@ export const findDashboardReport = async (filters) => {
        INNER JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
        INNER JOIN operaciones_filtradas of ON of.id_operacion = p.id_operacion
        WHERE mp.es_efectivo = FALSE
+         AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') 
      )
+
      SELECT
        (SELECT COUNT(*)::INTEGER FROM cierre_caja cc
          WHERE ($1::date IS NULL OR cc.fecha >= $1::date)
@@ -601,6 +608,7 @@ export const findIndicadoresCompletos = async (filters) => {
        JOIN operacion o ON o.id_operacion = p.id_operacion
        WHERE ($1::date IS NULL OR o.fecha >= $1::date)
          AND ($2::date IS NULL OR o.fecha <= $2::date)
+         AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') 
      ),
      cierres AS (
        SELECT * FROM cierre_caja cc

@@ -70,6 +70,10 @@ export const normalizarHoraCaja = (hora) => {
     return null;
   }
 
+  if (!meridiano && horas < 8) {
+    horas += 12;
+  }
+
   return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
 };
 

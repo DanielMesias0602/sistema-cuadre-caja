@@ -1,7 +1,7 @@
 import api from '../lib/api';
 
 export const ocrService = {
-  procesar: (archivo, tipoEvidencia = 'COMPROBANTE') => {
+  procesar: (archivo, tipoEvidencia = 'COMPROBANTE', { signal } = {}) => {
     const formData = new FormData();
 
     // Detectar extensión correcta. Si viene del canvas es JPEG,
@@ -15,6 +15,7 @@ export const ocrService = {
     return api.post('/ocr/procesar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 180000,
+      signal,
     });
   },
 };

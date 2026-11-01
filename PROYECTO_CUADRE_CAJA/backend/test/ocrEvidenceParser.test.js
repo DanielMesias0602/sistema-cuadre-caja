@@ -45,3 +45,15 @@ test('recovers the transfer date and time without a Python JSON block', () => {
   assert.equal(datos.fecha_operacion, '27/10/2026');
   assert.equal(datos.hora_operacion, '08:15');
 });
+
+test('normalizes numeric dates with two-digit years from OCR text and JSON', () => {
+  const datosDesdeTexto = parsearEvidencia(`S/ 500.00
+27/10/26`);
+  const datosDesdeJson = parsearEvidencia(`DATOS EXTRAIDOS:
+{
+  "fecha_operacion": "27/10/26"
+}`);
+
+  assert.equal(datosDesdeTexto.fecha_operacion, '27/10/2026');
+  assert.equal(datosDesdeJson.fecha_operacion, '27/10/2026');
+});

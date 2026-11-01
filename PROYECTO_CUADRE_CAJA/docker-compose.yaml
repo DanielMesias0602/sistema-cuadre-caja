@@ -5,21 +5,44 @@ services:
     container_name: sistema-cuadre-caja-backend
     ports:
       - "3000:3000"
+    env_file:
+      - ./backend/.env
     environment:
-      PORT: 3000
+      # Sobreescribimos estas variables porque dentro del contenedor cambian
       DB_HOST: host.docker.internal
-      DB_PORT: 5432
-      DB_NAME: cuadre_caja
-      DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      OCI_USER_OCID: ${OCI_USER_OCID}
-      OCI_TENANCY_OCID: ${OCI_TENANCY_OCID}
-      OCI_FINGERPRINT: ${OCI_FINGERPRINT}
-      OCI_REGION: ${OCI_REGION}
-      OCI_NAMESPACE: ${OCI_NAMESPACE}
-      OCI_BUCKET_NAME: ${OCI_BUCKET_NAME}
-      OCI_PRIVATE_KEY_PATH: ${OCI_PRIVATE_KEY_PATH}
+      OCI_PRIVATE_KEY_PATH: /app/claves_oci/2411010134@undc.edu.pe-2026-10-04T23_59_41.429Z.pem
+      OCR_SERVICE_URL: http://ocr-service:8000/ocr
+    volumes:
+      - ./CLAVES_OCI:/app/claves_oci
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    depends_on:
+      ocr-service:
+        condition: service_healthy
+
+  ocr-service:
+    build:
+      context: .
+      dockerfile: ocr-service/Dockerfile
+    container_name: sistema-cuadre-caja-ocr
+    ports:
+      - "8000:8000"
+    expose:
+      - "8000"
+    volumes:
+      - ocr-modelos:/root/.paddlex
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - app-network
 
@@ -28,9 +51,7 @@ services:
       context: ./frontend
     container_name: sistema-cuadre-caja-frontend
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_URL: http://localhost:3000
+      - "80:80"
     depends_on:
       - backend
     networks:
@@ -39,3 +60,6 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  ocr-modelos:

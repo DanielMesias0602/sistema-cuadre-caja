@@ -3,6 +3,26 @@ import re
 import sys
 from paddleocr import PaddleOCR
 
+# ============================================================
+# NUEVO: SINGLETON PADDLE OCR (Mantiene el modelo en RAM)
+# ============================================================
+_ocr_instance = None
+
+def get_ocr():
+    global _ocr_instance
+    if _ocr_instance is None:
+        print('Iniciando PaddleOCR (MODO RÁPIDO)...', flush=True)
+        _ocr_instance = PaddleOCR(
+            lang='es', 
+            use_doc_orientation_classify=False, 
+            use_doc_unwarping=False, 
+            use_textline_orientation=False,
+            det_limit_side_len=960,
+            cpu_threads=8,
+            enable_mkldnn=True
+        )
+    return _ocr_instance
+
 def normalize_text(text):
     if text is None: return None
     return re.sub(r'\s+', ' ', str(text).strip())
@@ -31,32 +51,25 @@ def normalize_reference(reference):
     return value.lstrip('0') or '0'
 
 # ============================================================
-# DETECCION DE BANCO
-# Prioridad:
-#   1. Si es extracto bancario de la empresa (Detalle de movimiento
-#      + Cuenta Corriente) -> BCP (formato BCP Peru)
-#   2. Si NO es extracto -> usar logos/textos (YAPE, BBVA, BCP, etc)
+# DETECCION DE BANCO (ACTUALIZADO CON NUEVOS FORMATOS)
 # ============================================================
 def es_extracto_bancario_empresa(lines):
-    """
-    Detecta si es un extracto bancario de la empresa (formato BCP Peru
-    'Detalle de movimiento' + 'Cuenta Corriente').
-    Los comprobantes del cliente (Yape, BBVA, BCP cliente) NUNCA dicen
-    'Detalle de movimiento', por eso es seguro detectar con solo 2 condiciones.
-    """
     full_text = ' '.join(lines).lower()
     tiene_detalle = 'detalle de movimiento' in full_text
     tiene_cuenta_corriente = 'cuenta corriente' in full_text
     return tiene_detalle and tiene_cuenta_corriente
 
 def detect_bank(lines):
-    # PRIMERO: si es extracto de la empresa, es del banco BCP
     if es_extracto_bancario_empresa(lines):
         return 'BCP'
 
-    # SEGUNDO: si NO es extracto, usar logos/textos (Yape, BBVA, etc)
     full_text = ' '.join(lines).lower()
 
+    # PRIORIDAD ALTA: Banco de la Nación (porque a veces dice "Yape" en entidad destino)
+    if 'banco de la nación' in full_text or 'banco de la nacion' in full_text or 'nro. transferencia' in full_text: 
+        return 'BANCO_NACION'
+        
+    if 'caja ica' in full_text or 'transferencia interbancaria inmediata' in full_text: return 'INTERBANK'
     if 'cuenta independencia bbva' in full_text: return 'BBVA'
     if 'bbva' in full_text: return 'BBVA'
     if 'yapeaste' in full_text: return 'YAPE'
@@ -66,23 +79,16 @@ def detect_bank(lines):
     if 'banbif' in full_text: return 'BANBIF'
     if 'plin' in full_text: return 'PLIN'
 
-    if 'envío a contactos' in full_text or 'envio a contactos' in full_text: return 'BBVA'
+    if 'envÐ“Ó¯o a contactos' in full_text or 'envio a contactos' in full_text: return 'BBVA'
     if 'cuentas de ahorro' in full_text and '**** 5010' in full_text: return 'BCP'
     if 'yape' in full_text: return 'YAPE'
 
     return None
 
 def detect_bank_source(lines):
-    """
-    NUEVO: indica de donde salio el banco.
-      - 'formato_extracto' : se infirio por el formato (Detalle de movimiento + Cuenta Corriente)
-      - 'texto'            : se leyo directamente del texto (Yape, BBVA, BCP, etc)
-      - None               : no se detecto
-    """
     if es_extracto_bancario_empresa(lines):
         full_text = ' '.join(lines).lower()
-        # Si el texto tambien dice BBVA/YAPE/INTERBANK, preferir el texto
-        for bank in ['bbva', 'yape', 'interbank', 'scotiabank', 'banbif', 'plin']:
+        for bank in ['bbva', 'yape', 'interbank', 'scotiabank', 'banbif', 'plin', 'caja ica']:
             if bank in full_text:
                 return 'texto'
         return 'formato_extracto'
@@ -93,15 +99,17 @@ def detect_bank_source(lines):
 
 def detect_transfer_status(lines):
     full_text = ' '.join(lines).lower()
-    if 'transferencia exitosa' in full_text or 'operación exitosa' in full_text or 'operacion exitosa' in full_text:
-        return 'EXITOSA'
+    if 'transferencia exitosa' in full_text or 'operaciÐ“Ñ–n exitosa' in full_text or 'operacion exitosa' in full_text: return 'EXITOSA'
+    if 'realizada con éxito' in full_text or 'realizada con exito' in full_text: return 'EXITOSA'
     if 'transferencia realizada' in full_text: return 'REALIZADA'
-    if 'pago exitoso' in full_text or 'yapeaste' in full_text: return 'EXITOSA'
+    if 'pago exitoso' in full_text or 'yapeaste' in full_text or '¡pago exitoso!' in full_text: return 'EXITOSA'
+    if 'operación exitosa' in full_text: return 'EXITOSA'
     return None
 
 def extract_amount(lines):
     texto_completo = '\n'.join(lines)
     patrones = [
+        r'PEN\s*([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
         r'Monto[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
         r'Importe[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
         r'Total[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
@@ -119,29 +127,22 @@ def extract_amount(lines):
     return None, None
 
 # ============================================================
-# FECHA DE OPERACION
-# Acepta "Fecha de operación" o "Fecha y hora de operación"
-# Acepta formatos: 19/10/2026 o 16/10/2026 - 06:45 PM (PE)
+# FECHAS Y HORAS (SIN CAMBIOS)
 # ============================================================
 def extract_operation_date(lines):
     texto_completo = '\n'.join(lines)
     patron = re.compile(
-        r'Fecha(?:\s+y\s+hora)?\s+de\s+operaci[oó]n\s*:?\s*[\r\n]*\s*(\d{2}/\d{2}/\d{4})',
+        r'Fecha(?:\s+y\s+hora)?\s+de\s+operaci[oÐ“Ñ–]n\s*:?\s*[\r\n]*\s*(\d{2}/\d{2}/\d{4})',
         re.IGNORECASE
     )
     match = patron.search(texto_completo)
-    if match:
-        return match.group(1)
+    if match: return match.group(1)
     return None
 
-# ============================================================
-# HORA DE OPERACION (NUEVA)
-# Solo aplica si hay "Fecha y hora de operación: DD/MM/YYYY - HH:MM PM (PE)"
-# ============================================================
 def extract_operation_hour(lines):
     texto_completo = '\n'.join(lines)
     patron = re.compile(
-        r'Fecha\s+y\s+hora\s+de\s+operaci[oó]n\s*:?\s*[\r\n]*\s*\d{2}/\d{2}/\d{4}\s*[-–]?\s*(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)',
+        r'Fecha\s+y\s+hora\s+de\s+operaci[oÐ“Ñ–]n\s*:?\s*[\r\n]*\s*\d{2}/\d{2}/\d{4}\s*[-Ð²Ò–â€œ]?\s*(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)',
         re.IGNORECASE
     )
     match = patron.search(texto_completo)
@@ -165,12 +166,20 @@ def extract_client_datetime(lines):
         'noviembre': '11', 'diciembre': '12'
     }
     texto_unido = ' '.join(lines)
+
+    # 1. Formato numérico: 20/10/2026 17:39:59
+    patron_numerico = re.compile(r'(\d{2}/\d{2}/\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
+    match_num = patron_numerico.search(texto_unido)
+    if match_num:
+        return match_num.group(1), match_num.group(2)
+
+    # 2. Formato textual: 17 Oct 2026 03:34 PM
     patron_ampm = re.compile(
-        r'(\d{1,2})\s+(?:de\s+)?([a-záéíóúñ]{3,10})\.?\s+(?:de\s+)?(\d{4}).*?(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)',
+        r'(\d{1,2})\s+(?:de\s+)?([a-zÐ“ÐŽÐ“Â©Ð“Ó¯Ð“Ñ–Ð“Ó™Ð“Ò±]{3,10})\.?\s*(?:de\s+)?(\d{4}).*?(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)',
         re.IGNORECASE
     )
     patron_24h = re.compile(
-        r'(\d{1,2})\s+(?:de\s+)?([a-záéíóúñ]{3,10})\.?\s+(?:de\s+)?(\d{4})[,\s]*(\d{1,2}):(\d{2})\s*(?:h|hrs)',
+        r'(\d{1,2})\s+(?:de\s+)?([a-zÐ“ÐŽÐ“Â©Ð“Ó¯Ð“Ñ–Ð“Ó™Ð“Ò±]{3,10})\.?\s*(?:de\s+)?(\d{4})[,\s]*(\d{1,2}):(\d{2})\s*(?:h|hrs)',
         re.IGNORECASE
     )
     for patron in [patron_ampm, patron_24h]:
@@ -190,35 +199,54 @@ def extract_client_datetime(lines):
             return (f'{day}/{month}/{year}', f'{hour:02d}:{minute}')
     return None, None
 
+# ============================================================
+# REFERENCIA (ACTUALIZADO PARA INTERBANK Y BN)
+# ============================================================
 def extract_reference(lines):
     texto_completo = '\n'.join(lines)
     basura = ['seguro', 'mensaje', 'responder', 'compartir', 'descargar', 'salir', 'oncorespaldo', 'tarjetas']
+
     patrones_etiqueta_primero = [
-        r'N[r]?o\.?\s*de\s*operaci[oó]n\s*:?\s*([A-Z0-9]{5,30})',
-        r'N[uú]mero\s*de\s*operaci[oó]n\s*:?\s*([A-Z0-9]{5,30})',
-        r'C[oó]digo\s*de\s*operaci[oó]n\s*:?\s*([A-Z0-9]{5,30})',
-        r'Referencia\s*(?:bancaria)?\s*:?\s*([A-Z0-9]{5,30})',
+        r'N[uú]mero\s+de\s+movimiento\s*:?\s*[\r\n]*\s*([A-Z0-9]{4,30})',
+        r'N[uú]mero\s+de\s+operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
+        r'Nro\.\s*de\s*operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})', 
+        r'N[r]?[o°]?[.,]?\s*de\s*operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
+        r'C[oó]digo\s*de\s+operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
+        r'Referencia\s*(?:bancaria)?\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
+        r'Nro\.\s*transferencia\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
+        r'Nro\.\s*operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
     ]
     patrones_numero_primero = [
         r'([A-Z0-9]{5,30})\s*\n?\s*N[uú]mero\s*de\s*operaci[oó]n',
-        r'([A-Z0-9]{5,30})\s*\n?\s*N[r]?o\.?\s*de\s*operaci[oó]n',
+        r'([A-Z0-9]{5,30})\s*\n?\s*N[r]?[o°]?[.,]?\s*de\s*operaci[oó]n',
         r'([A-Z0-9]{5,30})\s*\n?\s*C[oó]digo\s*de\s*operaci[oó]n',
         r'([A-Z0-9]{5,30})\s*\n?\s*Referencia\s*(?:bancaria)?',
+        r'([A-Z0-9]{5,30})\s*\n?\s*Nro\.\s*transferencia',
+        r'([A-Z0-9]{5,30})\s*\n?\s*Nro\.\s*operaci[oó]n',
     ]
+
     for patron in patrones_etiqueta_primero + patrones_numero_primero:
         match = re.search(patron, texto_completo, re.IGNORECASE)
         if match:
             ref = match.group(1).strip()
-            if ref.lower() not in basura and len(ref) >= 6:
+            es_numero_movimiento = re.match(
+                r'N[uú]mero\s+de\s+movimiento',
+                match.group(0),
+                re.IGNORECASE
+            )
+            longitud_minima = 4 if es_numero_movimiento else 6
+            if ref.lower() not in basura and len(ref) >= longitud_minima:
                 return ref
+
     for i, line in enumerate(lines):
         lower = line.lower()
-        if 'operación' in lower or 'operacion' in lower or 'referencia' in lower:
+        if 'operaci' in lower or 'referencia' in lower:
             candidatos = []
             if i + 1 < len(lines): candidatos.append(lines[i + 1])
             if i > 0: candidatos.append(lines[i - 1])
             if i + 2 < len(lines): candidatos.append(lines[i + 2])
-            if i > 1: candidatos.append(lines[i - 1])
+            if i > 1: candidatos.append(lines[i - 2])
+
             for p in candidatos:
                 match = re.search(r'\b([A-Z0-9]{6,30})\b', p.upper())
                 if match:
@@ -228,49 +256,93 @@ def extract_reference(lines):
     return None
 
 # ============================================================
-# DESTINATARIO
-# Filtra "Envio a contactos" (sin tilde), "Contacto", "Destinatario"
+# DESTINATARIO (NUEVAS FUNCIONES PARA NUEVOS FORMATOS)
 # ============================================================
+def extract_recipient_interbank(lines):
+    texto_completo = '\n'.join(lines)
+    match = re.search(r'Beneficiario\(s\):\s*([\s\S]+?)(?=Moneda y monto|Comisi[oó]n|$)', texto_completo, re.IGNORECASE)
+    if match:
+        return normalize_text(match.group(1))
+    return None
+
+def extract_recipient_bcp(lines):
+    texto_completo = '\n'.join(lines)
+    match = re.search(r'Destinatario\s*([\s\S]+?)(?=Nro\. celular|Entidad|CCI|Tipo de moneda|$)', texto_completo, re.IGNORECASE)
+    if match:
+        return normalize_text(match.group(1))
+    return None
+
+def extract_recipient_plin(lines):
+    texto_completo = '\n'.join(lines)
+    match = re.search(r'Enviado a:\s*([\s\S]+?)(?=Comisi[oó]n|Fecha|C[oó]digo|$)', texto_completo, re.IGNORECASE)
+    if match:
+        return normalize_text(match.group(1))
+    return None
+
+def extract_recipient_banco_nacion(lines):
+    for i, line in enumerate(lines):
+        if 'beneficiario:' in line.lower():
+            match = re.search(r'Beneficiario:\s*(.+)', line, re.IGNORECASE)
+            partes = []
+            if match: partes.append(match.group(1).strip())
+            for j in range(i + 1, min(i + 4, len(lines))):
+                if re.search(r'cuenta origen|comisión|monto|banco de la|nro', lines[j].lower()): break
+                partes.append(lines[j].strip())
+            return normalize_text(' '.join(partes))
+    return None
+
+def extract_recipient_generic(lines):
+    """Fallback universal para cualquier formato nuevo que pueda aparecer."""
+    texto_completo = '\n'.join(lines)
+    etiquetas = [
+        r'Beneficiario(?:\(s\))?\s*:?\s*([\s\S]+?)(?=Nro|Cuenta|Moneda|Comisi[oó]n|$)',
+        r'Destinatario\s*:?\s*([\s\S]+?)(?=Nro|Cuenta|Entidad|Comisi[oó]n|$)',
+        r'Enviado a\s*:?\s*([\s\S]+?)(?=Comisi[oó]n|Fecha|C[oó]digo|$)',
+        r'Para\s*:?\s*([\s\S]+?)(?=Comisi[oó]n|Fecha|C[oó]digo|$)',
+        r'A nombre de\s*:?\s*([\s\S]+?)(?=Nro|Cuenta|Comisi[oó]n|$)'
+    ]
+    for patron in etiquetas:
+        match = re.search(patron, texto_completo, re.IGNORECASE)
+        if match:
+            val = normalize_text(match.group(1))
+            if val and len(val) > 3:
+                return val
+    return None
+
 def extract_recipient(lines):
     ETIQUETAS_PARADA = [
-        'cuenta de origen', 'cuenta independencia', 'tipo de operación', 'tipo de operacion',
-        'número de operación', 'numero de operacion', 'comisión', 'comision',
+        'cuenta de origen', 'cuenta independencia', 'tipo de operaciÐ“Ñ–n', 'tipo de operacion',
+        'nÐ“Ó™mero de operaciÐ“Ñ–n', 'numero de operacion', 'comisiÐ“Ñ–n', 'comision',
         'entidad de destino', 'salir', 'importe enviado', 'importe',
         'monto', 'fecha', 'compartir', 'descargar', 'seguro',
         'oncorespaldo', 'tarjetas', 'cuenta corriente', 'cuentas de ahorro',
-        'datos de la operación', 'datos de la operacion', 'datos del canal',
-        'sucursal agencia', 'sucursal', 'tipo de canal', 'categoría del establecimiento',
+        'datos de la operaciÐ“Ñ–n', 'datos de la operacion', 'datos del canal',
+        'sucursal agencia', 'sucursal', 'tipo de canal', 'categorÐ“Ó¯a del establecimiento',
         'categoria del establecimiento'
     ]
 
     def _normalizar(t):
-        """Quita tildes, mojibake y caracteres raros para comparar de forma robusta"""
         t = t.lower()
-        # Reemplazar mojibake comun (UTF-8 mal interpretado como Latin-1)
-        t = t.replace('├¡', 'i').replace('├│', 'o').replace('├í', 'a')
-        t = t.replace('├®', 'e').replace('├º', 'u').replace('├ñ', 'a')
-        t = t.replace('├ë', 'e').replace('├ô', 'o')
-        # Reemplazar tildes normales
-        t = t.replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u')
-        t = t.replace('Á','a').replace('É','e').replace('Í','i').replace('Ó','o').replace('Ú','u')
-        # Quitar caracteres no alfanumericos
+        t = t.replace('Ð²â€Ò£Ð’ÐŽ', 'i').replace('Ð²â€Ò£Ð²â€Ó®', 'o').replace('Ð²â€Ò£Ð“Ó¯', 'a')
+        t = t.replace('Ð²â€Ò£Ð’Â®', 'e').replace('Ð²â€Ò£Ð’Ó™', 'u').replace('Ð²â€Ò£Ð“Ò±', 'a')
+        t = t.replace('Ð²â€Ò£Ð“Â«', 'e').replace('Ð²â€Ò£Ð“Ò™', 'o')
+        t = t.replace('Ð“ÐŽ','a').replace('Ð“Â©','e').replace('Ð“Ó¯','i').replace('Ð“Ñ–','o').replace('Ð“Ó™','u')
+        t = t.replace('Ð“Ò’','a').replace('Ð“Ò¯','e').replace('Ð“Òš','i').replace('Ð“â€œ','o').replace('Ð“Ò¡','u')
         t = re.sub(r'[^a-z0-9 ]', '', t)
         t = re.sub(r'\s+', ' ', t).strip()
         return t
 
     def _es_etiqueta(t):
         t_norm = _normalizar(t)
-        # Filtrar "envio a contactos" (cualquier variacion con/sin tildes o mojibake)
         if 'env' in t_norm and 'a contactos' in t_norm:
             return True
-        # Filtrar etiquetas conocidas (comparando normalizadas)
         for et in ETIQUETAS_PARADA:
             if _normalizar(et) in t_norm:
                 return True
         return False
 
     def _es_nombre_valido(t):
-        if not re.search(r'[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}', t): return False
+        if not re.search(r'[A-Za-zÐ“Ò’Ð“Ò¯Ð“ÒšÐ“â€œÐ“Ò¡Ð“ÐŽÐ“Â©Ð“Ó¯Ð“Ñ–Ð“Ó™Ð“â€˜Ð“Ò±]{3,}', t): return False
         if re.search(r'\d{2,}', t): return False
         if _es_etiqueta(t): return False
         return True
@@ -306,9 +378,9 @@ def extract_recipient(lines):
     return None
 
 def extract_recipient_yape_fallback(lines):
-    basura = ['compartir', 'descargar', 'código', 'codigo', 'datos', 'nro', 'destino',
-              'más en yape', 'yapea', 'tus servicios', 'desde donde', 'estes',
-              'código de seguridad', 'codigo de seguridad', 'datos de la transacción',
+    basura = ['compartir', 'descargar', 'cÐ“Ñ–digo', 'codigo', 'datos', 'nro', 'destino',
+              'mÐ“ÐŽs en yape', 'yapea', 'tus servicios', 'desde donde', 'estes',
+              'cÐ“Ñ–digo de seguridad', 'codigo de seguridad', 'datos de la transacciÐ“Ñ–n',
               'datos de la transaccion']
     for i, line in enumerate(lines):
         if re.search(r'^S/\s*[\d.,]+$', line, re.IGNORECASE):
@@ -319,16 +391,13 @@ def extract_recipient_yape_fallback(lines):
                 if re.search(r'\d{1,2}\s+[a-z]{3,}\.?\s+\d{4}', c, re.IGNORECASE): break
                 if re.search(r'\d{2}:\d{2}', c): break
                 if any(b in c.lower() for b in basura): break
-                if re.search(r'[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}', c):
+                if re.search(r'[A-Za-zÐ“Ò’Ð“Ò¯Ð“ÒšÐ“â€œÐ“Ò¡Ð“ÐŽÐ“Â©Ð“Ó¯Ð“Ñ–Ð“Ó™Ð“â€˜Ð“Ò±]{3,}', c):
                     partes.append(c)
             if partes: return ' '.join(partes)
     return None
 
 def extract_destination_account(lines):
-    # FIX: si es extracto bancario de la empresa, NO existe "cuenta destino" separada.
-    # La unica cuenta visible es la de la empresa (cuenta_movimiento).
-    if es_extracto_bancario_empresa(lines):
-        return None
+    if es_extracto_bancario_empresa(lines): return None
 
     for i, line in enumerate(lines):
         if '*' in line:
@@ -362,9 +431,9 @@ def extract_origin_account(lines):
             if i + 1 < len(lines):
                 c = normalize_text(lines[i + 1])
                 if '*' in c: return c
-        if 'cuenta de origen' in lower:
-            match = re.search(r'\*+[\d\s-]+', line)
-            if match: return match.group(0).strip()
+        if 'cuenta de origen' in lower or 'cuenta origen' in lower:
+            match = re.search(r'(?::\s*)([\d\-]+)', line)
+            if match: return match.group(1).strip()
             if i + 1 < len(lines):
                 c = normalize_text(lines[i + 1])
                 if '*' in c: return c
@@ -391,15 +460,10 @@ def extract_movement_account(lines):
             if '*' in c: return {'tipo': 'Cuenta Corriente', 'numero': c}
     return None
 
-# ============================================================
-# DESCRIPCION
-# Acepta "Descripción" o "Tipo de operación" (formatos B y C)
-# Filtra referencias largas (ej: "72EC43CCCB74")
-# ============================================================
 def extract_description(lines):
     texto_completo = '\n'.join(lines)
     patron = re.compile(
-        r'(?:Descripci[oó]n|Tipo\s+de\s+operaci[oó]n)\s*:?\s*[\r\n]*\s*([^\r\n]+)',
+        r'(?:Descripci[oÐ“Ñ–]n|Tipo\s+de\s+operaci[oÐ“Ñ–]n)\s*:?\s*[\r\n]*\s*([^\r\n]+)',
         re.IGNORECASE
     )
     match = patron.search(texto_completo)
@@ -407,15 +471,14 @@ def extract_description(lines):
         valor = match.group(1).strip()
         if not valor or len(valor) < 3:
             return None
-        if re.match(r'^(número|numero|fecha|sucursal|cuenta|datos)', valor, re.IGNORECASE):
+        if re.match(r'^(nÐ“Ó™mero|numero|fecha|sucursal|cuenta|datos)', valor, re.IGNORECASE):
             return None
         if re.fullmatch(r'[A-Z0-9]{6,30}', valor.upper()):
             return None
-        # NUEVO: filtrar "envio a contactos" (con/sin tilde, con/sin mojibake)
         valor_norm = valor.lower()
-        valor_norm = valor_norm.replace('├¡', 'i').replace('├│', 'o').replace('├í', 'a')
-        valor_norm = valor_norm.replace('├®', 'e').replace('├º', 'u')
-        valor_norm = valor_norm.replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u')
+        valor_norm = valor_norm.replace('Ð²â€Ò£Ð’ÐŽ', 'i').replace('Ð²â€Ò£Ð²â€Ó®', 'o').replace('Ð²â€Ò£Ð“Ó¯', 'a')
+        valor_norm = valor_norm.replace('Ð²â€Ò£Ð’Â®', 'e').replace('Ð²â€Ò£Ð’Ó™', 'u')
+        valor_norm = valor_norm.replace('Ð“ÐŽ','a').replace('Ð“Â©','e').replace('Ð“Ó¯','i').replace('Ð“Ñ–','o').replace('Ð“Ó™','u')
         if 'env' in valor_norm and 'a contactos' in valor_norm:
             return None
         return valor
@@ -431,14 +494,11 @@ def extract_branch(lines):
 
 def extract_destination_entity(lines):
     for i, line in enumerate(lines):
-        if 'entidad de destino' in line.lower():
-            partes = re.split(r'entidad de destino\s*:?\s*', line, flags=re.IGNORECASE)
+        if 'entidad de destino' in line.lower() or 'entidad destino' in line.lower():
+            partes = re.split(r'entidad (?:de )?destino\s*:?\s*', line, flags=re.IGNORECASE)
             if len(partes) > 1 and partes[1].strip(): return partes[1].strip()
     return None
 
-# ============================================================
-# NUEVO: EXTRACTOR ESPECÍFICO PARA CULQI
-# ============================================================
 def es_voucher_culqi(lines):
     full_text = ' '.join(lines).lower()
     return 'culqi' in full_text or 'venta id' in full_text
@@ -449,40 +509,28 @@ def extract_culqi_data(lines):
         'tipo_evidencia': 'TRANSFERENCIA',
         'aplicacion_banco': 'CULQI',
         'estado_transferencia': 'EXITOSA',
-        'monto': None,
-        'moneda': 'PEN',
-        'fecha_operacion': None,
-        'hora_operacion': None,
+        'monto': None, 'moneda': 'PEN',
+        'fecha_operacion': None, 'hora_operacion': None,
         'referencia_bancaria': None,
-        'destinatario': 'Distribuidora de Cerámica y Acabados',
-        'requiere_revision': True,
-        'requiere_confirmacion': True
+        'destinatario': 'Distribuidora de CerÐ“ÐŽmica y Acabados',
+        'requiere_revision': True, 'requiere_confirmacion': True
     }
 
-    # Monto: Total: S/ 72.50
     match_monto = re.search(r'Total\s*:?\s*S/\s*([\d.,]+)', texto_completo, re.IGNORECASE)
-    if match_monto:
-        data['monto'] = parse_money(match_monto.group(1))
+    if match_monto: data['monto'] = parse_money(match_monto.group(1))
 
-    # Referencia: VENTA ID: 209138
     match_ref = re.search(r'VENTA\s*ID\s*:?\s*(\d+)', texto_completo, re.IGNORECASE)
     if match_ref:
         data['referencia_bancaria'] = match_ref.group(1)
         data['referencia_bancaria_normalizada'] = normalize_reference(match_ref.group(1))
 
-    # Fecha y Hora: 27/10/26 07:54 PM
     match_fecha_hora = re.search(r'(\d{2}/\d{2}/\d{2,4})\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)', texto_completo)
     if match_fecha_hora:
         data['fecha_operacion'] = match_fecha_hora.group(1)
         data['hora_operacion'] = match_fecha_hora.group(2).upper()
-
     return data
 
-# ============================================================
-# PARSER PRINCIPAL
-# ============================================================
 def extract_transfer_data(lines):
-    # NUEVO: Si detecta Culqi, usa su propio extractor
     if es_voucher_culqi(lines):
         return extract_culqi_data(lines)
 
@@ -522,9 +570,24 @@ def extract_transfer_data(lines):
         data['referencia_bancaria'] = reference
         data['referencia_bancaria_normalizada'] = normalize_reference(reference)
 
-    recipient = extract_recipient(lines)
-    if not recipient:
-        recipient = extract_recipient_yape_fallback(lines)
+    # === LÓGICA DE EXTRACCIÓN DE DESTINATARIO MULTI-BANCO ===
+    banco = data['aplicacion_banco']
+    recipient = None
+
+    if banco == 'INTERBANK':
+        recipient = extract_recipient_interbank(lines)
+    elif banco == 'BCP':
+        recipient = extract_recipient_bcp(lines)
+    elif banco == 'PLIN':
+        recipient = extract_recipient_plin(lines)
+    elif banco == 'BANCO_NACION':
+        recipient = extract_recipient_banco_nacion(lines)
+
+    # Fallbacks si el banco no lo detectó o falló su extractor específico
+    if not recipient: recipient = extract_recipient(lines)
+    if not recipient: recipient = extract_recipient_generic(lines)
+    if not recipient: recipient = extract_recipient_yape_fallback(lines)
+
     if recipient: data['destinatario'] = recipient
 
     destination_account = extract_destination_account(lines)
@@ -545,8 +608,6 @@ def extract_transfer_data(lines):
     movement_account = extract_movement_account(lines)
     if movement_account:
         data['cuenta_movimiento'] = movement_account
-        # FIX: solo copiar a cuenta_destino si NO es extracto bancario de la empresa
-        # (en un extracto, la unica cuenta es la de la empresa y NO hay "destino")
         if not data['cuenta_destino'] and not es_extracto_bancario_empresa(lines):
             data['cuenta_destino'] = movement_account['numero']
 
@@ -560,23 +621,6 @@ def extract_transfer_data(lines):
     if destination_entity: data['entidad_destino'] = destination_entity
 
     return data
-
-def run_ocr(image_path):
-    print('Iniciando PaddleOCR...')
-    print()
-    ocr = PaddleOCR(lang='es', use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False)
-    print(f'Procesando imagen: {image_path}')
-    print()
-    result = ocr.predict(image_path)
-    texts, scores = [], []
-    for res in result:
-        data = res
-        if hasattr(data, 'json'): data = data.json
-        if isinstance(data, dict):
-            payload = data.get('res', data)
-            texts.extend(payload.get('rec_texts', []))
-            scores.extend(payload.get('rec_scores', []))
-    return texts, scores
 
 def print_field(label, value):
     if value is None or (isinstance(value, str) and not value.strip()): return
@@ -613,21 +657,32 @@ def print_extracted_data(data):
     print_field('Requiere revisión', data.get('requiere_revision'))
     print_field('Requiere confirmación', data.get('requiere_confirmacion'))
 
-def main():
-    if len(sys.argv) < 2:
-        print('Uso: python app/main_transferencia.py <ruta_imagen>')
-        sys.exit(1)
-    image_path = sys.argv[1]
-    texts, scores = run_ocr(image_path)
-    print('OCR ejecutado correctamente.')
-    print()
+# ============================================================
+# NUEVO: FUNCION EXPORTABLE PARA FLASK
+# ============================================================
+def procesar_archivo(image_path):
+    ocr = get_ocr()
+    print(f'Procesando imagen: {image_path}\n')
+    result = ocr.predict(image_path)
+    texts, scores = [], []
+    for res in result:
+        data = res
+        if hasattr(data, 'json'): data = data.json
+        if isinstance(data, dict):
+            payload = data.get('res', data)
+            texts.extend(payload.get('rec_texts', []))
+            scores.extend(payload.get('rec_scores', []))
+            
+    print('OCR ejecutado correctamente.\n')
     print('=== TEXTO DETECTADO ===')
     for text, score in zip(texts, scores):
         clean_text = normalize_text(text)
         if not clean_text: continue
         print(f'[{score:.2f}] {clean_text}')
+        
     lines = [normalize_text(text) for text in texts if normalize_text(text)]
     data = extract_transfer_data(lines)
+    
     print()
     print_extracted_data(data)
     print()
@@ -635,6 +690,12 @@ def main():
     print(json.dumps(data, ensure_ascii=False, default=str))
     print()
     print('=== FIN OCR TRANSFERENCIA ===')
+
+def main():
+    if len(sys.argv) < 2:
+        print('Uso: python app/main_transferencia.py <ruta_imagen>')
+        sys.exit(1)
+    procesar_archivo(sys.argv[1])
 
 if __name__ == '__main__':
     main()

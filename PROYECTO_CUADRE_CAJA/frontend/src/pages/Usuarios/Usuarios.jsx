@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { usuariosService, extractData } from '../../services/usuarios.service';
 import { Plus, UserX, UserCheck, Key, X, Trash2, AlertTriangle, Shield, User, Search, Settings, Pencil, Eye, EyeOff, Lock } from 'lucide-react';
+import { notifyToast } from '../../components/ui/toastEvents';
 
 export function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -48,7 +49,8 @@ export function Usuarios() {
       const response = await usuariosService.listar();
       setUsuarios(extractData(response));
       setError(null);
-    } catch {
+    } catch (error) {
+      console.error('Error al cargar usuarios:', error);
       setError('Error al cargar la lista de usuarios');
     } finally {
       setLoading(false);
@@ -88,8 +90,8 @@ export function Usuarios() {
         condicion_personal: 'PRAC.'
       });
       recargarUsuarios();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error al crear usuario');
+    } catch (error) {
+      console.error('Error al crear usuario:', error);
     }
   };
 
@@ -111,8 +113,8 @@ export function Usuarios() {
       await usuariosService.actualizar(usuarioEditando.id_usuario, editFormData);
       setModalEditarOpen(false);
       recargarUsuarios();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error al actualizar usuario');
+    } catch (error) {
+      console.error('Error al actualizar usuario:', error);
     }
   };
 
@@ -127,16 +129,16 @@ export function Usuarios() {
   const handleGuardarPassword = async (e) => {
     e.preventDefault();
     if (nuevaPassword.length < 8) {
-      alert('La contraseña debe tener al menos 8 caracteres');
+      notifyToast('La contraseña debe tener al menos 8 caracteres.', 'warning');
       return;
     }
 
     try {
       await usuariosService.resetPassword(usuarioPassword.id_usuario, nuevaPassword);
-      alert('Contraseña actualizada correctamente');
+      notifyToast('Contraseña actualizada correctamente.', 'success');
       setModalPasswordOpen(false);
-    } catch {
-      alert('Error al actualizar la contraseña');
+    } catch (error) {
+      console.error('Error al actualizar contraseña:', error);
     }
   };
 
@@ -145,8 +147,8 @@ export function Usuarios() {
     try {
       await usuariosService.cambiarEstado(id, !estadoActual);
       recargarUsuarios();
-    } catch {
-      alert('Error al cambiar el estado del usuario');
+    } catch (error) {
+      console.error('Error al cambiar el estado del usuario:', error);
     }
   };
 
@@ -157,8 +159,8 @@ export function Usuarios() {
       await usuariosService.eliminar(userToDelete.id_usuario);
       setUserToDelete(null);
       recargarUsuarios();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error al eliminar usuario');
+    } catch (error) {
+      console.error('Error al eliminar usuario:', error);
     } finally {
       setIsDeleting(false);
     }

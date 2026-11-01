@@ -4,11 +4,13 @@ import {
   findSalidasByCierre,
   findSalidasCaja
 } from '../repositories/salidaCaja.repository.js';
+import { createCierreCaja } from '../repositories/cierreCaja.repository.js';
 
 import {
   query,
   withTransaction
 } from '../repositories/base.repository.js';
+import { emitirEvento } from './socket.service.js';
 
 /**
  * Error controlado de negocio.
@@ -76,10 +78,6 @@ export const registrarSalidaCaja = async ({
   // VALIDACIONES DE ENTRADA
   // ============================
 
-  if (!id_cierre) {
-    throw new SalidaCajaError('El cierre de caja es obligatorio');
-  }
-
   if (!id_tipo_salida) {
     throw new SalidaCajaError('El tipo de salida es obligatorio');
   }
@@ -110,19 +108,62 @@ export const registrarSalidaCaja = async ({
   // TRANSACCIÓN
   // ============================
 
-  return await withTransaction(async (client) => {
+  const resultado = await withTransaction(async (client) => {
+    const relojResult = await client.query(
+      `SELECT
+         TO_CHAR(CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima', 'YYYY-MM-DD') AS hoy,
+         TO_CHAR(CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima', 'HH24:MI:SS') AS hora_actual,
+         CURRENT_TIMESTAMP AS fecha_fin`
+    );
+    const {
+      hoy: hoyStr,
+      hora_actual: horaActual,
+      fecha_fin: fechaFin
+    } = relojResult.rows[0];
+    const idCierreSolicitado = id_cierre == null || id_cierre === '' ? null : Number(id_cierre);
+    let idCierreSalida = idCierreSolicitado;
+    let fechaCierre = hoyStr;
+    let turnoActual = null;
 
-    // =================================================================
-    // OPCIÓN A: BLOQUEO ESTRICTO DE TURNOS
-    // =================================================================
-    const dateCheck = await client.query(`SELECT CURRENT_DATE::text as hoy`);
-    const hoyStr = dateCheck.rows[0].hoy;
+    if (
+      idCierreSolicitado != null &&
+      (!Number.isInteger(idCierreSolicitado) || idCierreSolicitado <= 0)
+    ) {
+      throw new SalidaCajaError('El cierre de caja no es válido');
+    }
+
+    if (idCierreSolicitado != null) {
+      const cierreSolicitadoResult = await client.query(
+        `SELECT TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha
+         FROM cierre_caja
+         WHERE id_cierre = $1`,
+        [idCierreSolicitado]
+      );
+      if (!cierreSolicitadoResult.rows[0]) {
+        throw new SalidaCajaError('El cierre de caja no existe', 404);
+      }
+      fechaCierre = cierreSolicitadoResult.rows[0].fecha;
+    } else {
+      if (fecha !== hoyStr) {
+        throw new SalidaCajaError('La fecha de la salida debe corresponder al cierre seleccionado', 400);
+      }
+
+      if (horaActual >= '08:00:00' && horaActual < '14:00:00') {
+        turnoActual = 'Mañana';
+      } else if (horaActual >= '14:00:00') {
+        turnoActual = 'Tarde';
+      } else {
+        throw new SalidaCajaError('No hay un turno de caja habilitado antes de las 8:00 AM', 409);
+      }
+    }
+
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
+      [fechaCierre]
+    );
     
     // Solo validamos si la salida es para el día de HOY
     if (fecha === hoyStr) {
-      const timeCheck = await client.query(`SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Lima')::time::text as hora_actual`);
-      const horaActual = timeCheck.rows[0].hora_actual;
-      
       // Si es después de las 2:00 PM (14:00:00)
       if (horaActual > '14:00:00') {
         const cierreMananaResult = await client.query(
@@ -149,26 +190,73 @@ export const registrarSalidaCaja = async ({
     // 1. OBTENER Y BLOQUEAR CIERRE
     // ============================
 
-    const cierreResult = await client.query(
-      `SELECT
-         id_cierre,
-         fecha,
-         turno,
-         total_ingresos,
-         total_no_efectivo,
-         efectivo_esperado,
-         total_salidas,
-         efectivo_despues_salidas,
-         efectivo_fisico,
-         diferencia,
-         estado
-       FROM cierre_caja
-       WHERE id_cierre = $1
-       FOR UPDATE`,
-      [id_cierre]
-    );
+    let cierre;
+    if (idCierreSalida != null) {
+      const cierreResult = await client.query(
+        `SELECT
+           id_cierre,
+           fecha,
+           turno,
+           total_ingresos,
+           total_no_efectivo,
+           efectivo_esperado,
+           total_salidas,
+           efectivo_despues_salidas,
+           efectivo_fisico,
+           diferencia,
+           estado
+         FROM cierre_caja
+         WHERE id_cierre = $1
+         FOR UPDATE`,
+        [idCierreSalida]
+      );
+      cierre = cierreResult.rows[0] ?? null;
+    } else {
+      const cierresResult = await client.query(
+        `SELECT
+           id_cierre,
+           fecha,
+           turno,
+           total_ingresos,
+           total_no_efectivo,
+           efectivo_esperado,
+           total_salidas,
+           efectivo_despues_salidas,
+           efectivo_fisico,
+           diferencia,
+           estado
+         FROM cierre_caja
+         WHERE fecha = $1 AND turno ILIKE $2
+         ORDER BY id_cierre DESC
+         FOR UPDATE`,
+        [hoyStr, turnoActual]
+      );
+      cierre = cierresResult.rows.find(
+        (registro) => String(registro.estado || '').toUpperCase() !== 'CERRADO'
+      );
 
-    const cierre = cierreResult.rows[0] ?? null;
+      if (!cierre) {
+        if (cierresResult.rows.length > 0) {
+          throw new SalidaCajaError('No se pueden registrar salidas en un turno que ya ha sido cerrado', 409);
+        }
+
+        cierre = await createCierreCaja({
+          id_usuario_responsable: id_usuario,
+          fecha: hoyStr,
+          turno: turnoActual,
+          total_ingresos: 0,
+          total_no_efectivo: 0,
+          efectivo_esperado: 0,
+          total_salidas: 0,
+          efectivo_despues_salidas: 0,
+          efectivo_fisico: 0,
+          diferencia: 0,
+          estado: 'ABIERTO',
+          fecha_fin: fechaFin
+        }, client);
+      }
+      idCierreSalida = cierre.id_cierre;
+    }
 
     if (!cierre) {
       throw new SalidaCajaError('El cierre de caja no existe', 404);
@@ -200,7 +288,7 @@ export const registrarSalidaCaja = async ({
       `SELECT COALESCE(SUM(monto), 0) AS total_salidas
        FROM salida_caja
        WHERE id_cierre = $1`,
-      [id_cierre]
+      [idCierreSalida]
     );
 
     const totalSalidasActuales = Number(totalActualResult.rows[0].total_salidas);
@@ -218,7 +306,7 @@ export const registrarSalidaCaja = async ({
     // ============================
 
     if (efectivoDespuesSalidas < 0) {
-      throw new SalidaCajaError('La salida supera el efectivo disponible del cierre', 400);
+      throw new SalidaCajaError('No hay efectivo suficiente en caja para registrar esta salida', 400);
     }
 
     // ============================
@@ -227,7 +315,7 @@ export const registrarSalidaCaja = async ({
 
     const salida = await createSalidaCaja(
       {
-        id_cierre,
+        id_cierre: idCierreSalida,
         id_tipo_salida,
         id_usuario,
         id_comprobante,
@@ -268,7 +356,7 @@ export const registrarSalidaCaja = async ({
         nuevoTotalSalidas,
         efectivoDespuesSalidas,
         diferencia,
-        id_cierre
+        idCierreSalida
       ]
     );
 
@@ -283,6 +371,10 @@ export const registrarSalidaCaja = async ({
       cierre: cierreActualizado
     };
   });
+
+  emitirEvento('salida_creada', { id: resultado.salida.id_salida });
+  emitirEvento('cierre_actualizado', { id: resultado.cierre.id_cierre });
+  return resultado;
 };
 
 export const obtenerSalidaCaja = async (idSalida) => {

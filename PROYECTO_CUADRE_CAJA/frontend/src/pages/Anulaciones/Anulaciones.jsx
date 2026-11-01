@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 import { Plus, RefreshCw, Search, FileX, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { SingleDatePicker } from '../../components/ui/SingleDatePicker';
 
 export function Anulaciones() {
+  const socket = useSocket();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [anulaciones, setAnulaciones] = useState([]);
@@ -36,7 +38,7 @@ export function Anulaciones() {
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/anulaciones');
       const data = res.data?.data || res.data;
@@ -49,7 +51,7 @@ export function Anulaciones() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -80,7 +82,19 @@ export function Anulaciones() {
 
   useEffect(() => {
     void Promise.resolve().then(cargarDatos);
-  }, []);
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarAnulaciones = () => {
+      void cargarDatos();
+    };
+    socket.on('ajuste_creado', actualizarAnulaciones);
+
+    return () => {
+      socket.off('ajuste_creado', actualizarAnulaciones);
+    };
+  }, [socket, cargarDatos]);
 
   const abrirModal = async () => {
     setModalAbierto(true);

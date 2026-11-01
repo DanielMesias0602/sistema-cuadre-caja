@@ -9,18 +9,21 @@ export function SummaryGrid({ filteredOps }) {
 
   const kpis = useMemo(() => {
     const totalOps = filteredOps.length;
+    const operacionesValidas = filteredOps.filter(
+      (op) => String(op.estado_operacion || op.estado || '').toUpperCase() !== 'ANULADA'
+    );
 
     const opsPagadas = filteredOps.filter(op => {
-      const e = String(op.estado || op.estado_operacion || '').toUpperCase();
+      const e = String(op.estado_operacion || op.estado || '').toUpperCase();
       return e === 'PAGADA' || e === 'VERIFICADA' || e === 'COMPLETADO';
     }).length;
 
     const opsPendientes = filteredOps.filter(op => {
-      const e = String(op.estado || op.estado_operacion || '').toUpperCase();
+      const e = String(op.estado_operacion || op.estado || '').toUpperCase();
       return e === 'PENDIENTE';
     }).length;
 
-    const efectivoEsperado = filteredOps.reduce((acc, op) => {
+    const efectivoEsperado = operacionesValidas.reduce((acc, op) => {
       const pagos = Array.isArray(op.pagos) ? op.pagos : [];
       const efectivo = pagos.reduce((sum, p) => {
         if (p.es_efectivo === true || (p.medio_pago || '').toLowerCase().includes('efectivo')) {
@@ -33,7 +36,13 @@ export function SummaryGrid({ filteredOps }) {
 
     const reqVerificacion = filteredOps.filter(op => op.requiere_verificacion === true).length;
 
-    return { totalOps, opsPagadas, opsPendientes, efectivoEsperado, reqVerificacion };
+    const montoTotal = operacionesValidas.reduce((acc, op) => {
+      const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+      const sumaPagos = pagos.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+      return acc + sumaPagos;
+    }, 0);
+
+    return { totalOps, opsPagadas, opsPendientes, efectivoEsperado, reqVerificacion, montoTotal };
   }, [filteredOps]);
 
   const sinOpsPendientes = kpis.opsPendientes === 0;
@@ -172,13 +181,7 @@ export function SummaryGrid({ filteredOps }) {
               Monto Total Ingresos
             </span>
             <span className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1 tabular-nums break-words">
-              {formatCurrency(
-                filteredOps.reduce((acc, op) => {
-                  const pagos = Array.isArray(op.pagos) ? op.pagos : [];
-                  const sumaPagos = pagos.reduce((sum, p) => sum + Number(p.monto || 0), 0);
-                  return acc + sumaPagos;
-                }, 0)
-              )}
+              {formatCurrency(kpis.montoTotal)}
             </span>
           </div>
           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0">

@@ -10,11 +10,9 @@ import { requireRole } from '../middlewares/role.middleware.js';
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireRole(1));
 
-// Solo el Administrador (id_rol = 1) puede crear conciliaciones
-router.post('/', requireRole(1), createConciliacion);
-
+router.post('/', createConciliacion);
 router.get('/', getConciliaciones);
 router.get('/pre-calculo', getPreCalculo);
 router.get('/:id', getConciliacion);

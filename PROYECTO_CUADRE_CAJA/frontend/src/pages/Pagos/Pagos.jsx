@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 import { PagoDetailDrawer } from './PagoDetailDrawer';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
@@ -15,10 +16,12 @@ import {
   Receipt,
   ChevronDown,
   Eye,
-  XCircle
+  XCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export function Pagos() {
+  const socket = useSocket();
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,7 +33,7 @@ export function Pagos() {
 
   const [selectedPago, setSelectedPago] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
@@ -44,7 +47,7 @@ export function Pagos() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -54,19 +57,38 @@ export function Pagos() {
 
   useEffect(() => {
     void Promise.resolve().then(cargarDatos);
-  }, []);
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarPagos = () => {
+      void cargarDatos();
+    };
+    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    eventos.forEach((evento) => socket.on(evento, actualizarPagos));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarPagos));
+    };
+  }, [socket, cargarDatos]);
 
   const todosLosPagos = useMemo(() => {
     const list = [];
     operaciones.forEach((op) => {
       const pagos = Array.isArray(op.pagos) ? op.pagos : (Array.isArray(op.payments) ? op.payments : []);
       const evidencias = Array.isArray(op.evidencias) ? op.evidencias : [];
+      const verificaciones = Array.isArray(op.verificaciones) ? op.verificaciones : [];
       const totalPagosOp = pagos.length;
 
-      const evidenciaCliente = evidencias.find(e => e.tipo_evidencia === 'CLIENTE');
-      const urlEvidenciaCliente = evidenciaCliente?.url_firmada || (evidenciaCliente?.storage_key?.startsWith('http') ? evidenciaCliente.storage_key : null);
-
       pagos.forEach((p, idx) => {
+        // Buscar la verificación de ESTE pago específico
+        const verificacionPago = verificaciones.find(v => String(v.id_pago) === String(p.id_pago));
+
+        // Buscar la evidencia de cliente usando el ID de la verificación
+        const evidenciaCliente = evidencias.find(e => String(e.id_evidencia) === String(verificacionPago?.id_evidencia_cliente));
+
+        const urlEvidenciaCliente = evidenciaCliente?.url_firmada || null;
+
         const idUnico = p.id_pago ? `${op.id_operacion}-${p.id_pago}` : `${op.id_operacion}-pago-${idx}`;
         const estadoDb = p.estado || op.estado;
         const estadoFinal = estadoDb || 'PENDIENTE';
@@ -90,7 +112,7 @@ export function Pagos() {
           monto: Number(p.monto || 0),
           referencia: p.referencia || p.referencia_bancaria || '',
           observacion: p.observacion || '',
-          evidencia_url: urlEvidenciaCliente || (p.evidencia_url && p.evidencia_url !== 'None' ? p.evidencia_url : null),
+          evidencia_url: urlEvidenciaCliente,
           estado: estadoFinal,
           estado_operacion: op.estado || 'PENDIENTE',
           esAnulada: esAnulada,
@@ -102,7 +124,6 @@ export function Pagos() {
     });
     return list;
   }, [operaciones]);
-
   const mediosDisponibles = useMemo(() => {
     const set = new Set();
     todosLosPagos.forEach((p) => {
@@ -383,11 +404,7 @@ export function Pagos() {
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-600">
               {pagosFiltrados.map((pago) => {
-                const urlFinal = pago.evidencia_url
-                  ? pago.evidencia_url.startsWith('http')
-                    ? pago.evidencia_url
-                    : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${pago.evidencia_url}`
-                  : null;
+                const urlFinal = pago.evidencia_url || null;
 
                 const isVerificado =
                   String(pago.estado).toUpperCase() === 'VERIFICADO' ||
@@ -454,7 +471,7 @@ export function Pagos() {
                     )}
 
                     <div className="flex flex-col gap-1.5">
-                      {!(pago.medio_pago || '').toLowerCase().includes('efectivo') && urlFinal && (
+                      {!(pago.medio_pago || '').toLowerCase().includes('efectivo') && (urlFinal ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -465,7 +482,11 @@ export function Pagos() {
                         >
                           <Eye className="h-4 w-4" /> Ver Evidencia
                         </button>
-                      )}
+                      ) : (
+                        <span className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs text-slate-400 dark:text-slate-500" title="Imagen no disponible">
+                          <ImageIcon className="h-4 w-4" /> Imagen no disponible
+                        </span>
+                      ))}
                       <button
                         type="button"
                         onClick={() => {
@@ -543,11 +564,7 @@ export function Pagos() {
                 {pagosFiltrados.map((pago, index) => {
                   const esMismaOperacion = index > 0 && pagosFiltrados[index - 1].id_operacion === pago.id_operacion;
 
-                  const urlFinal = pago.evidencia_url
-                    ? pago.evidencia_url.startsWith('http')
-                      ? pago.evidencia_url
-                      : `https://objectstorage.sa-santiago-1.oraclecloud.com/n/axhahegcxylf/b/sistema-cuadre-caja-evidencias/o/${pago.evidencia_url}`
-                    : null;
+                  const urlFinal = pago.evidencia_url || null;
 
                   const isVerificado =
                     String(pago.estado).toUpperCase() === 'VERIFICADO' ||
@@ -611,7 +628,9 @@ export function Pagos() {
                             {pago.referencia}
                           </span>
                         ) : (
-                          <span className="text-slate-400 dark:text-slate-500">-</span>
+                          <span className="inline-flex items-center gap-1.5 text-slate-400 dark:text-slate-500" title="Imagen no disponible">
+                            <ImageIcon className="h-4 w-4" /> Imagen no disponible
+                          </span>
                         )}
                       </td>
 

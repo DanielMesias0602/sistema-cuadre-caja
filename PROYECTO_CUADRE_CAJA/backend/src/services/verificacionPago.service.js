@@ -5,6 +5,14 @@ import {
 } from '../repositories/verificacionPago.repository.js';
 
 import { query } from '../repositories/base.repository.js';
+import { emitirEvento } from './socket.service.js';
+
+const ESTADOS_VALIDOS = [
+  'PENDIENTE',
+  'VERIFICADO',
+  'OBSERVADO',
+  'NO_CONFIRMADO'
+];
 
 const obtenerPago = async (idPago) => {
   const result = await query(
@@ -90,14 +98,8 @@ export const registrarVerificacionPago = async ({
     throw error;
   }
 
-  const estadosPermitidos = [
-    'PENDIENTE',
-    'VERIFICADO',
-    'OBSERVADO',
-    'NO_CONFIRMADO'
-  ];
-
-  if (!estadosPermitidos.includes(estado_verificacion)) {
+  const estadoNormalizado = String(estado_verificacion).trim().toUpperCase();
+  if (!ESTADOS_VALIDOS.includes(estadoNormalizado)) {
     const error = new Error(
       'Estado de verificación no válido'
     );
@@ -193,7 +195,7 @@ export const registrarVerificacionPago = async ({
     }
   }
 
-  return createVerificacionPago({
+  const verificacion = await createVerificacionPago({
     id_pago,
     id_evidencia_cliente,
     id_evidencia_empresa,
@@ -201,9 +203,12 @@ export const registrarVerificacionPago = async ({
     monto_comparado: montoComparado,
     fecha_comparada,
     referencia_bancaria_comparada,
-    estado_verificacion,
+    estado_verificacion: estadoNormalizado,
     observacion
   });
+
+  emitirEvento('pago_actualizado', { id: id_pago });
+  return verificacion;
 };
 
 export const obtenerVerificacionPago = async (

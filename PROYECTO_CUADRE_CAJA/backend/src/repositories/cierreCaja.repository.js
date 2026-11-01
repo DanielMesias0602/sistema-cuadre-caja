@@ -1,6 +1,30 @@
 import { query } from './base.repository.js';
 import { obtenerRangoTurno, normalizarTurnoCaja } from '../utils/turnoCaja.js';
 
+const TOTALES_DINAMICOS_CIERRE_SQL = `
+  LEFT JOIN LATERAL (
+    SELECT
+      COALESCE(SUM(p.monto), 0) AS total_ingresos,
+      COALESCE(
+        SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END),
+        0
+      ) AS total_no_efectivo
+    FROM operacion o
+    JOIN pago p ON p.id_operacion = o.id_operacion
+    JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+    WHERE o.id_cierre = c.id_cierre
+      AND UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+      AND COALESCE(o.estado, '') <> 'ANULADA'
+      AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
+  ) totales ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(sc.monto), 0) AS total_salidas
+    FROM salida_caja sc
+    WHERE sc.id_cierre = c.id_cierre
+      AND UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+  ) salidas ON TRUE
+`;
+
 export const createCierreCaja = async ({
   id_usuario_responsable,
   fecha,
@@ -92,12 +116,25 @@ export const findCierreCajaById = async (idCierre) => {
   const result = await query(
     `SELECT
        c.id_cierre, c.id_usuario_responsable, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
-       c.turno, c.total_ingresos, c.total_no_efectivo, c.efectivo_esperado,
-       c.total_salidas, c.efectivo_despues_salidas, c.efectivo_fisico, c.diferencia,
+       c.turno,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos ELSE c.total_ingresos END AS total_ingresos,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_no_efectivo ELSE c.total_no_efectivo END AS total_no_efectivo,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos - totales.total_no_efectivo
+         ELSE c.efectivo_esperado END AS efectivo_esperado,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN salidas.total_salidas ELSE c.total_salidas END AS total_salidas,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos - totales.total_no_efectivo - salidas.total_salidas
+         ELSE c.efectivo_despues_salidas END AS efectivo_despues_salidas,
+       c.efectivo_fisico, c.diferencia,
        c.estado, c.fecha_fin,
        u.nombres || ' ' || u.apellidos AS responsable
      FROM cierre_caja c
      INNER JOIN usuario u ON u.id_usuario = c.id_usuario_responsable
+     ${TOTALES_DINAMICOS_CIERRE_SQL}
      WHERE c.id_cierre = $1`,
     [idCierre]
   );
@@ -113,12 +150,25 @@ export const findCierresCaja = async () => {
   const result = await query(
     `SELECT
        c.id_cierre, c.id_usuario_responsable, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
-       c.turno, c.total_ingresos, c.total_no_efectivo, c.efectivo_esperado,
-       c.total_salidas, c.efectivo_despues_salidas, c.efectivo_fisico, c.diferencia,
+       c.turno,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos ELSE c.total_ingresos END AS total_ingresos,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_no_efectivo ELSE c.total_no_efectivo END AS total_no_efectivo,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos - totales.total_no_efectivo
+         ELSE c.efectivo_esperado END AS efectivo_esperado,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN salidas.total_salidas ELSE c.total_salidas END AS total_salidas,
+       CASE WHEN UPPER(COALESCE(c.estado, '')) = 'ABIERTO'
+         THEN totales.total_ingresos - totales.total_no_efectivo - salidas.total_salidas
+         ELSE c.efectivo_despues_salidas END AS efectivo_despues_salidas,
+       c.efectivo_fisico, c.diferencia,
        c.estado, c.fecha_fin,
        u.nombres || ' ' || u.apellidos AS responsable
      FROM cierre_caja c
      INNER JOIN usuario u ON u.id_usuario = c.id_usuario_responsable
+     ${TOTALES_DINAMICOS_CIERRE_SQL}
      ORDER BY c.fecha DESC, c.id_cierre DESC`
   );
   return result.rows;
@@ -149,6 +199,17 @@ export const getTotalesParaCierre = async (fecha, turno, client = null, id_cierr
     [fecha, rangoTurno.inicio, rangoTurno.fin, id_cierre]
   );
   return result.rows[0];
+};
+
+export const getTotalSalidasParaCierre = async (id_cierre, client = null) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
+    `SELECT COALESCE(SUM(monto), 0) AS total_salidas
+     FROM salida_caja
+     WHERE id_cierre = $1`,
+    [id_cierre]
+  );
+  return Number(result.rows[0]?.total_salidas || 0);
 };
 
 export const contarOperacionesSinEvidenciaEmpresa = async (idCierre) => {

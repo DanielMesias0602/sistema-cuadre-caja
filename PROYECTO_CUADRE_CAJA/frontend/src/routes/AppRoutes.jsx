@@ -109,14 +109,7 @@ export function AppRoutes() {
             </RoleRoute>
           }
         />
-        <Route
-          path="diferencias"
-          element={
-            <RoleRoute allowedRoles={['ADMINISTRADOR']}>
-              <Diferencias />
-            </RoleRoute>
-          }
-        />
+        <Route path="diferencias" element={<Diferencias />} />
         <Route
           path="usuarios"
           element={

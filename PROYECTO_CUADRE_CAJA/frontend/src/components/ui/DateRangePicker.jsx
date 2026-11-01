@@ -2,6 +2,14 @@ import { Calendar } from 'lucide-react';
 import ReactDatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 
+const formatearFechaISO = (fecha) => {
+  if (!fecha) return '';
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
+};
+
 export function DateRangePicker({ fechaDesde, fechaHasta, onChange }) {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 h-[42px] w-full shadow-sm dark:shadow-none transition-all focus-within:border-brand-orange focus-within:ring-2 focus-within:ring-brand-orange/20">
@@ -10,7 +18,7 @@ export function DateRangePicker({ fechaDesde, fechaHasta, onChange }) {
       <ReactDatePicker
         selected={fechaDesde ? new Date(fechaDesde + 'T00:00:00') : null}
         onChange={(date) => {
-          const formatted = date ? date.toLocaleDateString('en-CA') : '';
+          const formatted = formatearFechaISO(date);
           onChange({ fechaDesde: formatted, fechaHasta });
         }}
         selectsStart
@@ -29,7 +37,7 @@ export function DateRangePicker({ fechaDesde, fechaHasta, onChange }) {
       <ReactDatePicker
         selected={fechaHasta ? new Date(fechaHasta + 'T00:00:00') : null}
         onChange={(date) => {
-          const formatted = date ? date.toLocaleDateString('en-CA') : '';
+          const formatted = formatearFechaISO(date);
           onChange({ fechaDesde, fechaHasta: formatted });
         }}
         selectsEnd

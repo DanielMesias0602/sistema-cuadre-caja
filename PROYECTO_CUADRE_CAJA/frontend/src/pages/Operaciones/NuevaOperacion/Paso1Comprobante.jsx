@@ -9,6 +9,18 @@ const formatPEN = (val) => {
   return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+const normalizarHoraOCR = (hora) => {
+  const match = String(hora || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return hora || '';
+
+  const horas = Number(match[1]);
+  const minutos = Number(match[2]);
+  const segundos = Number(match[3] || 0);
+  if (horas >= 8 || minutos > 59 || segundos > 59) return hora;
+
+  return `${String(horas + 12).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
+};
+
 export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -24,6 +36,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   const urlRef = useRef(null);
   const blobRef = useRef(null);
   const horaEditadaManualmenteRef = useRef(Boolean(datosIniciales?.hora));
+  const ocrAbortControllerRef = useRef(null);
 
   const [formData, setFormData] = useState(datosIniciales || {
     tipo_comprobante: '', serie: '', numero: '',
@@ -90,6 +103,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
   useEffect(() => {
     return () => {
+      ocrAbortControllerRef.current?.abort();
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
         urlRef.current = null;
@@ -137,10 +151,15 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   };
 
   const procesarOCR = async (archivo) => {
+    const controller = new AbortController();
+    ocrAbortControllerRef.current = controller;
     setLoading(true);
     setError(null);
     try {
-      const response = await ocrService.procesar(archivo, 'COMPROBANTE');
+      const response = await ocrService.procesar(archivo, 'COMPROBANTE', {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted || ocrAbortControllerRef.current !== controller) return;
       const ocrResult = response.data?.data || response.data;
       setOcrData(ocrResult);
       const datos = ocrResult?.datos_extraidos || {};
@@ -161,7 +180,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         serie: datos.serie || '',
         numero: datos.numero || '',
         fecha: convertirFecha(datos.fecha) || '',
-        hora: horaEditadaManualmenteRef.current ? formData.hora : datos.hora || '',
+        hora: horaEditadaManualmenteRef.current ? formData.hora : normalizarHoraOCR(datos.hora),
         vendedor: datos.vendedor || '',
         cliente: datos.cliente || '',
         producto: '',
@@ -178,12 +197,52 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
       setFormData(nuevo);
       onDataChange(nuevo);
-      setLoading(false);
     } catch (err) {
+      if (
+        controller.signal.aborted ||
+        err?.name === 'CanceledError' ||
+        err?.code === 'ERR_CANCELED'
+      ) {
+        return;
+      }
       console.error('Error procesando OCR:', err);
       setError('No se pudo procesar la imagen con OCR. Por favor, completa los datos manualmente.');
-      setLoading(false);
+    } finally {
+      if (ocrAbortControllerRef.current === controller) {
+        ocrAbortControllerRef.current = null;
+        setLoading(false);
+      }
     }
+  };
+
+  const cancelarOCR = () => {
+    ocrAbortControllerRef.current?.abort();
+    ocrAbortControllerRef.current = null;
+    if (urlRef.current) {
+      URL.revokeObjectURL(urlRef.current);
+      urlRef.current = null;
+    }
+    blobRef.current = null;
+    setImagenPreview(null);
+    setOcrData(null);
+    setModo(null);
+    setVerImagenCompleta(false);
+    setItemsAbiertos(false);
+    setWarningDuplicado(null);
+    setError(null);
+    setLoading(false);
+    horaEditadaManualmenteRef.current = false;
+
+    const datosVacios = {
+      tipo_comprobante: '', serie: '', numero: '',
+      fecha: new Date().toLocaleDateString('en-CA'),
+      monto: '', hora: '', vendedor: '', cliente: '',
+      igv: '', op_gravada: '', efectivo: '', moneda: 'PEN',
+      medio_pago: '', producto: '', items: [],
+      evidencia: null, previewUrl: null,
+    };
+    setFormData(datosVacios);
+    onDataChange(datosVacios);
   };
 
   const handleManualMode = () => {
@@ -271,7 +330,19 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
         </div>
         <div className="flex flex-col items-center justify-center py-12 sm:py-20">
           <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-slate-600 dark:text-slate-400 font-medium mb-2 text-sm sm:text-base">Verificando datos...</p>
+          <p className="text-slate-600 dark:text-slate-400 font-medium mb-2 text-sm sm:text-base">
+            {ocrAbortControllerRef.current ? 'Leyendo comprobante...' : 'Verificando datos...'}
+          </p>
+          {ocrAbortControllerRef.current && (
+            <button
+              type="button"
+              onClick={cancelarOCR}
+              className="mt-3 inline-flex max-w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-center text-sm font-semibold text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-300 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:border-rose-800 dark:hover:bg-rose-950/70 dark:focus:ring-rose-800 whitespace-normal break-words"
+            >
+              <X className="h-4 w-4 shrink-0" />
+              Cancelar procesamiento
+            </button>
+          )}
         </div>
       </div>
     );
@@ -536,6 +607,14 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {(!Array.isArray(formData.items) || formData.items.length === 0) && (
+          <div className="flex items-start gap-3 rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/30 p-3 sm:p-4 shadow-sm dark:shadow-none">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+            <p className="text-xs sm:text-sm leading-relaxed text-blue-900 dark:text-blue-200">
+              No se extrajeron productos del comprobante. Por favor, verifica el monto total directamente en el documento físico.
+            </p>
           </div>
         )}
 

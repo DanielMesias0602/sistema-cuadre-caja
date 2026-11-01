@@ -74,12 +74,12 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
           </div>
 
           {/* Date Range */}
-          <div className="lg:col-span-5 flex flex-col justify-center">
+          <div className="lg:col-span-5 flex min-w-0 flex-col justify-center">
             <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
               Rango de fechas
             </label>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="flex-1 min-w-[240px]">
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:gap-3 2xl:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="min-w-0">
                 <DateRangePicker
                   fechaDesde={filters.fecha_desde}
                   fechaHasta={filters.fecha_hasta}
@@ -89,11 +89,11 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
                 />
               </div>
 
-              <div className="flex items-center bg-slate-100 dark:bg-slate-900/80 border border-transparent dark:border-slate-600 rounded-lg p-1 w-full sm:w-auto min-w-[140px] h-[42px]">
+              <div className="flex h-[42px] w-full min-w-0 items-center rounded-lg border border-transparent bg-slate-100 p-1 dark:border-slate-600 dark:bg-slate-900/80 2xl:w-auto">
                 <button
                   type="button"
                   onClick={setHoy}
-                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-md transition text-center justify-center ${
+                  className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition text-center justify-center 2xl:flex-none ${
                     esHoy
                       ? 'bg-white dark:bg-slate-800 shadow-sm dark:shadow-none text-slate-900 dark:text-slate-100'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -104,7 +104,7 @@ export function DashboardFilters({ filters, onFilterChange, onReset }) {
                 <button
                   type="button"
                   onClick={setTodos}
-                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-md transition text-center justify-center ${
+                  className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition text-center justify-center 2xl:flex-none ${
                     !esHoy
                       ? 'bg-white dark:bg-slate-800 shadow-sm dark:shadow-none text-slate-900 dark:text-slate-100'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'

@@ -4,6 +4,25 @@ import sys
 
 from paddleocr import PaddleOCR
 
+# ============================================================
+# NUEVO: SINGLETON PADDLE OCR (Mantiene el modelo en RAM)
+# ============================================================
+_ocr_instance = None
+
+def get_ocr():
+    global _ocr_instance
+    if _ocr_instance is None:
+        print("Iniciando PaddleOCR (MODO RÁPIDO)...", flush=True)
+        _ocr_instance = PaddleOCR(
+            lang="es",
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+            det_limit_side_len=960,
+            cpu_threads=8,
+            enable_mkldnn=True
+        )
+    return _ocr_instance
 
 # ============================================================
 # UTILIDADES
@@ -320,6 +339,12 @@ def _estrategia_cantidad_sola(lineas, inicio_busqueda):
                 if re.fullmatch(r"\d+(?:[.,]\d+)?", proximo):
                     break
 
+                # --- NUEVO: Detectar inicio de nuevo producto ---
+                # Si la proxima linea empieza con cantidad decimal y texto (ej. "10.08 WPY...")
+                # significa que es un nuevo producto. Cortamos aqui para no fusionarlos.
+                if re.match(r"^\s*\d+(?:[.,]\d+)?\s+[A-Za-z]{3,}", proximo):
+                    break
+
                 if es_linea_administrativa(proximo):
                     break
 
@@ -503,71 +528,141 @@ def _estrategia_linea_cantidad_descripcion(lineas, inicio_busqueda):
     return productos
 
 # ============================================================
-# ORQUESTADOR: PRUEBA LAS 3 ESTRATEGIAS EN ORDEN
+# ORQUESTADOR: BUCLE UNIFICADO (FIX APLICADO AQUÍ)
 # ============================================================
 
 def extraer_productos(textos):
-
     lineas = [
         limpiar_texto(texto)
         for texto in textos
         if limpiar_texto(texto)
     ]
 
-    # --------------------------------------------------------
-    # BUSCAR INICIO DEL DETALLE (linea con "CANT")
-    # --------------------------------------------------------
-
-    indice_detalle = None
-
+    # Buscar inicio del detalle
+    inicio_busqueda = 0
     for indice, linea in enumerate(lineas):
-
-        if re.search(
-            r"\bCANT\.?\b",
-            linea,
-            flags=re.IGNORECASE
-        ):
-            indice_detalle = indice
+        if re.search(r"\bCANT\.?\b", linea, flags=re.IGNORECASE):
+            inicio_busqueda = indice + 1
             break
 
-    inicio_busqueda = (
-        indice_detalle + 1
-        if indice_detalle is not None
-        else 0
-    )
+    productos = []
+    i = inicio_busqueda
 
-    # --------------------------------------------------------
-    # INTENTO 1: TODO EN UNA LINEA
-    # --------------------------------------------------------
+    while i < len(lineas):
+        linea = lineas[i]
+        if not linea:
+            i += 1
+            continue
 
-    productos = _estrategia_producto_compacto(
-        lineas,
-        inicio_busqueda
-    )
+        # Si es una línea administrativa real, terminamos
+        if es_linea_administrativa(linea) and re.search(r":\s*\d|\d+[.,]\d+", linea):
+            break
 
-    if productos:
-        return productos
+        cantidad = None
+        desc_partes = []
 
-    # --------------------------------------------------------
-    # INTENTO 2: CANTIDAD SOLA EN SU LINEA
-    # --------------------------------------------------------
+        # 1. Detectar cantidad sola o cantidad + descripción
+        match_solo = re.fullmatch(r"(\d+(?:[.,]\d+)?)", linea)
+        match_comb = re.match(r"^\s*(\d+(?:[.,]\d+)?)\s+(.+)$", linea)
+        match_cantidad_final = re.match(r"^(.+?)\s+(\d+(?:[.,]\d+)?)$", linea)
 
-    productos = _estrategia_cantidad_sola(
-        lineas,
-        inicio_busqueda
-    )
+        if match_solo:
+            cantidad = normalizar_monto(match_solo.group(1))
+            i += 1
+            # Leer descripción
+            while i < len(lineas):
+                cand = lineas[i]
+                if not cand:
+                    i += 1
+                    continue
+                if es_monto_decimal(cand) or es_linea_administrativa(cand):
+                    break
+                if re.match(r"^\s*\d+(?:[.,]\d+)?\s+[A-Za-z]", cand):
+                    break  # Es inicio del siguiente producto
+                if not es_numero(cand) and not es_unidad(cand):
+                    desc_partes.append(cand)
+                i += 1
 
-    if productos:
-        return productos
+        elif (
+            match_comb
+            and re.search(r"[A-Za-z]", match_comb.group(2))
+            and not es_unidad(linea)
+        ):
+            cantidad = normalizar_monto(match_comb.group(1))
+            desc_partes.append(match_comb.group(2))
+            i += 1
+        elif (
+            match_cantidad_final
+            and re.search(r"[A-Za-z]", match_cantidad_final.group(1))
+            and not es_linea_administrativa(linea)
+        ):
+            cantidad = normalizar_monto(match_cantidad_final.group(2))
+            descripcion_inicial = match_cantidad_final.group(1).strip()
+            if cantidad is not None and 0 < cantidad <= 10000:
+                desc_partes.append(descripcion_inicial)
+                i += 1
+            else:
+                cantidad = None
 
-    # --------------------------------------------------------
-    # INTENTO 3: CANTIDAD + DESCRIPCION EN MISMA LINEA
-    # --------------------------------------------------------
+        # 2. Si detectamos cantidad, buscar precio y total
+        if cantidad is not None:
+            precio = None
+            total = None
 
-    productos = _estrategia_linea_cantidad_descripcion(
-        lineas,
-        inicio_busqueda
-    )
+            while i < len(lineas):
+                cand = lineas[i]
+                if not cand:
+                    i += 1
+                    continue
+                if es_linea_administrativa(cand):
+                    break
+
+                if es_monto_decimal(cand):
+                    val = normalizar_monto(cand)
+                    if precio is None:
+                        precio = val
+                        i += 1
+                        continue
+                    if total is None:
+                        total = val
+                        i += 1
+                        continue
+
+                if es_unidad(cand):
+                    i += 1
+                    continue
+
+                if re.match(r"^\s*\d+(?:[.,]\d+)?\s+[A-Za-z]", cand):
+                    break  # Es inicio del siguiente producto
+
+                if not es_numero(cand) and not es_unidad(cand) and not es_linea_administrativa(cand):
+                    if precio is not None and total is not None:
+                        match_nueva_cantidad = re.match(
+                            r"^(.+?)\s+(\d+(?:[.,]\d+)?)$",
+                            cand
+                        )
+                        if match_nueva_cantidad:
+                            texto_siguiente = match_nueva_cantidad.group(1).strip()
+                            cantidad_siguiente = normalizar_monto(match_nueva_cantidad.group(2))
+                            if (
+                                re.search(r"[A-Za-z]", texto_siguiente)
+                                and cantidad_siguiente is not None
+                                and 0 < cantidad_siguiente <= 10000
+                            ):
+                                break
+                    desc_partes.append(cand)
+                i += 1
+
+            if precio is not None and total is not None:
+                if len(desc_partes) > 0:
+                    productos.append({
+                        "descripcion": limpiar_texto(" ".join(desc_partes)),
+                        "cantidad": cantidad,
+                        "precio_unitario": precio,
+                        "total": total
+                    })
+        else:
+            i += 1
 
     return productos
 
@@ -835,7 +930,7 @@ def extraer_datos_comprobante(textos):
     # PRODUCTOS (orquesta las 3 estrategias)
     # ========================================================
 
-    resultado["productos"] = extraer_productos(textos)
+    resultado["productos"] = []
 
     return resultado
 
@@ -902,7 +997,52 @@ def mostrar_resultado(datos):
 
 
 # ============================================================
-# MAIN
+# NUEVO: FUNCION EXPORTABLE PARA FLASK
+# ============================================================
+def procesar_archivo(image_path):
+    ocr = get_ocr()
+    print(f"Procesando imagen: {image_path}")
+
+    results = ocr.predict(image_path)
+
+    textos = []
+    puntajes = []
+
+    for result in results:
+        data = result.json["res"]
+        textos.extend(data.get("rec_texts", []))
+        puntajes.extend(data.get("rec_scores", []))
+
+    print("OCR ejecutado correctamente.")
+
+    # ========================================================
+    # TEXTO DETECTADO
+    # ========================================================
+
+    print()
+    print("=== TEXTO DETECTADO ===")
+
+    for texto, puntaje in zip(textos, puntajes):
+        print(f"[{puntaje:.2f}] {texto}")
+
+    # ========================================================
+    # EXTRACCION ESTRUCTURADA
+    # ========================================================
+
+    datos = extraer_datos_comprobante(textos)
+    mostrar_resultado(datos)
+
+    # JSON final para que el Node.js lo capture
+    print()
+    print("DATOS EXTRAIDOS:")
+    print(json.dumps(datos, ensure_ascii=False, default=str))
+
+    print()
+    print("=== FIN OCR ===")
+
+
+# ============================================================
+# MAIN ORIGINAL
 # ============================================================
 
 def main():

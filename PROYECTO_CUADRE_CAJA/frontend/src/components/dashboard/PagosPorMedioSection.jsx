@@ -4,8 +4,11 @@ import { useMemo } from 'react';
 export function PagosPorMedioSection({ filteredOps }) {
   const pagosPorMedio = useMemo(() => {
     const medios = {};
+    const operacionesValidas = filteredOps.filter(
+      (op) => String(op.estado || op.estado_operacion || '').toUpperCase() !== 'ANULADA'
+    );
     
-    filteredOps.forEach(op => {
+    operacionesValidas.forEach(op => {
       const pagos = Array.isArray(op.pagos) ? op.pagos : [];
       pagos.forEach(p => {
         const medio = p.medio_pago || p.nombre_medio || 'Efectivo';
@@ -28,7 +31,10 @@ export function PagosPorMedioSection({ filteredOps }) {
     return Object.values(medios);
   }, [filteredOps]);
 
-  const totalMontoGeneral = filteredOps.reduce((acc, op) => {
+  const operacionesValidas = filteredOps.filter(
+    (op) => String(op.estado || op.estado_operacion || '').toUpperCase() !== 'ANULADA'
+  );
+  const totalMontoGeneral = operacionesValidas.reduce((acc, op) => {
     const pagos = Array.isArray(op.pagos) ? op.pagos : [];
     const sumaPagos = pagos.reduce((sum, p) => sum + Number(p.monto || 0), 0);
     return acc + sumaPagos;

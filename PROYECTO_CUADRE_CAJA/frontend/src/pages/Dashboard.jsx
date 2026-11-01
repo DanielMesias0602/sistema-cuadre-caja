@@ -13,7 +13,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const {
     metrics,
-    operacionesRecientes,
+    operacionesFiltradas,
     loading,
     error,
     filters,
@@ -24,7 +24,10 @@ export function Dashboard() {
   const [selectedOp, setSelectedOp] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
 
-  const operacionSeleccionada = selectedOp || operacionesRecientes[0] || null;
+  const operacionSeleccionada =
+    operacionesFiltradas.find((op) => op.id_operacion === selectedOp?.id_operacion) ||
+    operacionesFiltradas[0] ||
+    null;
 
   const handleResetFilters = () => {
     updateFilters({
@@ -35,28 +38,6 @@ export function Dashboard() {
       estado: '',
     });
   };
-
-  const filteredOps = operacionesRecientes.filter((op) => {
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      const matchComp = `${op.tipo_comprobante || ''} ${op.serie || ''}-${op.numero || ''}`.toLowerCase();
-      const matchUser = (op.usuario || '').toLowerCase();
-      if (!matchComp.includes(q) && !matchUser.includes(q)) return false;
-    }
-    if (filters.turno) {
-      const horaRegistroRaw = op.hora_registro || op.hora;
-      const horaRegistro = typeof horaRegistroRaw === 'string' ? horaRegistroRaw : '00:00';
-      const [horas, minutos, segundos] = horaRegistro.split(':').map(Number);
-      const horaDecimal = horas + minutos / 60 + segundos / 3600;
-
-      if (filters.turno === 'Mañana' && horaDecimal >= 14) return false;
-      if (filters.turno === 'Tarde' && (horaDecimal < 14 || horaDecimal >= 20)) return false;
-    }
-    if (filters.estado && op.estado) {
-      if (op.estado.toUpperCase() !== filters.estado.toUpperCase()) return false;
-    }
-    return true;
-  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
@@ -91,7 +72,7 @@ export function Dashboard() {
           ))}
         </div>
       ) : (
-        <SummaryGrid filteredOps={filteredOps} />
+        <SummaryGrid filteredOps={operacionesFiltradas} />
       )}
 
       {/* Advanced Filter Panel */}
@@ -112,14 +93,14 @@ export function Dashboard() {
           {/* Table & Payments Column */}
           <div className={`space-y-6 ${drawerAbierto ? 'xl:col-span-8' : 'xl:col-span-1'}`}>
             <OperacionesRecientesTable
-              operaciones={filteredOps}
+              operaciones={operacionesFiltradas}
               selectedOpId={operacionSeleccionada?.id_operacion}
               onSelectOp={(op) => {
                 setSelectedOp(op);
                 setDrawerAbierto(true);
               }}
             />
-            <PagosPorMedioSection filteredOps={filteredOps} />
+            <PagosPorMedioSection filteredOps={operacionesFiltradas} />
           </div>
 
           {/* Detail Drawer Column */}

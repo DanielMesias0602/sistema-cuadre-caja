@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { createUser } from './src/repositories/usuario.repository.js';
 import { query } from './src/repositories/base.repository.js';
@@ -16,11 +17,16 @@ const usuarios = [
 
 const run = async () => {
   try {
+    const seedPassword = process.env.SEED_PASSWORD;
+    if (!seedPassword) {
+      throw new Error('La variable de entorno SEED_PASSWORD es obligatoria');
+    }
+
     const rolesRes = await query(`SELECT id_rol, nombre FROM rol`);
     const rolesMap = {};
     rolesRes.rows.forEach(r => rolesMap[r.nombre] = r.id_rol);
 
-    const passwordHash = await bcrypt.hash('Admin12345', 10); 
+    const passwordHash = await bcrypt.hash(seedPassword, 10);
 
     for (const u of usuarios) {
       const idRol = rolesMap[u.rol];
@@ -47,7 +53,7 @@ const run = async () => {
         }
       }
     }
-    console.log('\nProceso terminado. La contraseña es: Admin12345');
+    console.log('\nProceso de creación de usuarios terminado.');
     process.exit(0);
   } catch (error) {
     console.error('Error general:', error);

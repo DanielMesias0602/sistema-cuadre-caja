@@ -456,7 +456,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                     ) : (
                       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 py-8 text-center">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"><ImageIcon className="h-5 w-5" /></div>
-                        <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Sin Evidencia Adjunta</p>
+                        <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Imagen no disponible</p>
                       </div>
                     )}
                   </section>

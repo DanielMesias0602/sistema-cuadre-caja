@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
+import { useSocket } from '../../hooks/useSocket';
 import { Search, ChevronDown, Loader2, ImageOff, X, CheckCircle, Clock, CreditCard, Banknote, Wallet, ZoomIn, ZoomOut, User, Calendar, ShieldCheck } from 'lucide-react';
 import { EvidenceCard } from './EvidenceCard';
 
 export function Evidencias() {
   const { user } = useAuth();
+  const socket = useSocket();
   const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
 
   const [operaciones, setOperaciones] = useState([]);
@@ -22,22 +24,35 @@ export function Evidencias() {
   const [estadosLocales, setEstadosLocales] = useState({});
   const [imagenPrincipalIndex, setImagenPrincipalIndex] = useState(0);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get('/operaciones');
-        const data = res.data?.data || res.data;
-        setOperaciones(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(err);
-        setOperaciones([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const cargarOperaciones = useCallback(async () => {
+    try {
+      const res = await api.get('/operaciones');
+      const data = res.data?.data || res.data;
+      setOperaciones(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setOperaciones([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void Promise.resolve().then(cargarOperaciones);
+  }, [cargarOperaciones]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarEvidencias = () => {
+      void cargarOperaciones();
+    };
+    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    eventos.forEach((evento) => socket.on(evento, actualizarEvidencias));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarEvidencias));
+    };
+  }, [socket, cargarOperaciones]);
 
   const filtered = useMemo(() => {
     return operaciones.filter(op => {
@@ -90,8 +105,21 @@ export function Evidencias() {
 
   const getEvidenciasDeOperacion = (operacion) => {
     const evidenciasArray = Array.isArray(operacion.evidencias) ? operacion.evidencias : [];
+    const verificaciones = Array.isArray(operacion.verificaciones) ? operacion.verificaciones : [];
 
-    return evidenciasArray.map((evidencia) => {
+    // Crear un Set con los IDs de evidencias activas
+    const idsActivos = new Set();
+    verificaciones.forEach(v => {
+      if (v.id_evidencia_cliente) idsActivos.add(String(v.id_evidencia_cliente));
+      if (v.id_evidencia_empresa) idsActivos.add(String(v.id_evidencia_empresa));
+    });
+
+    // Filtrar las evidencias (si no hay verificaciones, mostrar todas por compatibilidad)
+    const evidenciasFiltradas = idsActivos.size > 0 
+      ? evidenciasArray.filter(e => idsActivos.has(String(e.id_evidencia)))
+      : evidenciasArray;
+
+    return evidenciasFiltradas.map((evidencia) => {
       const tipo = String(evidencia.tipo_evidencia || 'EVIDENCIA');
       const url = evidencia.url_firmada
         || (evidencia.storage_key?.startsWith('http') ? evidencia.storage_key : null);
@@ -142,11 +170,6 @@ export function Evidencias() {
       cerrarModal();
     } catch (err) {
       console.error('Error al verificar pagos:', err);
-      if (err.response?.status === 403) {
-        alert('No tienes permisos suficientes.\n\nSolo un Administrador puede verificar pagos.');
-      } else {
-        alert('Error al verificar los pagos. Por favor intenta nuevamente.');
-      }
 
       const revertirEstados = {};
       pagosPendientes.forEach(p => {
@@ -231,14 +254,30 @@ export function Evidencias() {
 
       {filtered.length > 0 ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((op) => (
-            <EvidenceCard
-              key={op.id_operacion}
-              operacion={op}
-              onImageClick={abrirEvidencia}
-              onClick={() => abrirModal(op)}
-            />
-          ))}
+                    {filtered.map((op) => {
+            // Filtrar las evidencias activas para que la tarjeta no muestre las viejas
+            const verificaciones = op.verificaciones || [];
+            const idsActivos = new Set();
+            verificaciones.forEach(v => {
+              if (v.id_evidencia_cliente) idsActivos.add(String(v.id_evidencia_cliente));
+              if (v.id_evidencia_empresa) idsActivos.add(String(v.id_evidencia_empresa));
+            });
+
+            const evidenciasFiltradas = idsActivos.size > 0 
+              ? (op.evidencias || []).filter(e => idsActivos.has(String(e.id_evidencia)))
+              : (op.evidencias || []);
+
+            const opParaTarjeta = { ...op, evidencias: evidenciasFiltradas };
+
+            return (
+              <EvidenceCard
+                key={op.id_operacion}
+                operacion={opParaTarjeta}
+                onImageClick={abrirEvidencia}
+                onClick={() => abrirModal(op)}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/60 py-20">

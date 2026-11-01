@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 import { Plus, FileText, RefreshCw, Search, X, Loader2, AlertCircle, CheckCircle, SearchCheck, Pencil } from 'lucide-react';
 import { SingleDatePicker } from '../../components/ui/SingleDatePicker';
 
 export function NotasCredito() {
+  const socket = useSocket();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notas, setNotas] = useState([]);
@@ -53,7 +55,7 @@ export function NotasCredito() {
     return !isNaN(d.getTime()) ? d.toLocaleDateString('es-PE') : fechaRaw;
   };
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/notas-credito');
       const data = res.data?.data || res.data;
@@ -66,7 +68,7 @@ export function NotasCredito() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -76,7 +78,19 @@ export function NotasCredito() {
 
   useEffect(() => {
     void Promise.resolve().then(cargarDatos);
-  }, []);
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarNotas = () => {
+      void cargarDatos();
+    };
+    socket.on('ajuste_creado', actualizarNotas);
+
+    return () => {
+      socket.off('ajuste_creado', actualizarNotas);
+    };
+  }, [socket, cargarDatos]);
 
   const abrirModal = () => {
     setModalAbierto(true);
@@ -165,12 +179,9 @@ export function NotasCredito() {
         observacion: formNota.observacion.trim() || null
       };
 
-      const res = await api.post('/notas-credito', payload);
+      await api.post('/notas-credito', payload);
 
-      const generoSalida = res.data?.data?.salida_caja !== null;
-      setExitoModal(generoSalida
-        ? 'Nota registrada. Se generó una salida de caja por el saldo a favor del cliente.'
-        : 'Nota de crédito registrada exitosamente.');
+      setExitoModal('Nota de crédito registrada como saldo a favor. No se generó una salida de caja.');
 
       await recargarDatos();
 

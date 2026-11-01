@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
+import { useSocket } from '../../hooks/useSocket';
 import {
   Plus,
   ArrowDownRight,
@@ -141,6 +142,7 @@ function ComprobanteCombobox({ comprobantes, value, onChange }) {
 }
 
 export function SalidasCaja() {
+  const socket = useSocket();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -184,7 +186,7 @@ export function SalidasCaja() {
     return !isNaN(d.getTime()) ? d.toLocaleDateString('es-PE') : fechaRaw;
   };
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/salidas-caja');
       const data = res.data?.data || res.data;
@@ -197,7 +199,7 @@ export function SalidasCaja() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -237,7 +239,19 @@ export function SalidasCaja() {
   useEffect(() => {
     void Promise.resolve().then(cargarDatos);
     void Promise.resolve().then(cargarCatalogos);
-  }, []);
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarSalidas = () => {
+      void cargarDatos();
+    };
+    socket.on('salida_creada', actualizarSalidas);
+
+    return () => {
+      socket.off('salida_creada', actualizarSalidas);
+    };
+  }, [socket, cargarDatos]);
 
   const abrirModalRegistro = async () => {
     setModalAbierto(true);
@@ -265,13 +279,6 @@ export function SalidasCaja() {
         (c) => String(c.estado || '').toUpperCase() !== 'CERRADO'
       );
       setCierresDisponibles(abiertos);
-
-      if (abiertos.length > 0) {
-        setFormSalida((prev) => ({
-          ...prev,
-          id_cierre: String(abiertos[0].id_cierre)
-        }));
-      }
     } catch (err) {
       console.error('Error al cargar cierres:', err);
       setCierresDisponibles([]);
@@ -292,11 +299,6 @@ export function SalidasCaja() {
     setErrorModal(null);
     setExitoModal(null);
 
-    if (!formSalida.id_cierre) {
-      setErrorModal({ message: 'Debes seleccionar un cierre de caja válido.', isTurnoError: false });
-      return;
-    }
-
     const montoNum = Number(formSalida.monto);
     if (!montoNum || montoNum <= 0) {
       setErrorModal({ message: 'El monto debe ser un número positivo mayor a 0.', isTurnoError: false });
@@ -311,7 +313,7 @@ export function SalidasCaja() {
     setGuardando(true);
     try {
       const payload = {
-        id_cierre: Number(formSalida.id_cierre),
+        id_cierre: formSalida.id_cierre ? Number(formSalida.id_cierre) : null,
         id_tipo_salida: Number(formSalida.id_tipo_salida),
         id_comprobante: formSalida.id_comprobante ? Number(formSalida.id_comprobante) : null,
         fecha: new Date().toLocaleDateString('en-CA'),
@@ -687,7 +689,7 @@ export function SalidasCaja() {
 
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Cierre de Caja <span className="text-rose-500">*</span>
+                  Cierre de Caja <span className="text-slate-400">(opcional)</span>
                 </label>
                 {cargandoCierres ? (
                   <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 py-2">
@@ -698,9 +700,9 @@ export function SalidasCaja() {
                   <select
                     value={formSalida.id_cierre}
                     onChange={(e) => setFormSalida({ ...formSalida, id_cierre: e.target.value })}
-                    required
                     className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
                   >
+                    <option value="">Usar el turno abierto actual</option>
                     {cierresDisponibles.map((c) => (
                       <option key={c.id_cierre} value={c.id_cierre}>
                         Cierre #{c.id_cierre} - Turno {c.turno} ({formatearFecha(c.fecha)}) - Disp: {formatCurrency(c.efectivo_esperado - (c.total_salidas || 0))}
@@ -711,7 +713,7 @@ export function SalidasCaja() {
                   <div className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 p-3 text-[11px] sm:text-xs font-medium text-amber-800 dark:text-amber-400 flex items-start gap-2">
                     <Info className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <span>
-                      No hay turnos abiertos. Dirígete a <strong>Cierres de Caja</strong> y crea un "Nuevo Cierre" para iniciar el turno antes de registrar salidas.
+                      <strong>No hay un turno abierto.</strong> Esta salida requiere un cierre abierto y el sistema no creará uno provisional automáticamente.
                     </span>
                   </div>
                 )}
@@ -783,7 +785,7 @@ export function SalidasCaja() {
                 </button>
                 <button
                   type="submit"
-                  disabled={guardando || cierresDisponibles.length === 0}
+                  disabled={guardando}
                   className="h-10 sm:h-11 flex-1 rounded-xl bg-brand-orange text-xs sm:text-sm font-bold text-white shadow-md dark:shadow-none shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {guardando ? (

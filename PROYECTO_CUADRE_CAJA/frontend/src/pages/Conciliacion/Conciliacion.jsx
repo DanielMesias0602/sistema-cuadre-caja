@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useSocket } from '../../hooks/useSocket';
 import api from '../../lib/api';
 import {
   Plus, CheckCircle, AlertCircle, RefreshCw, Search,
@@ -30,6 +31,7 @@ const evaluarOperacion = (opPago, opEmpresa, medioPago) => {
 export function Conciliacion() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const socket = useSocket();
 
   const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
 
@@ -55,6 +57,7 @@ export function Conciliacion() {
     cierres: [],
     diferencia_total: 0,
     total_ingresos: 0,
+    total_no_efectivo: 0,
     total_efectivo_esperado: 0,
     total_salidas: 0,
     operaciones_pendientes_evidencia: 0,
@@ -75,7 +78,7 @@ export function Conciliacion() {
     return !isNaN(d.getTime()) ? d.toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : fechaRaw;
   };
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const res = await api.get('/conciliaciones');
       const data = res.data?.data || res.data;
@@ -87,7 +90,7 @@ export function Conciliacion() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -95,7 +98,26 @@ export function Conciliacion() {
     return cargarDatos();
   };
 
-  useEffect(() => { void Promise.resolve().then(cargarDatos); }, []);
+  useEffect(() => { void Promise.resolve().then(cargarDatos); }, [cargarDatos]);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const actualizarConciliaciones = () => {
+      void cargarDatos();
+    };
+    const eventos = [
+      'operacion_creada',
+      'pago_actualizado',
+      'salida_creada',
+      'cierre_actualizado',
+      'ajuste_creado',
+    ];
+    eventos.forEach((evento) => socket.on(evento, actualizarConciliaciones));
+
+    return () => {
+      eventos.forEach((evento) => socket.off(evento, actualizarConciliaciones));
+    };
+  }, [socket, cargarDatos]);
 
   const calcularPreCalculo = async (fecha) => {
     try {
@@ -106,7 +128,7 @@ export function Conciliacion() {
     } catch {
       setPreCalculo({
         cierres: [], diferencia_total: 0, total_ingresos: 0,
-        total_efectivo_esperado: 0, total_salidas: 0,
+        total_no_efectivo: 0, total_efectivo_esperado: 0, total_salidas: 0,
         operaciones_pendientes_evidencia: 0, operaciones_con_numeros: []
       });
     }
@@ -370,13 +392,21 @@ export function Conciliacion() {
 
               <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm dark:bg-slate-800/60 dark:border-slate-600 dark:shadow-none">
                 <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 sm:mb-3 dark:text-slate-400">Resumen del Día</p>
-                <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-2 sm:mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-2 sm:mb-3">
                   <div className="bg-slate-50 rounded-lg p-2 sm:p-3 border border-slate-100 dark:bg-slate-900 dark:border-slate-600">
                     <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase dark:text-slate-400">Ingresos Totales</p>
                     <p className="text-xs sm:text-sm font-black text-slate-900 tabular-nums dark:text-slate-100">{formatCurrency(preCalculo.total_ingresos)}</p>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-2 sm:p-3 border border-slate-100 dark:bg-slate-900 dark:border-slate-600">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase dark:text-slate-400">Efectivo Esperado</p>
+                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase dark:text-slate-400">No Efectivo</p>
+                    <p className="text-xs sm:text-sm font-black text-slate-900 tabular-nums dark:text-slate-100">{formatCurrency(preCalculo.total_no_efectivo)}</p>
+                  </div>
+                  <div className="bg-rose-50 rounded-lg p-2 sm:p-3 border border-rose-100 dark:bg-rose-950/30 dark:border-rose-800/60">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-rose-600 uppercase dark:text-rose-400">Total Salidas</p>
+                    <p className="text-xs sm:text-sm font-black text-rose-700 tabular-nums dark:text-rose-300">{formatCurrency(preCalculo.total_salidas)}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-2 sm:p-3 border border-slate-100 dark:bg-slate-900 dark:border-slate-600">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase dark:text-slate-400">Efectivo Neto</p>
                     <p className="text-xs sm:text-sm font-black text-slate-900 tabular-nums dark:text-slate-100">{formatCurrency(preCalculo.total_efectivo_esperado)}</p>
                   </div>
                 </div>
@@ -384,14 +414,38 @@ export function Conciliacion() {
                 <div className="space-y-1">
                   {preCalculo.cierres.length > 0 ? (
                     preCalculo.cierres.map(c => (
-                      <div key={c.id_cierre} className="flex items-center justify-between text-xs py-1.5 border-t border-slate-50 dark:border-slate-600">
-                        <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                          {c.turno === 'Mañana' ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
-                          Turno {c.turno}
-                        </span>
-                        <span className={`font-bold tabular-nums ${Number(c.diferencia) === 0 ? 'text-slate-700 dark:text-slate-200' : Number(c.diferencia) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                          {formatCurrency(c.diferencia)}
-                        </span>
+                      <div key={c.id_cierre} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-600 dark:bg-slate-900">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                            {c.turno === 'Mañana' ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
+                            Turno {c.turno}
+                          </span>
+                          <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">{c.estado}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-5">
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400">Ingresos</p>
+                            <p className="text-xs font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(c.total_ingresos)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400">No efectivo</p>
+                            <p className="text-xs font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(c.total_no_efectivo)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-rose-600 dark:text-rose-400">Salidas</p>
+                            <p className="text-xs font-bold tabular-nums text-rose-700 dark:text-rose-300">{formatCurrency(c.total_salidas)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400">Efectivo neto</p>
+                            <p className="text-xs font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(Number(c.efectivo_esperado || 0) - Number(c.total_salidas || 0))}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400">Diferencia</p>
+                            <p className={`text-xs font-bold tabular-nums ${Number(c.diferencia) === 0 ? 'text-slate-700 dark:text-slate-200' : Number(c.diferencia) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                              {formatCurrency(c.diferencia)}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))
                   ) : (

@@ -10,8 +10,37 @@ coverage/
 Thumbs.db
 tmp/
 database/backup_pre_auditoria.dump
+database/backups/
 
 __pycache__/
 *.bak
 revision_*.txt
 REVISION_*.txt
+
+# Credenciales y llaves privadas OCI
+CLAVES_OCI/
+**/*.key
+**/*.pem
+**/oci_api_key*
+**/config_oci
+# Entornos virtuales y archivos locales
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+
+# Credenciales OCI
+CLAVES_OCI/
+**/CLAVES_OCI/
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/oci_api_key*
+**/config_oci
+.env
+.env.*
+!.env.example
+
+# Archivo accidental local
+/tatus --short

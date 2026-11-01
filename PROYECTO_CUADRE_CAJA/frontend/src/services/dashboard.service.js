@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { authService } from './auth.service';
 
-const API_URL = import.meta.env.VITE_API_URL || '/cuadrecaja/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/cuadrecaja/api';
 
 export const dashboardService = {
   async getDashboardData(filters = {}) {
     const token = authService.getToken();
-    const response = await axios.get(`${API_URL}/reportes/dashboard`, {
+    const response = await axios.get(`${BASE_URL}/reportes/dashboard`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -37,7 +37,7 @@ export const dashboardService = {
 
   async getPagosPorMedio(filters = {}) {
     const token = authService.getToken();
-    const response = await axios.get(`${API_URL}/reportes/pagos-por-medio`, {
+    const response = await axios.get(`${BASE_URL}/reportes/pagos-por-medio`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -48,7 +48,7 @@ export const dashboardService = {
 
   async getOperacionesRecientes(filters = {}) {
     const token = authService.getToken();
-    const response = await axios.get(`${API_URL}/reportes/operaciones`, {
+    const response = await axios.get(`${BASE_URL}/reportes/operaciones`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

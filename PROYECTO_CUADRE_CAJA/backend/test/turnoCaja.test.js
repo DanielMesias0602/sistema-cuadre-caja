@@ -27,7 +27,7 @@ test('classifies operating hours with a single 2 PM boundary', () => {
   assert.equal(obtenerTurnoPorHora('20:00:00'), 'TARDE');
   assert.equal(obtenerTurnoPorHora('21:17'), 'TARDE');
   assert.equal(obtenerTurnoPorHora('23:59:59'), 'TARDE');
-  assert.equal(obtenerTurnoPorHora('07:59:59'), null);
+  assert.equal(obtenerTurnoPorHora('07:59:59'), 'TARDE');
 });
 
 test('returns disjoint ranges used by close totals and operation assignment', () => {
@@ -99,5 +99,5 @@ test('classifies by receipt time without blocking on server time or current clos
 
   assert.deepEqual(validarHorarioRegistroOperacion({
     horaActual: '01:22:00',
-  }), { turno: null, hora: '01:22:00' });
+  }), { turno: 'MANANA', hora: '13:22:00' });
 });

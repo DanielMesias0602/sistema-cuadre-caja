@@ -43,6 +43,80 @@ const quitarBloqueJson = (texto) => {
   return antes + despues.substring(fin + 1);
 };
 
+const normalizarFechaEvidencia = (valor) => {
+  if (!valor || /^(none|null|undefined)$/i.test(String(valor).trim())) return null;
+  const texto = String(valor).trim().toLowerCase();
+  const fechaNumerica = texto.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
+  if (fechaNumerica) {
+    const [, dia, mes, anio] = fechaNumerica;
+    if (Number(dia) < 1 || Number(dia) > 31 || Number(mes) < 1 || Number(mes) > 12) return null;
+    const anioNormalizado = anio.length === 2 ? `20${anio}` : anio;
+    return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${anioNormalizado}`;
+  }
+
+  const fechaMesTexto = texto.match(
+    /\b(\d{1,2})\s+(?:de\s+)?([a-záéíóúñ]+)\.?\s+(?:de\s+)?(\d{4})\b/i
+  );
+  if (!fechaMesTexto) return null;
+
+  const mesTexto = fechaMesTexto[2]
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .slice(0, 3);
+  const meses = {
+    ene: '01', feb: '02', mar: '03', abr: '04', may: '05', jun: '06',
+    jul: '07', ago: '08', sep: '09', set: '09', oct: '10', nov: '11', dic: '12',
+  };
+  const mes = meses[mesTexto];
+  const dia = Number(fechaMesTexto[1]);
+  if (!mes || dia < 1 || dia > 31) return null;
+  return `${String(dia).padStart(2, '0')}/${mes}/${fechaMesTexto[3]}`;
+};
+
+const normalizarHoraEvidencia = (valor) => {
+  if (!valor || /^(none|null|undefined)$/i.test(String(valor).trim())) return null;
+  const texto = String(valor)
+    .trim()
+    .toLowerCase()
+    .replace(/[.]/g, '')
+    .replace(/\s+/g, ' ');
+  const match = texto.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(a\s*m|p\s*m|am|pm)?\b/i);
+  if (!match) return null;
+
+  let horas = Number(match[1]);
+  const minutos = Number(match[2]);
+  const sufijo = match[4]?.replace(/\s/g, '').toLowerCase();
+  if (horas > 23 || minutos > 59) return null;
+  if (sufijo) {
+    if (horas < 1 || horas > 12) return null;
+    horas = (horas % 12) + (sufijo.startsWith('p') ? 12 : 0);
+  }
+  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+};
+
+const extraerFechaHoraEvidenciaTexto = (stdout) => {
+  const textoOCR = limpiarTexto(quitarBloqueJson(String(stdout || '')));
+  const lineas = textoOCR.split('\n');
+  let fecha = null;
+  let hora = null;
+
+  for (const linea of lineas) {
+    if (!fecha) fecha = normalizarFechaEvidencia(linea);
+    if (!hora) hora = normalizarHoraEvidencia(linea);
+    if (fecha && hora) break;
+  }
+
+  return { fecha, hora };
+};
+
+const extraerReferenciaEvidenciaTexto = (stdout) => {
+  const textoOCR = limpiarTexto(quitarBloqueJson(String(stdout || '')));
+  const match = textoOCR.match(
+    /\b(?:nro\.?\s*(?:de\s*)?|n[uú]mero\s*(?:de\s*)?|c[oó]digo\s*(?:de\s*)?)operaci[oó]n\s*:?\s*([a-z0-9-]{6,})/i
+  );
+  return match?.[1] || null;
+};
+
 const extraerSeccion = (texto, nombre) => {
   const regex = new RegExp(`===\\s*${nombre}\\s*===([\\s\\S]*?)(?====|$)`, 'i');
   const match = texto.match(regex);
@@ -235,13 +309,26 @@ export const parsearComprobante = (stdout) => {
 // ============================================================
 export const parsearEvidencia = (stdout) => {
   const jsonPython = extraerJsonDelPython(stdout);
-  
+  const fechaHoraTexto = extraerFechaHoraEvidenciaTexto(stdout);
+  const referenciaTexto = extraerReferenciaEvidenciaTexto(stdout);
+
   if (jsonPython) {
-    // Devolver TAL CUAL el JSON del Python con todos los campos
-    return { ...jsonPython, valido: true };
+    const referencia = jsonPython.referencia_bancaria || jsonPython.numero_operacion ||
+      jsonPython.nro_operacion || referenciaTexto;
+    return {
+      ...jsonPython,
+      referencia_bancaria: referencia,
+      nro_operacion: jsonPython.nro_operacion || referencia,
+      fecha_operacion:
+        normalizarFechaEvidencia(jsonPython.fecha_operacion || jsonPython.fecha) ||
+        fechaHoraTexto.fecha,
+      hora_operacion:
+        normalizarHoraEvidencia(jsonPython.hora_operacion || jsonPython.hora) ||
+        fechaHoraTexto.hora,
+      valido: true,
+    };
   }
-  
-  // Fallback: si no hay JSON del Python, parsear el texto crudo (mínimo)
+
   const texto = limpiarTexto(stdout);
   let monto = null;
   const matchS = texto.match(/S\/\s*([\d.,]+)/);
@@ -250,9 +337,10 @@ export const parsearEvidencia = (stdout) => {
   return {
     monto,
     aplicacion_banco: null,
-    referencia_bancaria: null,
-    fecha_operacion: null,
-    hora_operacion: null,
+    referencia_bancaria: referenciaTexto,
+    nro_operacion: referenciaTexto,
+    fecha_operacion: fechaHoraTexto.fecha,
+    hora_operacion: fechaHoraTexto.hora,
     destinatario: null,
     valido: false
   };
