@@ -1,4 +1,4 @@
-import { Check, Clock, X, FileText, Wallet, Printer, Package, User, Calendar } from 'lucide-react';
+import { Check, Clock, X, FileText, Wallet, Printer, User, Calendar } from 'lucide-react';
 
 export function OperacionDetailDrawer({ selectedOp, onClose }) {
   if (!selectedOp) {
@@ -44,17 +44,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
   };
 
   const pagosList = Array.isArray(selectedOp.pagos) ? selectedOp.pagos : (Array.isArray(selectedOp.payments) ? selectedOp.payments : []);
-
-  let itemsList = [];
-  try {
-    if (selectedOp.items) {
-      itemsList = typeof selectedOp.items === 'string' ? JSON.parse(selectedOp.items) : selectedOp.items;
-    } else if (selectedOp.comprobante?.items) {
-      itemsList = typeof selectedOp.comprobante.items === 'string' ? JSON.parse(selectedOp.comprobante.items) : selectedOp.comprobante.items;
-    }
-  } catch (e) {
-    console.error("Error parseando items:", e);
-  }
 
   const dataComprobante = selectedOp.comprobante || selectedOp;
 
@@ -240,43 +229,6 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
             </div>
           </div>
         </div>
-
-        {/* BLOQUE: TABLA DE PRODUCTOS (ITEMS) */}
-        {itemsList.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 p-4 shadow-sm dark:shadow-none space-y-3 mt-2">
-            <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-2">
-              <span className="flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> Detalle de Productos ({itemsList.length})</span>
-            </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-600 pb-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400">
-                  <tr>
-                    <th className="px-2 py-2 font-semibold text-center w-12">Cant.</th>
-                    <th className="px-2 py-2 font-semibold">Descripción</th>
-                    <th className="px-2 py-2 font-semibold text-right">P. Unit</th>
-                    <th className="px-2 py-2 font-semibold text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-600 bg-white dark:bg-slate-800">
-                  {itemsList.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-colors">
-                      <td className="px-2 py-2 text-center text-slate-700 dark:text-slate-300 font-medium">{item.cantidad}</td>
-                      <td className="px-2 py-2 text-slate-900 dark:text-slate-100 font-medium whitespace-normal break-words max-w-[150px] sm:max-w-xs">
-                        {item.descripcion}
-                      </td>
-                      <td className="px-2 py-2 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        {formatCurrency(item.precio_unitario)}
-                      </td>
-                      <td className="px-2 py-2 text-right font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                        {formatCurrency(item.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {/* BLOQUE C: PAGOS */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 p-4 shadow-sm dark:shadow-none space-y-3 mt-2">

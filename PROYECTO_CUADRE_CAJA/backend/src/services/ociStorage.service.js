@@ -12,6 +12,11 @@ const {
   OCI_PRIVATE_KEY_PATH
 } = process.env;
 
+const PREAUTH_CACHE_TTL_MS = 60 * 60 * 1000;
+const PREAUTH_CACHE_SAFETY_MS = 5 * 60 * 1000;
+const preauthenticatedRequestCache = new Map();
+const pendingPreauthenticatedRequests = new Map();
+
 const createObjectStorageClient = () => {
   const privateKey = fs.readFileSync(
     OCI_PRIVATE_KEY_PATH,
@@ -74,32 +79,59 @@ export const deleteObject = async (objectName) => {
 };
 
 export const generatePreauthenticatedRequest = async (objectName, expirationHours = 24) => {
-  const client = createObjectStorageClient();
-  
-  // Calcular la fecha de expiración (por defecto 24 horas)
-  const timeExpires = new Date();
-  timeExpires.setHours(timeExpires.getHours() + expirationHours);
-
-  try {
-    const result = await client.createPreauthenticatedRequest({
-      namespaceName: OCI_NAMESPACE,
-      bucketName: OCI_BUCKET_NAME,
-      createPreauthenticatedRequestDetails: {
-        name: `PAR-${objectName}-${Date.now()}`,
-        objectName: objectName,
-        accessType: 'ObjectRead',
-        timeExpires: timeExpires.toISOString()
-      }
-    });
-
-    // OCI nos devuelve la ruta parcial, ej: /p/.../n/.../b/.../o/...
-    const accessUri = result.preauthenticatedRequest.accessUri;
-    
-    // Construimos la URL completa usando la región
-    return `https://objectstorage.${OCI_REGION}.oraclecloud.com${accessUri}`;
-  } catch (error) {
-    console.error('Error generando URL firmada para OCI:', error);
-    return null;
+  const cacheKey = `${expirationHours}:${objectName}`;
+  const cached = preauthenticatedRequestCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
   }
-};
+  if (cached) {
+    preauthenticatedRequestCache.delete(cacheKey);
+  }
 
+  const pendingRequest = pendingPreauthenticatedRequests.get(cacheKey);
+  if (pendingRequest) return pendingRequest;
+
+  const request = Promise.resolve().then(async () => {
+    try {
+      const client = createObjectStorageClient();
+      const timeExpires = new Date();
+      timeExpires.setHours(timeExpires.getHours() + expirationHours);
+
+      const result = await client.createPreauthenticatedRequest({
+        namespaceName: OCI_NAMESPACE,
+        bucketName: OCI_BUCKET_NAME,
+        createPreauthenticatedRequestDetails: {
+          name: `PAR-${objectName}-${Date.now()}`,
+          objectName,
+          accessType: 'ObjectRead',
+          timeExpires: timeExpires.toISOString()
+        }
+      });
+
+      const accessUri = result.preauthenticatedRequest.accessUri;
+      const url = `https://objectstorage.${OCI_REGION}.oraclecloud.com${accessUri}`;
+      const requestedTtlMs = expirationHours * 60 * 60 * 1000;
+      const cacheTtlMs = Math.max(
+        0,
+        Math.min(PREAUTH_CACHE_TTL_MS, requestedTtlMs - PREAUTH_CACHE_SAFETY_MS)
+      );
+
+      if (cacheTtlMs > 0) {
+        preauthenticatedRequestCache.set(cacheKey, {
+          url,
+          expiresAt: Date.now() + cacheTtlMs
+        });
+      }
+
+      return url;
+    } catch (error) {
+      console.error('Error generando URL firmada para OCI:', error);
+      return null;
+    } finally {
+      pendingPreauthenticatedRequests.delete(cacheKey);
+    }
+  });
+
+  pendingPreauthenticatedRequests.set(cacheKey, request);
+  return request;
+};
