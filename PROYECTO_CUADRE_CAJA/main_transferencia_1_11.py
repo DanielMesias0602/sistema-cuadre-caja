@@ -117,151 +117,266 @@ def extract_amount(lines):
         '0',
         str(texto)
     )
-    lineas_limpias = [corregir_ceros_ocr(linea) for linea in lines]
-    texto_completo = '\n'.join(lineas_limpias)
     normalizar_linea = lambda texto: ''.join(
         caracter
         for caracter in unicodedata.normalize('NFD', texto.lower())
         if unicodedata.category(caracter) != 'Mn'
     )
+    lineas_limpias = [corregir_ceros_ocr(linea) for linea in lines]
+    lineas_normalizadas = [normalizar_linea(linea) for linea in lineas_limpias]
+    texto_completo = '\n'.join(lineas_limpias)
     palabras_promocionales = (
         'impulsa', 'proyecto', 'credito', 'hasta', 'iracreditos',
         'tusproyecto'
     )
-    lineas_normalizadas = [normalizar_linea(linea) for linea in lineas_limpias]
     indices_promocionales = [
         indice
         for indice, linea in enumerate(lineas_normalizadas)
         if any(palabra in linea for palabra in palabras_promocionales)
     ]
-    candidatos = []
-    patron_monto_explicito = re.compile(
-        r'(?<![\d/])'
-        r'(?:(?P<prefijo>(?<![A-Z])[$S]\s*/?\s*|PEN\s*))?'
-        r'(?P<monto>[\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]+[.,]\d{2}|[\d]{1,6})'
-        r'(?![\d/])',
+    etiquetas_secundarias = re.compile(
+        r'\b(?:cuotas?|monto\s+aprox(?:imado)?|comision|'
+        r'mas\s+en\s+yape|impulsa|proyecto|credito|hasta|'
+        r'iracreditos|tusproyecto)\b',
         re.IGNORECASE
-    )
-    etiquetas_montos_secundarios = (
-        'cuotas', 'monto aprox', 'comision', 'mas en yape',
-        'impulsa', 'proyecto', 'credito', 'hasta', 'iracreditos',
-        'tusproyecto'
     )
     etiquetas_transaccion = (
         'yapeaste', 'importe enviado', 'transferiste', 'enviaste',
         'deposito', 'depositaste', 'monto'
     )
-    hay_monto_secundario = False
+    patron_numero = (
+        r'(?P<monto>\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|'
+        r'\d+[.,]\d{2}|\d+)'
+    )
+    patron_prefijo = re.compile(
+        r'(?<![A-Z])(?:PEN|[$S]\s*/?)\s*'
+        + patron_numero
+        + r'(?![\d/.,])',
+        re.IGNORECASE
+    )
+    patron_decimal = re.compile(
+        r'(?<![\d/.,])'
+        r'(?P<monto>\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|'
+        r'\d+[.,]\d{2})'
+        r'(?![\d/.,])'
+    )
+    patron_fecha = re.compile(
+        r'(?<!\d)\d{1,2}\s*[/.-]\s*\d{1,2}'
+        r'(?:\s*[/.-]\s*\d{2,4})?(?!\d)'
+    )
 
-    for indice, linea in enumerate(lineas_limpias):
-        for match in patron_monto_explicito.finditer(str(linea)):
-            valor_monto = match.group('monto')
-            prefijo_monetario = match.group('prefijo')
-            contexto_previo = ' '.join(
-                lineas_normalizadas[max(0, indice - 1):indice]
+    def es_monto_secundario(indice, inicio):
+        texto_actual_previo = lineas_normalizadas[indice][:inicio]
+        coincidencia_secundaria = etiquetas_secundarias.search(texto_actual_previo)
+        if coincidencia_secundaria:
+            etiqueta_transaccion_despues = re.search(
+                r'\b(?:yapeaste|importe\s+enviado|transferiste|enviaste|'
+                r'deposito|depositaste|total|monto(?!\s+aprox))\b',
+                texto_actual_previo[coincidencia_secundaria.end():]
             )
-            contexto_transaccion = ' '.join(
-                lineas_normalizadas[max(0, indice - 2):indice]
-            )
-            texto_antes_del_monto = lineas_normalizadas[indice][:match.start()]
-            texto_despues_del_monto = lineas_normalizadas[indice][match.end():]
-            texto_contexto = (
-                f'{contexto_transaccion} {texto_antes_del_monto} '
-                f'{texto_despues_del_monto}'
-            )
-            es_monto_decimal = bool(re.search(r'[.,]\d{2}$', valor_monto))
-            if not prefijo_monetario and not es_monto_decimal and not any(
-                etiqueta in texto_contexto
-                for etiqueta in etiquetas_transaccion
-            ):
-                continue
+            if not etiqueta_transaccion_despues:
+                return True
 
-            monto = parse_money(valor_monto)
-            if monto is None:
+        inicio_contexto = max(0, indice - 2)
+        for indice_previo in range(indice - 1, inicio_contexto - 1, -1):
+            texto_previo = lineas_normalizadas[indice_previo]
+            if not texto_previo.strip():
                 continue
-            contexto_monto = f'{contexto_previo} {texto_antes_del_monto}'
-            if any(
-                etiqueta in contexto_monto
-                for etiqueta in etiquetas_montos_secundarios
-            ):
-                hay_monto_secundario = True
-                continue
-
-            siguiente_linea_promocional = next(
-                (posicion for posicion in indices_promocionales if posicion >= indice),
-                None
-            )
-            es_promocional = (
-                any(palabra in lineas_normalizadas[indice] for palabra in palabras_promocionales)
-                or (
-                    siguiente_linea_promocional is not None
-                    and siguiente_linea_promocional - indice <= 1
+            if etiquetas_secundarias.search(texto_previo):
+                contexto_posterior = ' '.join(
+                    lineas_normalizadas[indice_previo + 1:indice + 1]
                 )
-            )
-            tiene_etiqueta_transaccion = any(
-                etiqueta in texto_contexto
-                for etiqueta in etiquetas_transaccion
-            )
-            tiene_etiqueta_transaccion = tiene_etiqueta_transaccion and not bool(
-                re.search(r'\bmonto\b\s+aprox', texto_contexto)
-            )
-            candidatos.append({
-                'indice': indice,
-                'monto': monto,
-                'promocional': es_promocional,
-                'transaccional': tiene_etiqueta_transaccion,
-                'yapeaste': 'yapeaste' in texto_contexto,
-                'deposito': 'deposito' in texto_contexto or 'depositaste' in texto_contexto,
-            })
+                if not re.search(
+                    r'\b(?:yapeaste|importe\s+enviado|transferiste|enviaste|'
+                    r'deposito|depositaste|total|monto(?!\s+aprox))\b',
+                    contexto_posterior
+                ):
+                    return True
+                break
+            if re.search(r'\d', texto_previo):
+                break
+        return False
+
+    # Capa 1: conservar la prioridad de los montos identificados por moneda.
+    candidatos_con_prefijo = []
+    for indice, linea in enumerate(lineas_limpias):
+        for match in patron_prefijo.finditer(linea):
+            if es_monto_secundario(indice, match.start()):
+                continue
+            monto = parse_money(match.group('monto'))
+            if monto is not None:
+                contexto = ' '.join(
+                    lineas_normalizadas[max(0, indice - 2):indice + 1]
+                )
+                candidatos_con_prefijo.append({
+                    'monto': monto,
+                    'yapeaste': 'yapeaste' in contexto,
+                    'deposito': (
+                        'deposito' in contexto or 'depositaste' in contexto
+                    ),
+                })
 
     candidato_yapeaste = next(
-        (candidato for candidato in candidatos if candidato['yapeaste']),
+        (candidato for candidato in candidatos_con_prefijo if candidato['yapeaste']),
         None
     )
     if candidato_yapeaste:
         return candidato_yapeaste['monto'], 'PEN'
 
     candidato_deposito = next(
-        (candidato for candidato in candidatos if candidato['deposito']),
+        (candidato for candidato in candidatos_con_prefijo if candidato['deposito']),
+        None
+    )
+    if candidato_deposito:
+        return candidato_deposito['monto'], 'PEN'
+
+    if candidatos_con_prefijo:
+        return candidatos_con_prefijo[0]['monto'], 'PEN'
+
+    # Capa 2: preservar la selección contextual y los respaldos por etiqueta.
+    candidatos_contextuales = []
+    for indice, linea in enumerate(lineas_limpias):
+        linea_normalizada = lineas_normalizadas[indice]
+        fechas = [match.span() for match in patron_fecha.finditer(linea_normalizada)]
+        for match in patron_decimal.finditer(linea):
+            if any(
+                inicio_fecha <= match.start() < fin_fecha
+                or inicio_fecha < match.end() <= fin_fecha
+                for inicio_fecha, fin_fecha in fechas
+            ):
+                continue
+            if es_monto_secundario(indice, match.start()):
+                continue
+
+            monto = parse_money(match.group('monto'))
+            if monto is None:
+                continue
+
+            contexto = ' '.join(
+                lineas_normalizadas[max(0, indice - 2):indice + 1]
+            )
+            tiene_etiqueta_transaccion = any(
+                etiqueta in contexto for etiqueta in etiquetas_transaccion
+            )
+            if re.search(r'\bmonto\b\s+aprox', contexto):
+                tiene_etiqueta_transaccion = False
+
+            candidatos_contextuales.append({
+                'monto': monto,
+                'transaccional': tiene_etiqueta_transaccion,
+                'yapeaste': 'yapeaste' in contexto,
+                'deposito': (
+                    'deposito' in contexto or 'depositaste' in contexto
+                ),
+            })
+
+    candidato_yapeaste = next(
+        (candidato for candidato in candidatos_contextuales if candidato['yapeaste']),
+        None
+    )
+    if candidato_yapeaste:
+        return candidato_yapeaste['monto'], 'PEN'
+
+    candidato_deposito = next(
+        (candidato for candidato in candidatos_contextuales if candidato['deposito']),
         None
     )
     if candidato_deposito:
         return candidato_deposito['monto'], 'PEN'
 
     candidato_transaccion = next(
-        (candidato for candidato in candidatos if candidato['transaccional']),
+        (
+            candidato for candidato in candidatos_contextuales
+            if candidato['transaccional']
+        ),
         None
     )
     if candidato_transaccion:
         return candidato_transaccion['monto'], 'PEN'
 
-    candidato_no_promocional = next(
-        (candidato for candidato in candidatos if not candidato['promocional']),
-        None
+    # Mantener los patrones históricos de Monto, Importe y Total.
+    patrones_etiquetados = (
+        r'Monto[\s\S]{0,30}?(?:S/\s*)?'
+        r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]+\.\d{2})',
+        r'Importe[\s\S]{0,30}?(?:S/\s*)?'
+        r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]+\.\d{2})',
+        r'Total[\s\S]{0,30}?(?:S/\s*)?'
+        r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]+\.\d{2})',
     )
-    if candidato_no_promocional:
-        return candidato_no_promocional['monto'], 'PEN'
-    if candidatos:
-        return None, None
-    if hay_monto_secundario:
-        return None, None
+    for patron in patrones_etiquetados:
+        for match in re.finditer(patron, texto_completo, re.IGNORECASE):
+            inicio_contexto = max(0, match.start() - 40)
+            contexto = normalizar_linea(texto_completo[inicio_contexto:match.start()])
+            monto_contexto = normalizar_linea(
+                texto_completo[match.start():match.end()]
+            )
+            if etiquetas_secundarias.search(contexto) or etiquetas_secundarias.search(monto_contexto):
+                continue
+            monto = parse_money(match.group(1))
+            if monto is not None:
+                return monto, 'PEN'
 
-    patrones = [
-        r'PEN\s*([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
-        r'Monto[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
-        r'Importe[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
-        r'Total[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
-        r'S/\s*([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
-        r's/\s*([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
-        r'S/\s*([\d]{1,6})(?!\d)',
-        r's/\s*([\d]{1,6})(?!\d)',
-    ]
-    for patron in patrones:
+    # Capa 3: elegir el mayor decimal que no sea fecha ni monto secundario.
+    candidatos_decimales = []
+    for indice, linea in enumerate(lineas_limpias):
+        linea_normalizada = lineas_normalizadas[indice]
+        fechas = [match.span() for match in patron_fecha.finditer(linea_normalizada)]
+        siguiente_linea_promocional = next(
+            (
+                posicion for posicion in indices_promocionales
+                if posicion >= indice
+            ),
+            None
+        )
+        tiene_etiqueta_importe = bool(
+            re.search(
+                r'\b(?:monto(?!\s+aprox)|importe|total|yapeaste|'
+                r'importe\s+enviado|transferiste|enviaste|deposito|'
+                r'depositaste)\b',
+                linea_normalizada
+            )
+        )
+        linea_promocional = (
+            any(palabra in linea_normalizada for palabra in palabras_promocionales)
+            or (
+                siguiente_linea_promocional is not None
+                and siguiente_linea_promocional - indice <= 1
+                and not tiene_etiqueta_importe
+            )
+        )
+        if linea_promocional:
+            continue
+
+        for match in patron_decimal.finditer(linea):
+            if any(
+                inicio_fecha <= match.start() < fin_fecha
+                or inicio_fecha < match.end() <= fin_fecha
+                for inicio_fecha, fin_fecha in fechas
+            ):
+                continue
+            if es_monto_secundario(indice, match.start()):
+                continue
+            monto = parse_money(match.group('monto'))
+            if monto is not None:
+                candidatos_decimales.append(monto)
+
+    if candidatos_decimales:
+        return max(candidatos_decimales), 'PEN'
+
+    # Conservar el respaldo histórico de moneda; solo aceptar enteros con divisa.
+    patrones_monedas_legacy = (
+        r'PEN\s*([\d]{1,6})(?![\d/.,])',
+        r'[$S]\s*/?\s*([\d]{1,6})(?![\d/.,])',
+    )
+    for patron in patrones_monedas_legacy:
         match = re.search(patron, texto_completo, re.IGNORECASE)
-        if match:
-            amount = parse_money(match.group(1))
-            if amount is not None:
-                return amount, 'PEN'
+        if match and not etiquetas_secundarias.search(
+            normalizar_linea(texto_completo[max(0, match.start() - 40):match.start()])
+        ):
+            monto = parse_money(match.group(1))
+            if monto is not None:
+                return monto, 'PEN'
+
     return None, None
 
 # ============================================================
