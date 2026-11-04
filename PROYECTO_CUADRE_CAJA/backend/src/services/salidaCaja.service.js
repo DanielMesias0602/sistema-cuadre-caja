@@ -291,23 +291,52 @@ export const registrarSalidaCaja = async ({
       [idCierreSalida]
     );
 
-    const totalSalidasActuales = Number(totalActualResult.rows[0].total_salidas);
+    const totalSalidasActuales = Number(totalActualResult.rows[0].total_salidas || 0);
+
+    const totalesEfectivoResult = await client.query(
+      `SELECT
+         COALESCE(SUM(p.monto), 0) AS total_ingresos,
+         COALESCE(
+           SUM(CASE
+             WHEN mp.es_efectivo = FALSE
+               OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+             THEN p.monto ELSE 0
+           END),
+           0
+         ) AS total_no_efectivo
+       FROM operacion o
+       JOIN pago p ON p.id_operacion = o.id_operacion
+       JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+       WHERE o.id_cierre = $1
+         AND COALESCE(o.estado, '') <> 'ANULADA'
+         AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')`,
+      [idCierreSalida]
+    );
 
     // ============================
     // 4. CALCULAR NUEVOS TOTALES
     // ============================
 
-    const nuevoTotalSalidas = totalSalidasActuales + montoNumerico;
-    const efectivoEsperado = Number(cierre.efectivo_esperado || 0);
-    const efectivoDespuesSalidas = efectivoEsperado - nuevoTotalSalidas;
+    const efectivoEsperado = Number(totalesEfectivoResult.rows[0].total_ingresos || 0)
+      - Number(totalesEfectivoResult.rows[0].total_no_efectivo || 0);
+    const efectivoDisponible = Math.round(
+      (efectivoEsperado - totalSalidasActuales) * 100
+    ) / 100;
 
     // ============================
     // 5. VALIDAR EFECTIVO DISPONIBLE
     // ============================
 
-    if (efectivoDespuesSalidas < 0) {
+    if (montoNumerico > efectivoDisponible) {
       throw new SalidaCajaError('No hay efectivo suficiente en caja para registrar esta salida', 400);
     }
+
+    const nuevoTotalSalidas = Math.round(
+      (totalSalidasActuales + montoNumerico) * 100
+    ) / 100;
+    const efectivoDespuesSalidas = Math.round(
+      (efectivoDisponible - montoNumerico) * 100
+    ) / 100;
 
     // ============================
     // 6. INSERTAR SALIDA

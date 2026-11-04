@@ -110,6 +110,25 @@ test('preserves Spanish Ñ from Python JSON through Node parsing and serializati
   assert.doesNotMatch(serializado, /ALEXANDRA PENA/);
 });
 
+test('uses Python receipt totals instead of recalculating from conflicting text', () => {
+  const salida = `=== TOTALES ===
+IGV: S/ 18.45
+Total: S/ 690.31
+
+DATOS EXTRAIDOS:
+{
+  "total": 792.80,
+  "igv": 120.94,
+  "op_gravada": 671.86
+}`;
+
+  const datos = parsearComprobante(salida);
+
+  assert.equal(datos.monto, 792.80);
+  assert.equal(datos.igv, 120.94);
+  assert.equal(datos.op_gravada, 671.86);
+});
+
 test('does not replace explicit null name fields from Python with raw OCR guesses', () => {
   const salida = `DATOS EXTRAIDOS:
 {

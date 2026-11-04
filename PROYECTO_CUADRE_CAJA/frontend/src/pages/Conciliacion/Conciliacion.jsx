@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useSocket } from '../../hooks/useSocket';
+import { useDatosActualizados } from '../../hooks/useSocket';
 import api from '../../lib/api';
 import {
   Plus, CheckCircle, AlertCircle, RefreshCw, Search,
@@ -31,13 +31,14 @@ const evaluarOperacion = (opPago, opEmpresa, medioPago) => {
 export function Conciliacion() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const socket = useSocket();
 
   const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [conciliaciones, setConciliaciones] = useState([]);
+  const [poniendoEnRevisionId, setPoniendoEnRevisionId] = useState(null);
+  const [estadoRevision, setEstadoRevision] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaFiltro, setFechaFiltro] = useState('');
@@ -65,7 +66,10 @@ export function Conciliacion() {
   });
 
   // NUEVO: Detectar si la fecha del formulario ya está conciliada
-  const yaConciliado = conciliaciones.some(c => c.fecha === formConciliacion.fecha);
+  const yaConciliado = conciliaciones.some(
+    c => c.fecha === formConciliacion.fecha &&
+      String(c.resultado || '').toUpperCase() === 'CONCILIADO'
+  );
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);
@@ -100,24 +104,9 @@ export function Conciliacion() {
 
   useEffect(() => { void Promise.resolve().then(cargarDatos); }, [cargarDatos]);
 
-  useEffect(() => {
-    if (!socket) return undefined;
-    const actualizarConciliaciones = () => {
-      void cargarDatos();
-    };
-    const eventos = [
-      'operacion_creada',
-      'pago_actualizado',
-      'salida_creada',
-      'cierre_actualizado',
-      'ajuste_creado',
-    ];
-    eventos.forEach((evento) => socket.on(evento, actualizarConciliaciones));
-
-    return () => {
-      eventos.forEach((evento) => socket.off(evento, actualizarConciliaciones));
-    };
-  }, [socket, cargarDatos]);
+  useDatosActualizados(() => {
+    void cargarDatos();
+  });
 
   const calcularPreCalculo = async (fecha) => {
     try {
@@ -131,6 +120,37 @@ export function Conciliacion() {
         total_no_efectivo: 0, total_efectivo_esperado: 0, total_salidas: 0,
         operaciones_pendientes_evidencia: 0, operaciones_con_numeros: []
       });
+    }
+  };
+
+  const handlePonerEnRevision = async (conciliacion) => {
+    const motivo = window.prompt('Indica el motivo para poner esta conciliación en revisión:');
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      setEstadoRevision({ tipo: 'error', mensaje: 'Debes indicar el motivo para ponerla en revisión.' });
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Confirmas poner en revisión la conciliación del ${formatearFecha(conciliacion.fecha)}?`
+    );
+    if (!confirmar) return;
+
+    setPoniendoEnRevisionId(conciliacion.id_conciliacion);
+    setEstadoRevision(null);
+    try {
+      await api.put(`/conciliaciones/${conciliacion.id_conciliacion}/revisar`, {
+        motivo: motivo.trim()
+      });
+      setEstadoRevision({ tipo: 'success', mensaje: 'Conciliación puesta en revisión.' });
+      await recargarDatos();
+    } catch (err) {
+      setEstadoRevision({
+        tipo: 'error',
+        mensaje: err.response?.data?.message || err.message || 'No se pudo poner la conciliación en revisión.'
+      });
+    } finally {
+      setPoniendoEnRevisionId(null);
     }
   };
 
@@ -214,6 +234,16 @@ export function Conciliacion() {
         </div>
       </div>
 
+      {estadoRevision && (
+        <div className={`rounded-xl border p-3 text-sm font-medium ${
+          estadoRevision.tipo === 'error'
+            ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+        }`}>
+          {estadoRevision.mensaje}
+        </div>
+      )}
+
       {/* FILTROS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm dark:border-slate-600 dark:bg-slate-800/60 dark:shadow-none">
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -277,6 +307,12 @@ export function Conciliacion() {
                 </div>
               </div>
 
+              {String(c.resultado || '').toUpperCase() === 'EN REVISIÓN' && c.observacion && (
+                <div className="border-b border-rose-100 bg-rose-50/70 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+                  <span className="font-bold">Observación:</span> {c.observacion}
+                </div>
+              )}
+
               <div className="p-3 sm:p-4 flex-1">
                 <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
                   <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
@@ -330,11 +366,24 @@ export function Conciliacion() {
                 )}
               </div>
 
-              <div className="bg-slate-50/80 p-3 border-t border-slate-100 flex justify-end dark:bg-slate-800 dark:border-slate-600">
+              <div className="bg-slate-50/80 p-3 border-t border-slate-100 flex justify-end gap-2 dark:bg-slate-800 dark:border-slate-600">
                 <button onClick={() => navigate(`/reportes?fecha=${c.fecha}`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-blue-700 hover:bg-blue-50 text-xs font-bold transition shadow-sm cursor-pointer dark:bg-slate-700 dark:border-slate-600 dark:text-blue-400 dark:hover:bg-slate-600 dark:shadow-none">
                   <BarChart2 className="h-3.5 w-3.5" />
                   Ver Reporte
                 </button>
+                {esAdmin && String(c.resultado || '').toUpperCase() === 'CONCILIADO' && (
+                  <button
+                    type="button"
+                    onClick={() => handlePonerEnRevision(c)}
+                    disabled={poniendoEnRevisionId === c.id_conciliacion}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/60 dark:bg-slate-700 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:shadow-none"
+                  >
+                    {poniendoEnRevisionId === c.id_conciliacion
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <AlertTriangle className="h-3.5 w-3.5" />}
+                    Poner en Revisión
+                  </button>
+                )}
               </div>
 
             </div>
@@ -525,8 +574,8 @@ export function Conciliacion() {
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5 dark:text-slate-300">Resultado <span className="text-rose-500">*</span></label>
                 <select value={formConciliacion.resultado} onChange={(e) => setFormConciliacion({ ...formConciliacion, resultado: e.target.value })} className="w-full h-[42px] rounded-xl border border-slate-300 bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-brand-orange/20 outline-none cursor-pointer dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                  <option value="CONCILIADO">CONCILIADO (Diferencia 0.00)</option>
-                  <option value="CON DIFERENCIA">CON DIFERENCIA (Revisar)</option>
+                  <option value="CONCILIADO">CONCILIADO</option>
+                  <option value="EN REVISIÓN">EN REVISIÓN</option>
                 </select>
               </div>
 

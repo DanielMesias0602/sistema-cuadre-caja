@@ -762,6 +762,40 @@ def extraer_totales_desordenados(texto):
     return op_gravada_candidata, igv_candidato, total_candidato
 
 
+def extraer_totales_matematicos(texto):
+    lineas = _texto_comprobante_sin_json(texto).splitlines()
+    patron_total = re.compile(
+        r"\bTOTAL(?=\s|S|:|$)",
+        re.IGNORECASE
+    )
+    indices_total = [
+        indice
+        for indice, linea in enumerate(lineas)
+        if patron_total.search(linea)
+    ]
+    if not indices_total:
+        return None
+
+    indice_total = indices_total[-1]
+    lineas_totales = lineas[indice_total:indice_total + 6]
+    patron_monto = re.compile(
+        r"(?<![\d/])\d{1,3}(?:[.,]\d{3})*[.,]\d{2}(?!\d)"
+    )
+    montos = [
+        normalizar_monto(coincidencia.group(0))
+        for linea in lineas_totales
+        for coincidencia in patron_monto.finditer(linea)
+    ]
+    montos = [monto for monto in montos if monto is not None and monto > 0]
+    if not montos:
+        return None
+
+    total = max(montos)
+    igv = round(total - (total / 1.18), 2)
+    op_gravada = round(total - igv, 2)
+    return op_gravada, igv, total
+
+
 def validar_totales_comprobante(resultado):
     op_gravada = resultado.get("op_gravada")
     igv = resultado.get("igv")
@@ -1278,6 +1312,14 @@ def extraer_datos_comprobante(textos):
             resultado["igv"],
             resultado["total"],
         ) = totales_desordenados
+
+    totales_matematicos = extraer_totales_matematicos(texto_completo)
+    if totales_matematicos is not None:
+        (
+            resultado["op_gravada"],
+            resultado["igv"],
+            resultado["total"],
+        ) = totales_matematicos
 
     # ========================================================
     # VALIDACION MATEMATICA DE TOTALES

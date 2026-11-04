@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../lib/api';
-import { useSocket } from '../../hooks/useSocket';
+import { useDatosActualizados } from '../../hooks/useSocket';
 import { PagoDetailDrawer } from './PagoDetailDrawer';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 
 export function Pagos() {
-  const socket = useSocket();
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -97,18 +96,9 @@ export function Pagos() {
     void Promise.resolve().then(cargarDatos);
   }, [cargarDatos]);
 
-  useEffect(() => {
-    if (!socket) return undefined;
-    const actualizarPagos = () => {
-      void cargarDatos();
-    };
-    const eventos = ['operacion_creada', 'operacion_actualizada', 'pago_actualizado', 'ajuste_creado'];
-    eventos.forEach((evento) => socket.on(evento, actualizarPagos));
-
-    return () => {
-      eventos.forEach((evento) => socket.off(evento, actualizarPagos));
-    };
-  }, [socket, cargarDatos]);
+  useDatosActualizados(() => {
+    void cargarDatos();
+  });
 
   const todosLosPagos = useMemo(() => {
     const list = [];

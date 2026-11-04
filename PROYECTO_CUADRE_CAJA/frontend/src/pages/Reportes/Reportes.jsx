@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import api from '../../lib/api';
-import { useSocket } from '../../hooks/useSocket';
+import { useDatosActualizados } from '../../hooks/useSocket';
 import jsPDF from 'jspdf';
 import ExcelJS from 'exceljs';
 import html2canvas from 'html2canvas';
@@ -27,7 +27,6 @@ import {
 import { notifyToast } from '../../components/ui/toastEvents';
 
 export function Reportes() {
-  const socket = useSocket();
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,23 +55,9 @@ export function Reportes() {
     void Promise.resolve().then(cargarDatos);
   }, [cargarDatos]);
 
-  useEffect(() => {
-    if (!socket) return undefined;
-    const actualizarReportes = () => {
-      void cargarDatos();
-    };
-    const eventos = [
-      'operacion_creada',
-      'pago_actualizado',
-      'salida_creada',
-      'ajuste_creado',
-    ];
-    eventos.forEach((evento) => socket.on(evento, actualizarReportes));
-
-    return () => {
-      eventos.forEach((evento) => socket.off(evento, actualizarReportes));
-    };
-  }, [socket, cargarDatos]);
+  useDatosActualizados(() => {
+    void cargarDatos();
+  });
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);

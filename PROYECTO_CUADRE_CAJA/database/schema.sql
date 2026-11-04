@@ -469,7 +469,10 @@ CREATE TABLE conciliacion (
         FOREIGN KEY (id_usuario)
         REFERENCES usuario (id_usuario)
         ON DELETE RESTRICT
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT ck_conciliacion_resultado
+        CHECK (resultado IN ('CONCILIADO', 'EN REVISIÓN'))
 );
 
 
@@ -570,13 +573,7 @@ CREATE INDEX idx_detalle_operacion
 -- 14. DATOS INICIALES DE CATÁLOGOS
 -- ============================================================
 --
--- IMPORTANTE:
--- VALE se mantiene como medio independiente.
--- No se fuerza aquí una interpretación adicional sobre
--- si debe considerarse efectivo para el cálculo.
---
--- Los valores pueden ser revisados posteriormente con
--- las reglas definitivas del negocio.
+-- VALE se considera no efectivo para el cálculo del efectivo esperado.
 -- ============================================================
 
 INSERT INTO medio_pago (nombre, es_efectivo)
@@ -586,7 +583,9 @@ VALUES
     ('Yape BBVA', FALSE),
     ('Transferencia BCP', FALSE),
     ('Transferencia BBVA', FALSE),
-    ('Tarjeta', FALSE)
+    ('Tarjeta', FALSE),
+    ('Vale', FALSE),
+    ('Depósito', FALSE)
 ON CONFLICT (nombre) DO NOTHING;
 
 

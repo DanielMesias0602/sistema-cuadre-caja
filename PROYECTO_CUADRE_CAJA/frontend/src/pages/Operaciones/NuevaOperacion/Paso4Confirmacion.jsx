@@ -362,6 +362,12 @@ export function Paso4Confirmacion({
           return {
             id_medio_pago: pago.id_medio_pago,
             monto: Number(pago.monto),
+            monto_efectivo: pago.monto_efectivo === '' || pago.monto_efectivo == null
+              ? null
+              : Number(pago.monto_efectivo),
+            monto_virtual: pago.monto_virtual === '' || pago.monto_virtual == null
+              ? null
+              : Number(pago.monto_virtual),
             referencia_bancaria: pago.referencia || null,
             observacion: obsFinal || null,
             fecha_operacion: pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion || null,

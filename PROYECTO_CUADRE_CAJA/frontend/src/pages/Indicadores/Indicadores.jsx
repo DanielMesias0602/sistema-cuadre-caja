@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
+import { useDatosActualizados } from '../../hooks/useSocket';
 import {
   RefreshCw, DollarSign, Receipt, XCircle, TrendingUp, Banknote, Wallet,
   CreditCard, Smartphone, AlertTriangle, CheckCircle, TrendingDown, FileText,
@@ -62,7 +63,7 @@ export function Indicadores() {
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     try {
       const [resInd, resMedios, resOps] = await Promise.all([
         api.get('/reportes/indicadores'),
@@ -92,7 +93,7 @@ export function Indicadores() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   const recargarDatos = () => {
     setLoading(true);
@@ -100,7 +101,10 @@ export function Indicadores() {
     return cargarDatos();
   };
 
-  useEffect(() => { void Promise.resolve().then(cargarDatos); }, []);
+  useEffect(() => { void Promise.resolve().then(cargarDatos); }, [cargarDatos]);
+  useDatosActualizados(() => {
+    void cargarDatos();
+  });
 
   const COLORS = ['#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
 

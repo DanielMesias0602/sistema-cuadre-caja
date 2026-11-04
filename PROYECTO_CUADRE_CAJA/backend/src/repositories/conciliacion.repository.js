@@ -14,7 +14,12 @@ export const createConciliacion = async ({
 
 export const findConciliacionById = async (idConciliacion) => {
   const result = await query(
-    `SELECT id_conciliacion, id_usuario, fecha, diferencia_detectada, resultado, observacion, fecha_registro
+    `SELECT id_conciliacion, id_usuario, fecha, diferencia_detectada,
+            CASE
+              WHEN UPPER(resultado) = 'CONCILIADO' THEN 'CONCILIADO'
+              ELSE 'EN REVISIÓN'
+            END AS resultado,
+            observacion, fecha_registro
      FROM conciliacion WHERE id_conciliacion = $1`, [idConciliacion]
   );
   return result.rows[0] ?? null;
@@ -22,7 +27,25 @@ export const findConciliacionById = async (idConciliacion) => {
 
 export const findConciliacionByFecha = async (fecha) => {
   const result = await query(
-    `SELECT id_conciliacion FROM conciliacion WHERE fecha = $1`, [fecha]
+    `SELECT id_conciliacion
+     FROM conciliacion
+     WHERE fecha = $1
+       AND UPPER(resultado) = 'CONCILIADO'`,
+    [fecha]
+  );
+  return result.rows[0] ?? null;
+};
+
+export const ponerConciliacionEnRevision = async (idConciliacion, observacion) => {
+  const result = await query(
+    `UPDATE conciliacion
+     SET resultado = 'EN REVISIÓN',
+         observacion = $2
+     WHERE id_conciliacion = $1
+       AND UPPER(resultado) = 'CONCILIADO'
+     RETURNING id_conciliacion, id_usuario, fecha, diferencia_detectada,
+               resultado, observacion, fecha_registro`,
+    [idConciliacion, observacion]
   );
   return result.rows[0] ?? null;
 };
@@ -31,7 +54,12 @@ export const findAllConciliaciones = async () => {
   const result = await query(
     `SELECT
        c.id_conciliacion, c.id_usuario, TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha,
-       c.diferencia_detectada AS diferencia, c.resultado, c.observacion, c.fecha_registro,
+       c.diferencia_detectada AS diferencia,
+       CASE
+         WHEN UPPER(c.resultado) = 'CONCILIADO' THEN 'CONCILIADO'
+         ELSE 'EN REVISIÓN'
+       END AS resultado,
+       c.observacion, c.fecha_registro,
        u.nombres || ' ' || u.apellidos AS usuario
      FROM conciliacion c
      LEFT JOIN usuario u ON u.id_usuario = c.id_usuario
@@ -62,7 +90,11 @@ export const findCierresByFecha = async (fecha) => {
        SELECT
          COALESCE(SUM(p.monto), 0) AS total_ingresos,
          COALESCE(
-           SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END),
+           SUM(CASE
+             WHEN mp.es_efectivo = FALSE
+               OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+             THEN p.monto ELSE 0
+           END),
            0
          ) AS total_no_efectivo
        FROM operacion o
@@ -98,7 +130,10 @@ export const contarOperacionesSinEvidenciaEmpresaPorFecha = async (fecha) => {
      WHERE o.fecha = $1
        AND COALESCE(o.estado, '') <> 'ANULADA'
        AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
-       AND mp.es_efectivo = FALSE
+       AND (
+         mp.es_efectivo = FALSE
+         OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+       )
        AND NOT EXISTS (
          SELECT 1 FROM evidencia e
          WHERE e.id_operacion = o.id_operacion
@@ -138,7 +173,10 @@ export const findOperacionesConNumeros = async (fecha) => {
      JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
      WHERE o.fecha = $1
        AND o.estado != 'ANULADA'
-       AND mp.es_efectivo = FALSE`,
+       AND (
+         mp.es_efectivo = FALSE
+         OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+       )`,
     [fecha]
   );
   return result.rows;

@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { useSocket } from '../../hooks/useSocket';
+import { useDatosActualizados } from '../../hooks/useSocket';
 import api from '../../lib/api';
 import { 
   Plus, 
@@ -28,7 +28,6 @@ import { getFechaPeru, getHoraPeru } from '../../utils/horaPeru';
 
 export function CierresCaja() {
   const { user } = useAuth();
-  const socket = useSocket();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cierres, setCierres] = useState([]);
@@ -100,23 +99,9 @@ export function CierresCaja() {
     void Promise.resolve().then(cargarDatos);
   }, [cargarDatos]);
 
-  useEffect(() => {
-    if (!socket) return undefined;
-    const actualizarCierres = () => {
-      void cargarDatos();
-    };
-    const eventos = [
-      'operacion_creada',
-      'pago_actualizado',
-      'salida_creada',
-      'cierre_actualizado',
-    ];
-    eventos.forEach((evento) => socket.on(evento, actualizarCierres));
-
-    return () => {
-      eventos.forEach((evento) => socket.off(evento, actualizarCierres));
-    };
-  }, [socket, cargarDatos]);
+  useDatosActualizados(() => {
+    void cargarDatos();
+  });
 
   const cierresFiltrados = useMemo(() => {
     return cierres.filter(c => {

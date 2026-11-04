@@ -396,7 +396,11 @@ export const actualizarRegistroOperacion = async (idOperacion, data, idUsuario) 
     }
 
     const medioPagoResult = await client.query(
-      `SELECT id_medio_pago, es_efectivo
+      `SELECT id_medio_pago,
+              CASE
+                WHEN LOWER(TRIM(nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+                ELSE es_efectivo
+              END AS es_efectivo
        FROM medio_pago
        WHERE id_medio_pago = $1 AND estado = TRUE`,
       [idMedioPago]
@@ -581,25 +585,125 @@ export const registerOperacionUnificada = async (data) => {
     // 3. Crear pagos secuencialmente y conservar su índice de entrada.
     const createdPagos = [];
     const pagosPorIndice = [];
+    let totalPagosCentimos = 0;
     for (let index = 0; index < pagos.length; index += 1) {
       const pago = pagos[index];
       const medioPagoResult = await client.query(
-        `SELECT es_efectivo
+        `SELECT
+           id_medio_pago,
+           nombre,
+           CASE
+             WHEN LOWER(TRIM(nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+             ELSE es_efectivo
+           END AS es_efectivo
          FROM medio_pago
-         WHERE id_medio_pago = $1`,
+         WHERE id_medio_pago = $1 AND estado = TRUE`,
         [pago.id_medio_pago]
       );
 
-      const esEfectivo = medioPagoResult.rows.length > 0 && medioPagoResult.rows[0].es_efectivo;
-      const estadoInicial = esEfectivo ? 'VERIFICADO' : (pago.estado || 'REGISTRADO');
-      const pagoCreado = await createPago({
-        ...pago,
-        id_operacion: newOperacion.id_operacion,
-        estado: estadoInicial
-      }, client);
+      const medioPago = medioPagoResult.rows[0];
+      if (!medioPago) {
+        const error = new Error('El medio de pago no existe o está inactivo');
+        error.statusCode = 400;
+        throw error;
+      }
 
-      createdPagos.push(pagoCreado);
-      pagosPorIndice.push({ index, pago, pagoCreado, esEfectivo });
+      const esVale = String(medioPago.nombre || '').trim().toLowerCase() === 'vale';
+      const mediosParaRegistrar = [];
+      if (esVale) {
+        const montoEfectivo = Number(pago.monto_efectivo);
+        const montoVirtual = Number(pago.monto_virtual);
+        if (
+          !Number.isFinite(montoEfectivo) ||
+          !Number.isFinite(montoVirtual) ||
+          montoEfectivo <= 0 ||
+          montoVirtual <= 0
+        ) {
+          const error = new Error('El Vale requiere montos efectivo y virtual mayores que cero');
+          error.statusCode = 400;
+          throw error;
+        }
+
+        const mediosValeResult = await client.query(
+          `SELECT id_medio_pago, LOWER(TRIM(nombre)) AS nombre_normalizado
+           FROM medio_pago
+           WHERE estado = TRUE
+             AND LOWER(TRIM(nombre)) IN ('efectivo', 'vale')`
+        );
+        const idMedioEfectivo = mediosValeResult.rows.find(
+          (medio) => medio.nombre_normalizado === 'efectivo'
+        )?.id_medio_pago;
+        const idMedioVale = mediosValeResult.rows.find(
+          (medio) => medio.nombre_normalizado === 'vale'
+        )?.id_medio_pago;
+        if (!idMedioEfectivo || !idMedioVale) {
+          const error = new Error('Se requieren medios de pago activos "Efectivo" y "Vale"');
+          error.statusCode = 409;
+          throw error;
+        }
+
+        const totalValeCentimos = Math.round(montoEfectivo * 100) + Math.round(montoVirtual * 100);
+        const montoEnviadoCentimos = Math.round(Number(pago.monto) * 100);
+        if (!Number.isFinite(montoEnviadoCentimos) || montoEnviadoCentimos !== totalValeCentimos) {
+          const error = new Error('El monto total del Vale no coincide con sus componentes');
+          error.statusCode = 400;
+          throw error;
+        }
+
+        totalPagosCentimos += totalValeCentimos;
+        mediosParaRegistrar.push(
+          {
+            id_medio_pago: idMedioEfectivo,
+            monto: montoEfectivo,
+            referencia_bancaria: null,
+            es_efectivo: true
+          },
+          {
+            id_medio_pago: idMedioVale,
+            monto: montoVirtual,
+            referencia_bancaria: pago.referencia_bancaria ?? null,
+            es_efectivo: false
+          }
+        );
+      } else {
+        const montoPago = Number(pago.monto);
+        if (!Number.isFinite(montoPago) || montoPago <= 0) {
+          const error = new Error('El monto del pago debe ser mayor que cero');
+          error.statusCode = 400;
+          throw error;
+        }
+        totalPagosCentimos += Math.round(montoPago * 100);
+        mediosParaRegistrar.push({
+          id_medio_pago: medioPago.id_medio_pago,
+          monto: montoPago,
+          referencia_bancaria: medioPago.es_efectivo ? null : pago.referencia_bancaria ?? null,
+          es_efectivo: medioPago.es_efectivo
+        });
+      }
+
+      for (const medio of mediosParaRegistrar) {
+        const estadoInicial = medio.es_efectivo
+          ? 'VERIFICADO'
+          : (pago.estado || 'REGISTRADO');
+        const pagoCreado = await createPago({
+          ...pago,
+          id_operacion: newOperacion.id_operacion,
+          id_medio_pago: medio.id_medio_pago,
+          monto: medio.monto,
+          referencia_bancaria: medio.referencia_bancaria,
+          estado: estadoInicial
+        }, client);
+
+        createdPagos.push(pagoCreado);
+        pagosPorIndice.push({ index, pago, pagoCreado, esEfectivo: medio.es_efectivo });
+      }
+    }
+
+    const montoOperacionCentimos = Math.round(Number(operacion?.monto || comprobante?.monto || 0) * 100);
+    if (!Number.isFinite(montoOperacionCentimos) || totalPagosCentimos > montoOperacionCentimos) {
+      const error = new Error('El total de pagos no puede superar el monto de la operación');
+      error.statusCode = 400;
+      throw error;
     }
 
     // index_pago solo se usa para vincular en memoria; no existe en evidencia.

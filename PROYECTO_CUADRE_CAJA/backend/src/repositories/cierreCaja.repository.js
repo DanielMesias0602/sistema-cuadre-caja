@@ -6,7 +6,11 @@ const TOTALES_DINAMICOS_CIERRE_SQL = `
     SELECT
       COALESCE(SUM(p.monto), 0) AS total_ingresos,
       COALESCE(
-        SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END),
+        SUM(CASE
+          WHEN mp.es_efectivo = FALSE
+            OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+          THEN p.monto ELSE 0
+        END),
         0
       ) AS total_no_efectivo
     FROM operacion o
@@ -91,6 +95,7 @@ export const findParticipantesCierre = async (idCierre) => {
          AND COALESCE(o.estado, '') <> 'ANULADA'
          AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
          AND mp.es_efectivo = TRUE
+         AND LOWER(TRIM(mp.nombre)) NOT IN ('vale', 'deposito', 'depósito')
        GROUP BY o.id_usuario
      )
      SELECT
@@ -185,7 +190,11 @@ export const getTotalesParaCierre = async (fecha, turno, client = null, id_cierr
   const result = await executor.query(
     `SELECT
        COALESCE(SUM(p.monto), 0) as total_ingresos,
-       COALESCE(SUM(CASE WHEN mp.es_efectivo = FALSE THEN p.monto ELSE 0 END), 0) as total_no_efectivo
+       COALESCE(SUM(CASE
+         WHEN mp.es_efectivo = FALSE
+           OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+         THEN p.monto ELSE 0
+       END), 0) as total_no_efectivo
      FROM operacion o
      JOIN comprobante c ON c.id_comprobante = o.id_comprobante
      JOIN pago p ON p.id_operacion = o.id_operacion
@@ -221,7 +230,10 @@ export const contarOperacionesSinEvidenciaEmpresa = async (idCierre) => {
      WHERE o.id_cierre = $1
        AND COALESCE(o.estado, '') <> 'ANULADA'
        AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
-       AND mp.es_efectivo = FALSE
+       AND (
+         mp.es_efectivo = FALSE
+         OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+       )
        AND NOT EXISTS (
          SELECT 1 FROM evidencia e
          WHERE e.id_operacion = o.id_operacion

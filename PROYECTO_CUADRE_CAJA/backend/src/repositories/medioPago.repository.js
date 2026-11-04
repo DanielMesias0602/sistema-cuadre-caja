@@ -5,7 +5,10 @@ export const findAllMediosPago = async () => {
     `SELECT
        id_medio_pago,
        nombre,
-       es_efectivo,
+       CASE
+         WHEN LOWER(TRIM(nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+         ELSE es_efectivo
+       END AS es_efectivo,
        estado
      FROM medio_pago
      WHERE estado = TRUE
@@ -20,7 +23,10 @@ export const findMedioPagoById = async (idMedioPago) => {
     `SELECT
        id_medio_pago,
        nombre,
-       es_efectivo,
+       CASE
+         WHEN LOWER(TRIM(nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+         ELSE es_efectivo
+       END AS es_efectivo,
        estado
      FROM medio_pago
      WHERE id_medio_pago = $1`,

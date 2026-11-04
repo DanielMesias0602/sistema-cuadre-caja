@@ -104,7 +104,10 @@ export const findOperacionesReport = async (filters) => {
              'id_pago', p.id_pago,
              'id_medio_pago', mp.id_medio_pago,
              'medio_pago', mp.nombre,
-             'es_efectivo', mp.es_efectivo,
+             'es_efectivo', CASE
+               WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+               ELSE mp.es_efectivo
+             END,
              'monto', p.monto,
              'estado', p.estado,
              'referencia_bancaria', p.referencia_bancaria
@@ -123,7 +126,10 @@ export const findOperacionesReport = async (filters) => {
            SELECT 1 FROM pago p2
            INNER JOIN medio_pago mp2 ON mp2.id_medio_pago = p2.id_medio_pago
            WHERE p2.id_operacion = o.id_operacion
-             AND mp2.es_efectivo = FALSE
+             AND (
+               mp2.es_efectivo = FALSE
+               OR LOWER(TRIM(mp2.nombre)) IN ('vale', 'deposito', 'depósito')
+             )
              AND COALESCE(p2.estado, '') NOT IN ('ANULADO', 'ANULADA')
          )
          AND NOT EXISTS (
@@ -195,7 +201,10 @@ export const findPagosPorMedioReport = async (filters) => {
     `SELECT
        mp.id_medio_pago,
        mp.nombre AS medio_pago,
-       mp.es_efectivo,
+       CASE
+         WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+         ELSE mp.es_efectivo
+       END AS es_efectivo,
        COUNT(p.id_pago)::INTEGER AS cantidad_pagos,
        COUNT(DISTINCT p.id_operacion)::INTEGER AS cantidad_operaciones,
        COALESCE(SUM(p.monto), 0) AS total_monto
@@ -497,7 +506,8 @@ export const findDashboardReport = async (filters) => {
        FROM pago p
        INNER JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
        INNER JOIN operaciones_filtradas of ON of.id_operacion = p.id_operacion
-       WHERE mp.es_efectivo = FALSE
+       WHERE (mp.es_efectivo = FALSE
+         OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito'))
          AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA') 
      )
 
@@ -602,7 +612,12 @@ export const findIndicadoresCompletos = async (filters) => {
          AND ($2::date IS NULL OR o.fecha <= $2::date)
      ),
      pagos AS (
-       SELECT p.*, mp.nombre AS medio_pago, mp.es_efectivo, o.fecha, o.estado AS estado_op
+       SELECT p.*, mp.nombre AS medio_pago,
+              CASE
+                WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+                ELSE mp.es_efectivo
+              END AS es_efectivo,
+              o.fecha, o.estado AS estado_op
        FROM pago p
        JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
        JOIN operacion o ON o.id_operacion = p.id_operacion
@@ -623,7 +638,7 @@ export const findIndicadoresCompletos = async (filters) => {
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = TRUE AND estado_op != 'ANULADA') AS monto_efectivo,
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = FALSE AND estado_op != 'ANULADA') AS monto_virtual,
        (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE medio_pago ILIKE '%tarjeta%' AND estado_op != 'ANULADA') AS monto_tarjeta,
-       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE (medio_pago ILIKE '%yape%' OR medio_pago ILIKE '%transfer%') AND estado_op != 'ANULADA') AS monto_yape_transf,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE (medio_pago ILIKE '%yape%' OR medio_pago ILIKE '%transfer%' OR medio_pago ILIKE '%deposit%' OR medio_pago ILIKE '%depósito%') AND estado_op != 'ANULADA') AS monto_yape_transf,
        (SELECT COALESCE(SUM(diferencia), 0) FROM cierres) AS diferencia_acumulada,
        (SELECT COUNT(*)::INT FROM cierres WHERE diferencia <> 0) AS cierres_con_diferencia,
        (SELECT COUNT(*)::INT FROM cierres) AS total_cierres,

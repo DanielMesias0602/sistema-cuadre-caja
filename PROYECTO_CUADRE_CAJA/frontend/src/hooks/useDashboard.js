@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { dashboardService } from '../services/dashboard.service';
-import { useSocket } from './useSocket';
+import { useDatosActualizados } from './useSocket';
 
 export function useDashboard() {
-  const socket = useSocket();
   const [metrics, setMetrics] = useState(null);
   const [pagosPorMedio, setPagosPorMedio] = useState([]);
   const [operacionesRecientes, setOperacionesRecientes] = useState([]);
@@ -73,23 +72,7 @@ export function useDashboard() {
     void Promise.resolve().then(fetchDashboardData);
   }, [fetchDashboardData]);
 
-  useEffect(() => {
-    if (!socket) return undefined;
-    const actualizarDashboard = () => {
-      void fetchDashboardData();
-    };
-    const eventos = [
-      'operacion_creada',
-      'operacion_actualizada',
-      'pago_actualizado',
-      'ajuste_creado',
-    ];
-    eventos.forEach((evento) => socket.on(evento, actualizarDashboard));
-
-    return () => {
-      eventos.forEach((evento) => socket.off(evento, actualizarDashboard));
-    };
-  }, [socket, fetchDashboardData]);
+  useDatosActualizados(fetchDashboardData);
 
   const updateFilters = (newFilters) => {
     setLoading(true);

@@ -26,12 +26,17 @@ export function SocketProvider({ children }) {
     const handleConnectionError = (error) => {
       console.error('Error de conexión en tiempo real:', error.message);
     };
+    const handleDatosActualizados = (detail) => {
+      window.dispatchEvent(new CustomEvent('datos_actualizados', { detail }));
+    };
 
     socket.on('connect_error', handleConnectionError);
+    socket.on('datos_actualizados', handleDatosActualizados);
     socket.connect();
 
     return () => {
       socket.off('connect_error', handleConnectionError);
+      socket.off('datos_actualizados', handleDatosActualizados);
       socket.disconnect();
     };
   }, [socket]);

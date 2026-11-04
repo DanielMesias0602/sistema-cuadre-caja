@@ -219,18 +219,6 @@ export const reabrirCierreCaja = async (idCierre) => {
   }
 
   const cierreReabierto = await withTransaction(async (client) => {
-    const conciliacionResult = await client.query(
-      'SELECT id_conciliacion FROM conciliacion WHERE fecha = $1',
-      [cierre.fecha]
-    );
-    if (conciliacionResult.rows.length > 0) {
-      const error = new Error(
-        'No se puede reabrir el cierre porque el día ya tiene una Conciliación registrada. Debe anular la conciliación primero.'
-      );
-      error.statusCode = 409;
-      throw error;
-    }
-
     const result = await client.query(
       `UPDATE cierre_caja
        SET estado = $1

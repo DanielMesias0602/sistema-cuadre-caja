@@ -5,8 +5,10 @@ import {
   findCierresByFecha,
   findConciliacionByFecha,
   contarOperacionesSinEvidenciaEmpresaPorFecha,
-  findOperacionesConNumeros
+  findOperacionesConNumeros,
+  ponerConciliacionEnRevision as actualizarConciliacionEnRevision
 } from '../repositories/conciliacion.repository.js';
+import { emitirEvento } from './socket.service.js';
 
 const validationError = (message) => {
   const error = new Error(message);
@@ -52,21 +54,30 @@ export const registrarConciliacion = async ({
 
   const diferenciaNumerica = Number(diferencia_detectada);
   if (!Number.isFinite(diferenciaNumerica)) throw validationError('La diferencia detectada debe ser numérica');
-  if (!resultado || !resultado.trim()) throw validationError('El resultado de la conciliación es obligatorio');
-  if (resultado.trim().length > 30) throw validationError('El resultado no puede superar los 30 caracteres');
+  if (typeof resultado !== 'string' || !resultado.trim()) {
+    throw validationError('El resultado de la conciliación es obligatorio');
+  }
+  const resultadoNormalizado = resultado.trim().toUpperCase() === 'EN REVISION'
+    ? 'EN REVISIÓN'
+    : resultado.trim().toUpperCase();
+  if (!['CONCILIADO', 'EN REVISIÓN'].includes(resultadoNormalizado)) {
+    throw validationError('El resultado debe ser CONCILIADO o EN REVISIÓN');
+  }
 
   const existe = await findConciliacionByFecha(fecha);
   if (existe) {
     throw validationError(`Ya existe una conciliación registrada para la fecha ${fecha}`);
   }
 
-  return createConciliacion({
+  const conciliacion = await createConciliacion({
     id_usuario,
     fecha,
     diferencia_detectada: diferenciaNumerica,
-    resultado: resultado.trim(),
+    resultado: resultadoNormalizado,
     observacion: observacion?.trim() || null
   });
+  emitirEvento('conciliacion_actualizada', { id: conciliacion.id_conciliacion });
+  return conciliacion;
 };
 
 export const obtenerConciliacion = async (idConciliacion) => {
@@ -77,6 +88,57 @@ export const obtenerConciliacion = async (idConciliacion) => {
     throw error;
   }
   return conciliacion;
+};
+
+export const ponerConciliacionEnRevision = async (idConciliacion, idUsuario, motivo) => {
+  const idNumerico = Number(idConciliacion);
+  if (!Number.isInteger(idNumerico) || idNumerico <= 0) {
+    throw validationError('El identificador de conciliación no es válido');
+  }
+  if (!idUsuario) throw validationError('El usuario es obligatorio');
+  if (typeof motivo !== 'string' || !motivo.trim()) {
+    throw validationError('El motivo para poner en revisión es obligatorio');
+  }
+  if (motivo.trim().length > 400) {
+    throw validationError('El motivo no puede superar los 400 caracteres');
+  }
+
+  const conciliacion = await obtenerConciliacion(idNumerico);
+  if (String(conciliacion.resultado || '').toUpperCase() === 'EN REVISIÓN') {
+    const error = new Error('La conciliación ya está en revisión');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (String(conciliacion.resultado || '').toUpperCase() !== 'CONCILIADO') {
+    const error = new Error('Solo se puede poner en revisión una conciliación conciliada');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const registroRevision = `Puesta en revisión por usuario #${idUsuario}. Motivo: ${motivo.trim()}`;
+  const observacionAnterior = String(conciliacion.observacion || '').trim();
+  const limiteObservacionAnterior = Math.max(
+    0,
+    500 - registroRevision.length - (observacionAnterior ? 1 : 0)
+  );
+  const observacion = [
+    observacionAnterior.slice(0, limiteObservacionAnterior),
+    registroRevision
+  ].filter(Boolean).join('\n');
+  const conciliacionEnRevision = await actualizarConciliacionEnRevision(
+    idNumerico,
+    observacion
+  );
+
+  if (!conciliacionEnRevision) {
+    const error = new Error('La conciliación ya está en revisión');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  emitirEvento('conciliacion_actualizada', { id: idNumerico, resultado: 'EN REVISIÓN' });
+  return conciliacionEnRevision;
 };
 
 export const listarConciliaciones = async () => {

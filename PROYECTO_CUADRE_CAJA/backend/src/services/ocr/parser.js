@@ -159,23 +159,6 @@ const reparsearSerieNumero = (texto) => {
   return null;
 };
 
-const reparsearMonto = (texto, op_gravada, igv) => {
-  if (op_gravada !== null && igv !== null) return redondear(op_gravada + igv);
-  const textoLimpio = quitarBloqueJson(texto)
-    .replace(/\d{2}\/\d{2}\/\d{4}/g, ' ')
-    .replace(/\d{2}:\d{2}(?::\d{2})?/g, ' ')
-    .replace(/\b\d{8,}\b/g, ' ');
-  const montos = [];
-  const regexM = /\b(\d{1,3}(?:[,.]\d{3})*[,.]\d{2})\b/g;
-  let m;
-  while ((m = regexM.exec(textoLimpio)) !== null) {
-    const n = parseFloat(m[1].replace(/,/g, ''));
-    if (!isNaN(n) && n > 0) montos.push(n);
-  }
-  if (montos.length > 0) return redondear(Math.max(...montos));
-  return null;
-};
-
 const reparsearCliente = (texto) => {
   const textoLimpio = quitarBloqueJson(texto);
   const lineas = textoLimpio.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -273,7 +256,9 @@ export const parsearComprobante = (stdout) => {
   const vendedor = jsonPython && Object.hasOwn(jsonPython, 'vendedor')
     ? jsonPython.vendedor
     : vendedorTexto;
-  const op_gravada = reparsearOpGravada(texto);
+  const op_gravada = jsonPython
+    ? jsonPython.op_gravada ?? null
+    : reparsearOpGravada(texto);
   const fecha = reparsearFecha(texto);
   const items = parsearItemsDeSeccion(seccionProductos);
   
@@ -287,12 +272,13 @@ export const parsearComprobante = (stdout) => {
     }
   }
   
-  const igv = extraerMonto(seccionTotales, 'IGV') || (jsonPython?.igv ? redondear(jsonPython.igv) : null);
+  const igv = jsonPython
+    ? jsonPython.igv ?? null
+    : extraerMonto(seccionTotales, 'IGV');
   
-  let monto = extraerMonto(seccionTotales, 'Total');
-  if (monto === null) monto = reparsearMonto(texto, op_gravada, igv);
-  const montoPython = jsonPython?.monto ?? jsonPython?.total;
-  if (monto === null && montoPython != null) monto = redondear(montoPython);
+  const monto = jsonPython
+    ? jsonPython.monto ?? jsonPython.total ?? null
+    : extraerMonto(seccionTotales, 'Total');
   
   return {
     tipo_comprobante: extraerCampo(seccionDatos, 'Tipo') || jsonPython?.tipo_comprobante || null,
@@ -302,9 +288,13 @@ export const parsearComprobante = (stdout) => {
     vendedor: vendedor ?? null,
     cliente: cliente || jsonPython?.cliente || null,
     monto, igv,
-    efectivo: extraerMonto(seccionTotales, 'Efectivo') || (jsonPython?.efectivo ? redondear(jsonPython.efectivo) : null),
-    moneda: extraerCampo(seccionTotales, 'Moneda') || jsonPython?.moneda || 'PEN',
-    op_gravada: op_gravada || (jsonPython?.op_gravada ? redondear(jsonPython.op_gravada) : null),
+    efectivo: jsonPython
+      ? jsonPython.efectivo ?? null
+      : extraerMonto(seccionTotales, 'Efectivo'),
+    moneda: jsonPython
+      ? jsonPython.moneda ?? 'PEN'
+      : extraerCampo(seccionTotales, 'Moneda') || 'PEN',
+    op_gravada,
     items: items.length > 0 ? items : (jsonPython?.items ?? jsonPython?.productos ?? []),
     valido: true
   };

@@ -51,7 +51,15 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
   const pendiente = montoComprobante - totalPagado;
   const excede = totalPagado > montoComprobante;
 
-  const todosCompletos = pagos.length > 0 && pagos.every(p => p.id_medio_pago && Number(p.monto) > 0);
+  const todosCompletos = pagos.length > 0 && pagos.every((p) => {
+    const monto = Number(p.monto);
+    if (!p.id_medio_pago || !Number.isFinite(monto) || monto <= 0) return false;
+    if (String(p.nombre_medio || '').trim().toLowerCase() !== 'vale') return true;
+    const montoEfectivo = Number(p.monto_efectivo);
+    const montoVirtual = Number(p.monto_virtual);
+    return Number.isFinite(montoEfectivo) && montoEfectivo > 0 &&
+      Number.isFinite(montoVirtual) && montoVirtual > 0;
+  });
 
   // FIX: detectar los 3 tipos de error por separado
   const sinPagos = pagos.length === 0;
@@ -189,7 +197,12 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
               onPagoChange={(updated) => handlePagoChange(index, updated)}
               onEliminar={() => handleEliminarPago(index)}
               puedeEliminar={pagos.length > 1}
-              mostrarError={intentoAvanzar && (!pago.id_medio_pago || !Number(pago.monto))}
+              mostrarError={intentoAvanzar && (
+                !pago.id_medio_pago ||
+                !Number(pago.monto) ||
+                (String(pago.nombre_medio || '').trim().toLowerCase() === 'vale' &&
+                  (!Number(pago.monto_efectivo) || !Number(pago.monto_virtual)))
+              )}
             />
           ))}
         </div>
@@ -275,6 +288,8 @@ function inicialPagoVacio() {
     nombre_medio: '',
     es_efectivo: false,
     monto: '',
+    monto_efectivo: '',
+    monto_virtual: '',
     referencia: '',
     observacion: '',
     evidencia: null,

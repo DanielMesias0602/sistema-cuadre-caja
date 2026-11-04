@@ -127,7 +127,7 @@ OP. GRAVADA S/ :
       cliente: 'LIZ FRANCESCA LOZA AYBAR',
       vendedor: 'JEFFERSON',
       monto: 2279.00,
-      op_gravada: 1931.36,
+      op_gravada: 3,
       igv: 347.64,
       moneda: 'PEN',
       items_count: 1
@@ -212,7 +212,7 @@ ODONTOMIA S.A.C.`,
       hora: '10:11:24',
       cliente: 'ODONTOMIA S.A.C.',
       vendedor: 'LORENA',
-      monto: 528.90,
+      monto: null,
       op_gravada: 448.22,
       igv: 80.68,
       moneda: 'PEN',
@@ -271,7 +271,7 @@ OP. GRAVADA S/ :
       cliente: 'GLORIA ESMERALDA DE PAZ DE CORTEZ',
       vendedor: 'LORENA',
       monto: 30.00,
-      op_gravada: 25.42,
+      op_gravada: null,
       igv: 4.58,
       moneda: 'PEN',
       items_count: 1
@@ -330,7 +330,7 @@ OP. GRAVADA S/ :
       cliente: 'GRUPO DEL RIOS E.I.R.L.',
       vendedor: 'JEFFERSON',
       monto: 1472.00,
-      op_gravada: 1247.46,
+      op_gravada: null,
       igv: 224.54,
       moneda: 'PEN',
       items_count: 1
@@ -643,6 +643,28 @@ export const fixturesPythonComprobantes = [
       op_gravada: 343.22,
       igv: 61.78,
       total: 405,
+      cliente: null,
+      vendedor: null
+    }
+  },
+  {
+    id: 'Totales desordenados con etiquetas agrupadas',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      '[0.93] OP.GRAVADA S/:',
+      '[0.94] I.G.V.S/:',
+      '[1.00] 671.86',
+      '[0.97] TOTALS/:',
+      '[1.00] 120.94',
+      '[1.00] 792.80'
+    ],
+    esperado: {
+      tipo_comprobante: 'BOLETA',
+      fecha: null,
+      hora: null,
+      op_gravada: 671.86,
+      igv: 120.94,
+      total: 792.8,
       cliente: null,
       vendedor: null
     }

@@ -23,6 +23,8 @@ export const registerPago = async (data) => {
     id_operacion,
     id_medio_pago,
     monto,
+    monto_efectivo,
+    monto_virtual,
     referencia_bancaria = null,
     observacion = null
   } = data;
@@ -68,9 +70,15 @@ export const registerPago = async (data) => {
      * Los pagos virtuales quedan pendientes para verificar en Evidencias.
      */
     const medioPagoResult = await client.query(
-      `SELECT es_efectivo
+      `SELECT
+         id_medio_pago,
+         nombre,
+         CASE
+         WHEN LOWER(TRIM(nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+         ELSE es_efectivo
+       END AS es_efectivo
        FROM medio_pago
-       WHERE id_medio_pago = $1`,
+       WHERE id_medio_pago = $1 AND estado = TRUE`,
       [id_medio_pago]
     );
 
@@ -82,7 +90,30 @@ export const registerPago = async (data) => {
       throw error;
     }
 
-    const esEfectivo = medioPagoResult.rows[0].es_efectivo;
+    const medioPago = medioPagoResult.rows[0];
+    const esVale = String(medioPago.nombre || '').trim().toLowerCase() === 'vale';
+    const esEfectivo = medioPago.es_efectivo;
+    const montoEfectivo = Number(monto_efectivo);
+    const montoVirtual = Number(monto_virtual);
+    const montoTotal = esVale ? montoEfectivo + montoVirtual : Number(monto);
+    if (
+      !Number.isFinite(montoTotal) ||
+      montoTotal <= 0 ||
+      (esVale && (
+        !Number.isFinite(montoEfectivo) ||
+        !Number.isFinite(montoVirtual) ||
+        montoEfectivo <= 0 ||
+        montoVirtual <= 0 ||
+        Math.round(montoTotal * 100) !== Math.round(Number(monto) * 100)
+      ))
+    ) {
+      const error = new Error(esVale
+        ? 'El Vale requiere montos efectivo y virtual mayores que cero y un total válido'
+        : 'El monto del pago debe ser mayor que cero');
+      error.statusCode = 400;
+      throw error;
+    }
+
     const estadoInicial = esEfectivo ? 'VERIFICADO' : 'REGISTRADO';
 
     console.log(`[registerPago] id_medio_pago: ${id_medio_pago}, esEfectivo: ${esEfectivo}, estadoInicial: ${estadoInicial}`);
@@ -143,22 +174,22 @@ export const registerPago = async (data) => {
       [id_operacion]
     );
 
-    const totalPagado = pagosResult.rows
+    const totalPagadoCentimos = pagosResult.rows
       .filter((pago) => pago.estado !== 'ANULADO')
       .reduce(
-        (total, pago) => total + Number(pago.monto),
+        (total, pago) => total + Math.round(Number(pago.monto) * 100),
         0
       );
 
-    const nuevoTotal = totalPagado + Number(monto);
-    const montoOperacion = Number(operacion.monto);
+    const nuevoTotalCentimos = totalPagadoCentimos + Math.round(montoTotal * 100);
+    const montoOperacionCentimos = Math.round(Number(operacion.monto) * 100);
 
     /*
      * Regla oficial:
      *
      * SUM(PAGO.monto) <= OPERACION.monto
      */
-    if (nuevoTotal > montoOperacion) {
+    if (nuevoTotalCentimos > montoOperacionCentimos) {
       const error = new Error(
         'El total de pagos no puede superar el monto total de la operación'
       );
@@ -169,17 +200,56 @@ export const registerPago = async (data) => {
     /*
      * Primero registramos el pago con el estado determinado.
      */
-    const pago = await createPago(
-      {
+    let pagosRegistrados;
+    if (esVale) {
+      const mediosValeResult = await client.query(
+        `SELECT id_medio_pago, LOWER(TRIM(nombre)) AS nombre_normalizado
+         FROM medio_pago
+         WHERE estado = TRUE
+           AND LOWER(TRIM(nombre)) IN ('efectivo', 'vale')`
+      );
+      const idMedioEfectivo = mediosValeResult.rows.find(
+        (medio) => medio.nombre_normalizado === 'efectivo'
+      )?.id_medio_pago;
+      const idMedioVale = mediosValeResult.rows.find(
+        (medio) => medio.nombre_normalizado === 'vale'
+      )?.id_medio_pago;
+      if (!idMedioEfectivo || !idMedioVale) {
+        const error = new Error('Se requieren medios de pago activos "Efectivo" y "Vale"');
+        error.statusCode = 409;
+        throw error;
+      }
+
+      const pagoEfectivo = await createPago({
         id_operacion,
-        id_medio_pago,
-        monto,
+        id_medio_pago: idMedioEfectivo,
+        monto: montoEfectivo,
+        referencia_bancaria: null,
+        observacion,
+        estado: 'VERIFICADO'
+      }, client);
+      const pagoVale = await createPago({
+        id_operacion,
+        id_medio_pago: idMedioVale,
+        monto: montoVirtual,
         referencia_bancaria,
         observacion,
-        estado: estadoInicial
-      },
-      client
-    );
+        estado: 'REGISTRADO'
+      }, client);
+      pagosRegistrados = [pagoEfectivo, pagoVale];
+    } else {
+      pagosRegistrados = [await createPago(
+        {
+          id_operacion,
+          id_medio_pago,
+          monto,
+          referencia_bancaria,
+          observacion,
+          estado: estadoInicial
+        },
+        client
+      )];
+    }
 
     /*
      * Cuando el total pagado alcanza exactamente
@@ -188,7 +258,7 @@ export const registerPago = async (data) => {
      *
      * No cambiamos el estado durante un pago parcial.
      */
-    if (nuevoTotal === montoOperacion) {
+    if (nuevoTotalCentimos === montoOperacionCentimos) {
       await client.query(
         `UPDATE operacion
          SET estado = 'PAGADA', fecha_modificacion = CURRENT_TIMESTAMP
@@ -197,11 +267,11 @@ export const registerPago = async (data) => {
       );
     }
 
-    return pago;
+    return pagosRegistrados;
   });
 
-  emitirEvento('pago_actualizado', { id: pago.id_pago });
-  return pago;
+  emitirEvento('pago_actualizado', { id: pago[0].id_pago, ids: pago.map((item) => item.id_pago) });
+  return pago.length === 1 ? pago[0] : { pagos: pago, monto: monto };
 };
 
 export const modifyPago = async (idPago, data) => {
@@ -285,7 +355,10 @@ export const modifyPago = async (idPago, data) => {
       ? Number(id_medio_pago)
       : Number(pagoActual.id_medio_pago);
     const medioPagoResult = await client.query(
-      `SELECT es_efectivo
+      `SELECT CASE
+         WHEN LOWER(TRIM(nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+         ELSE es_efectivo
+       END AS es_efectivo
        FROM medio_pago
        WHERE id_medio_pago = $1 AND estado = TRUE`,
       [nuevoIdMedioPago]

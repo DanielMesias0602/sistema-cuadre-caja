@@ -173,10 +173,12 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
   // LÓGICA DE RENDERIZADO DINÁMICO CORREGIDA
   const hayMedio = Boolean(pago.id_medio_pago); // <-- NUEVA VALIDACIÓN
   const medioLower = String(pago.nombre_medio || '').toLowerCase();
-  
-  const esEfectivo = Boolean(pago.es_efectivo || medioLower.includes('efectivo'));
+  const esVale = medioLower.trim() === 'vale';
+  const esDeposito = medioLower.includes('deposito') || medioLower.includes('depósito');
+  const esEfectivo = !esVale && !esDeposito &&
+    Boolean(pago.es_efectivo || medioLower.includes('efectivo'));
   const esTarjeta = medioLower.includes('tarjeta') || medioLower.includes('pos');
-  const esTransferencia = medioLower.includes('transferencia') || medioLower.includes('deposito') || medioLower.includes('depósito');
+  const esTransferencia = medioLower.includes('transferencia') || esDeposito;
   const esTransferenciaBCP = esTransferencia && medioLower.includes('bcp');
 
   const mostrarRef = true;
@@ -197,6 +199,8 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
       nombre_medio: medioSeleccionado ? medioSeleccionado.nombre : '',
       es_efectivo: medioSeleccionado ? medioSeleccionado.es_efectivo : false,
       monto: '',
+      monto_efectivo: '',
+      monto_virtual: '',
       referencia: '',
       fecha_operacion: '',
       evidencia: null
@@ -260,7 +264,7 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
     const cuentaDestinoDetectada = datos.cuenta_destino || '';
     const montoActual = pago.monto !== '' && pago.monto != null
       ? pago.monto
-      : (montoDetectado ?? '');
+      : (esVale ? '' : (montoDetectado ?? ''));
 
     onPagoChange({
       ...pago,
@@ -304,6 +308,7 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
       .map((campo) => campo.editable
         ? {
           ...campo,
+          editable: !(esVale && campo.field === 'monto'),
           onValueChange: (value) => handleChange(campo.field, value),
           disabled: loadingOCR
         }
@@ -352,16 +357,75 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto (S/) *</label>
-          <input
-            type="number"
-            value={pago.monto}
-            onChange={(e) => handleChange('monto', e.target.value)}
-            placeholder="0.00"
-            step="0.01"
-            disabled={loadingOCR}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-          />
+          {esVale ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto efectivo (S/) *</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  value={pago.monto_efectivo || ''}
+                  onChange={(e) => {
+                    const montoEfectivo = e.target.value;
+                    const montoTotal = Number(montoEfectivo || 0) + Number(pago.monto_virtual || 0);
+                    onPagoChange({
+                      ...pago,
+                      monto_efectivo: montoEfectivo,
+                      monto: montoTotal > 0 ? montoTotal.toFixed(2) : ''
+                    });
+                  }}
+                  placeholder="0.00"
+                  step="0.01"
+                  disabled={loadingOCR}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto virtual (S/) *</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  value={pago.monto_virtual || ''}
+                  onChange={(e) => {
+                    const montoVirtual = e.target.value;
+                    const montoTotal = Number(pago.monto_efectivo || 0) + Number(montoVirtual || 0);
+                    onPagoChange({
+                      ...pago,
+                      monto_virtual: montoVirtual,
+                      monto: montoTotal > 0 ? montoTotal.toFixed(2) : ''
+                    });
+                  }}
+                  placeholder="0.00"
+                  step="0.01"
+                  disabled={loadingOCR}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto total del pago (S/)</label>
+                <input
+                  type="number"
+                  value={pago.monto || ''}
+                  readOnly
+                  aria-label="Monto total del pago"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto (S/) *</label>
+              <input
+                type="number"
+                value={pago.monto}
+                onChange={(e) => handleChange('monto', e.target.value)}
+                placeholder="0.00"
+                step="0.01"
+                disabled={loadingOCR}
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+              />
+            </>
+          )}
         </div>
 
         {/* CAMPOS DINÁMICOS */}
