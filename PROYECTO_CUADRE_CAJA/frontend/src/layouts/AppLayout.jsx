@@ -183,7 +183,15 @@ function AppLayout() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 flex-row items-center gap-2 sm:gap-3">
+            <div className="hidden min-w-0 max-w-48 flex-col items-end text-right md:flex">
+              <span className="block max-w-full truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                {user?.nombres ? `${user.nombres} ${user.apellidos}` : (user?.usuario || 'Usuario')}
+              </span>
+              <small className="block max-w-full truncate text-xs text-slate-500 dark:text-slate-400">
+                {user?.condicion_personal ? `${user.condicion_personal} | ${user.rol}` : (user?.rol || 'Sesión activa')}
+              </small>
+            </div>
             <button
               type="button"
               onClick={toggleTheme}
@@ -193,14 +201,6 @@ function AppLayout() {
             >
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
             </button>
-            <div className="hidden min-w-0 max-w-48 flex-col items-end text-right md:flex">
-              <span className="block truncate text-sm font-bold text-slate-800 dark:text-slate-100">
-                {user?.nombres ? `${user.nombres} ${user.apellidos}` : (user?.usuario || 'Usuario')}
-              </span>
-              <small className="block max-w-full truncate text-xs text-slate-500 dark:text-slate-400">
-                {user?.condicion_personal ? `${user.condicion_personal} | ${user.rol}` : (user?.rol || 'Sesión activa')}
-              </small>
-            </div>
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}

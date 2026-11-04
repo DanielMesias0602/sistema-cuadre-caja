@@ -130,16 +130,34 @@ def extract_amount(lines):
     ]
     candidatos = []
     patron_monto_explicito = re.compile(
-        r'(?:S/\s*|PEN\s*)'
+        r'(?:(?<![A-Z])[$S]\s*/?\s*|PEN\s*)'
         r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]{1,6})',
         re.IGNORECASE
     )
+    etiquetas_montos_secundarios = (
+        'cuotas', 'monto aprox', 'comision', 'mas en yape',
+        'impulsa', 'proyecto', 'credito', 'hasta', 'iracreditos',
+        'tusproyecto'
+    )
+    hay_monto_secundario = False
 
     for indice, linea in enumerate(lines):
         for match in patron_monto_explicito.finditer(str(linea)):
             monto = parse_money(match.group(1))
             if monto is None:
                 continue
+            contexto_previo = ' '.join(
+                lineas_normalizadas[max(0, indice - 1):indice]
+            )
+            texto_antes_del_monto = lineas_normalizadas[indice][:match.start()]
+            contexto_monto = f'{contexto_previo} {texto_antes_del_monto}'
+            if any(
+                etiqueta in contexto_monto
+                for etiqueta in etiquetas_montos_secundarios
+            ):
+                hay_monto_secundario = True
+                continue
+
             siguiente_linea_promocional = next(
                 (posicion for posicion in indices_promocionales if posicion >= indice),
                 None
@@ -151,17 +169,30 @@ def extract_amount(lines):
                     and siguiente_linea_promocional - indice <= 1
                 )
             )
-            texto_previo = ' '.join(lineas_normalizadas[max(0, indice - 2):indice + 1])
+            texto_previo = ' '.join(
+                lineas_normalizadas[max(0, indice - 2):indice]
+            ) + ' ' + texto_antes_del_monto
             tiene_etiqueta_transaccion = any(
                 etiqueta in texto_previo
-                for etiqueta in ('yapeaste', 'monto', 'importe enviado', 'transferiste', 'enviaste')
+                for etiqueta in ('yapeaste', 'importe enviado', 'transferiste', 'enviaste')
+            )
+            tiene_etiqueta_transaccion = tiene_etiqueta_transaccion or bool(
+                re.search(r'\bmonto\b(?!\s+aprox)', texto_previo)
             )
             candidatos.append({
                 'indice': indice,
                 'monto': monto,
                 'promocional': es_promocional,
                 'transaccional': tiene_etiqueta_transaccion,
+                'yapeaste': 'yapeaste' in texto_previo,
             })
+
+    candidato_yapeaste = next(
+        (candidato for candidato in candidatos if candidato['yapeaste']),
+        None
+    )
+    if candidato_yapeaste:
+        return candidato_yapeaste['monto'], 'PEN'
 
     candidato_transaccion = next(
         (candidato for candidato in candidatos if candidato['transaccional']),
@@ -177,6 +208,8 @@ def extract_amount(lines):
     if candidato_no_promocional:
         return candidato_no_promocional['monto'], 'PEN'
     if candidatos:
+        return None, None
+    if hay_monto_secundario:
         return None, None
 
     patrones = [
