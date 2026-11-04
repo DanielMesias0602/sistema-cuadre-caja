@@ -369,7 +369,7 @@ def extract_reference(lines):
         r'\boperaci[oó6]n\b',
         re.IGNORECASE
     )
-    numero_referencia = re.compile(r'(?<!\d)(\d{6,16})(?!\d)')
+    numero_referencia = re.compile(r'(?<!\d)(\d(?:[\s.-]*\d){5,15})(?!\d)')
     etiqueta = re.compile(
         r'(?:n[uú]mero|numero|nro\.?|n[°º])\s*(?:de\s*)?'
         r'(?:operaci[oó6]n|movimiento|transferencia)|'
@@ -401,6 +401,12 @@ def extract_reference(lines):
             return None
         return value
 
+    def normalizar_numero_operacion(value):
+        digitos = re.sub(r'\D', '', value)
+        while len(digitos) > 8 and digitos.startswith('0'):
+            digitos = digitos[1:]
+        return digitos
+
     lineas = [str(line) for line in lines]
 
     for indice, linea in enumerate(lineas):
@@ -411,7 +417,7 @@ def extract_reference(lines):
             for valor in candidatos:
                 match_numero = numero_referencia.search(valor)
                 if match_numero:
-                    return match_numero.group(1)
+                    return normalizar_numero_operacion(match_numero.group(1))
 
     for tipo_etiqueta in ('transferencia', 'movimiento', 'operacion', 'referencia', 'codigo'):
         for indice, linea in enumerate(lineas):
@@ -531,6 +537,14 @@ def limpiar_destinatario(value):
     if not value:
         return None
 
+    etiquetas_parada = re.compile(
+        r'\b(?:tipo\s+de\s+operaci[oó0]n[Tt]?|transferencia|transferi\w*|terceros|'
+        r'cuenta\s+de(?:\s+(?:origen|destino))?|comisi[oó]n|itf|motivo|'
+        r'n[uú]mero\s+de\s+operaci[oó0]n|nro\.?\s*(?:de\s*)?operaci[oó0]n|'
+        r'n[°º]\s*(?:de\s*)?operaci[oó0]n|fecha)\b',
+        re.IGNORECASE
+    )
+
     lineas_validas = []
     for linea in str(value).splitlines():
         linea = normalize_text(linea)
@@ -543,6 +557,12 @@ def limpiar_destinatario(value):
             linea,
             flags=re.IGNORECASE
         ).strip()
+        if not linea:
+            continue
+
+        etiqueta = etiquetas_parada.search(linea)
+        if etiqueta:
+            linea = linea[:etiqueta.start()].strip(' \t:;|-')
         if not linea:
             continue
 
@@ -561,6 +581,10 @@ def limpiar_destinatario(value):
             continue
         if not re.search(r'[a-z]', normalizada):
             continue
+        if len(linea) > 80:
+            linea = linea[:80].rsplit(' ', 1)[0].strip()
+            if not linea:
+                continue
         lineas_validas.append(linea)
 
     resultado = normalize_text(' '.join(lineas_validas))

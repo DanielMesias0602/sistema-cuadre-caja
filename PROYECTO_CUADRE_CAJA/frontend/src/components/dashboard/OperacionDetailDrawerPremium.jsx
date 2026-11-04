@@ -3,7 +3,6 @@ import {
   Calendar,
   Check,
   CreditCard,
-  Package,
   Receipt,
   X,
   ZoomIn,
@@ -597,18 +596,6 @@ export function OperacionDetailDrawerPremium({
     : (igvCalculadoDesdeTotal > 0
       ? igvCalculadoDesdeTotal
       : igvCalculadoDesdeTotalBruto ?? igv);
-
-  let rawItems = opData.items || dataComprobante.items;
-
-  if (typeof rawItems === 'string') {
-    try {
-      rawItems = JSON.parse(rawItems);
-    } catch {
-      rawItems = [];
-    }
-  }
-
-  const items = Array.isArray(rawItems) ? rawItems : [];
 
   const pagos = Array.isArray(opData.pagos)
     ? opData.pagos
@@ -1289,44 +1276,6 @@ export function OperacionDetailDrawerPremium({
                 </ul>
               </section>
             )}
-
-            <section>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-950/40 text-brand-orange dark:text-orange-400">
-                  <Package className="h-4 w-4" />
-                </span>
-                Detalle de Productos ({items.length})
-              </h3>
-
-              <ul className="divide-y divide-slate-100 dark:divide-slate-600 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 shadow-sm dark:shadow-none">
-                {items.length > 0 ? (
-                  items.map((p, idx) => (
-                    <li
-                      key={idx}
-                      className="flex items-start justify-between gap-4 py-4"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
-                          {p.descripcion}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                          Cant: {p.cantidad} · P. Unit:{' '}
-                          {formatPEN(p.precio_unitario)}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-                        {formatPEN(p.total)}
-                      </span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="flex items-center gap-2 py-4 text-sm italic text-slate-600 dark:text-slate-300">
-                    <Package className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
-                    <span>Productos no extraídos. Valida el comprobante físico.</span>
-                  </li>
-                )}
-              </ul>
-            </section>
 
             <section>
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
