@@ -30,6 +30,10 @@ import {
 import api from '../../lib/api';
 import ocrService from '../../services/ocr.service';
 import { useAuth } from '../../hooks/useAuth';
+import {
+  compararReferencias,
+  normalizarReferencia,
+} from '../../utils/referenciaPago';
 
 function DatoOCR({ icon, label, children }) {
   return (
@@ -50,15 +54,6 @@ function DatoOCR({ icon, label, children }) {
 // ============================================================
 // HELPERS DE VALIDACIÓN CRUZADA (NUEVO)
 // ============================================================
-const normalizarReferencia = (ref) => {
-  if (ref === null || ref === undefined) return '';
-  let s = String(ref).trim().toUpperCase();
-  // Quitar espacios, guiones y ceros iniciales
-  s = s.replace(/[\s-]/g, '');
-  s = s.replace(/^0+/, '');
-  return s;
-};
-
 const obtenerReferenciaOCR = (datosOcr) => {
   if (!datosOcr || typeof datosOcr !== 'object') return null;
   for (const referencia of [
@@ -115,10 +110,9 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
 
   const refPago = pago?.referencia || null;
 
+  const refCoincide = compararReferencias(refPago, refEmpresa) === 'COINCIDE';
   const normRefPago = normalizarReferencia(refPago);
   const normRefEmpresa = normalizarReferencia(refEmpresa);
-
-  const refCoincide = normRefPago && normRefEmpresa && normRefPago === normRefEmpresa;
   const montoCoincide = compararMontos(pago?.monto, montoEmpresa);
 
   if (refCoincide && montoCoincide) {

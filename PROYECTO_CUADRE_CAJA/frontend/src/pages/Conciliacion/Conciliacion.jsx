@@ -8,24 +8,29 @@ import {
   X, Loader2, Sun, Moon, BarChart2, AlertTriangle, FileText, Eye, Info
 } from 'lucide-react';
 import { SingleDatePicker } from '../../components/ui/SingleDatePicker';
+import { compararReferencias } from '../../utils/referenciaPago';
 
-const evaluarOperacion = (opPago, opEmpresa, medioPago) => {
-  if (!opPago && !opEmpresa) return { estado: 'SIN DATOS', color: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600', icono: 'info' };
-  if (!opPago || !opEmpresa) return { estado: 'INCOMPLETO', color: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600', icono: 'info' };
-
-  const medio = String(medioPago || '').toLowerCase();
-
-  if (medio.includes('bcp')) {
-    const cleanPago = String(opPago).replace(/\D/g, '').replace(/^0+/, '');
-    const cleanEmpresa = String(opEmpresa).replace(/\D/g, '').replace(/^0+/, '');
-
-    if (cleanPago === cleanEmpresa) {
-      return { estado: 'COINCIDE (BCP)', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60', icono: 'check' };
-    }
-    return { estado: 'DIFERENTE (BCP)', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60', icono: 'alert' };
+const evaluarOperacion = (opPago, opEmpresa) => {
+  const estado = compararReferencias(opPago, opEmpresa);
+  if (estado === 'COINCIDE') {
+    return {
+      estado,
+      color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60',
+      icono: 'check'
+    };
   }
-
-  return { estado: 'REVISIÓN MANUAL', color: 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600', icono: 'eye' };
+  if (estado === 'DIFERENTE (BANCO)') {
+    return {
+      estado,
+      color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60',
+      icono: 'alert'
+    };
+  }
+  return {
+    estado,
+    color: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600',
+    icono: 'info'
+  };
 };
 
 export function Conciliacion() {
@@ -413,7 +418,7 @@ export function Conciliacion() {
                   <div className="flex flex-col divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/30 dark:divide-slate-600 dark:border-slate-600 dark:bg-slate-900/60">
                     {c.operaciones_con_numeros.map((op, idx) => {
                       const nroEmpresa = op.num_operacion_empresa || op.num_op_empresa_alt;
-                      const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa, op.medio_pago);
+                      const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa);
 
                       return (
                         <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 sm:p-3 hover:bg-white transition-colors gap-2 dark:hover:bg-slate-700/60">
@@ -619,7 +624,7 @@ export function Conciliacion() {
                   <div className="overflow-y-auto max-h-56 sm:max-h-64 pr-1 space-y-2 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
                     {preCalculo.operaciones_con_numeros.map((op, idx) => {
                       const nroEmpresa = op.num_operacion_empresa || op.num_op_empresa_alt;
-                      const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa, op.medio_pago);
+                      const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa);
 
                       return (
                         <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 sm:p-3 border border-slate-100 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-700">
