@@ -160,6 +160,16 @@ export function Reportes() {
       if (hastaISO && fecha > hastaISO) return false;
       if (String(op.estado_operacion || op.estado || '').trim().toUpperCase() === 'ANULADA') return false;
       return true;
+    }).sort((a, b) => {
+      const fechaA = normalizarFechaISO(a.fecha);
+      const fechaB = normalizarFechaISO(b.fecha);
+      const ordenFecha = fechaA.localeCompare(fechaB);
+      if (ordenFecha !== 0) return ordenFecha;
+      return String(a.id_operacion || '').localeCompare(
+        String(b.id_operacion || ''),
+        'es',
+        { numeric: true }
+      );
     });
 
     const obtenerGrupo = (op) => {
@@ -181,7 +191,7 @@ export function Reportes() {
     }, {});
 
     const grupos = Object.values(gruposPorClave)
-      .sort((a, b) => b.clave.localeCompare(a.clave))
+      .sort((a, b) => a.clave.localeCompare(b.clave))
       .map((grupo) => ({
         ...grupo,
         total: grupo.operaciones.reduce(
@@ -457,13 +467,13 @@ export function Reportes() {
       worksheet.headerFooter.oddHeader = `&C${obtenerEtiquetaReporte()}`;
 
       worksheet.columns = [
-        { header: 'Periodo', key: 'periodo', width: 24 },
-        { header: 'Fecha de referencia', key: 'fecha', width: 18 },
-        { header: 'Operaciones', key: 'operaciones', width: 15 },
-        { header: 'Comprobantes', key: 'comprobantes', width: 40 },
-        { header: 'Clientes', key: 'clientes', width: 35 },
-        { header: 'Medios de pago', key: 'medios', width: 28 },
-        { header: 'Total (S/)', key: 'monto', width: 16 },
+        { header: 'Fecha', key: 'fecha', width: 16 },
+        { header: 'Tipo', key: 'tipo', width: 20 },
+        { header: 'Serie-Número', key: 'comprobante', width: 24 },
+        { header: 'Cliente', key: 'cliente', width: 36 },
+        { header: 'Medio de Pago', key: 'medios', width: 30 },
+        { header: 'Referencia', key: 'referencia', width: 28 },
+        { header: 'Monto (S/)', key: 'monto', width: 18 },
       ];
 
       // Estilo de la cabecera
@@ -471,30 +481,35 @@ export function Reportes() {
       headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
       headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.height = 24;
+      worksheet.autoFilter = { from: 'A1', to: 'G1' };
 
-      grupos.forEach((grupo, index) => {
-        const comprobantes = [...new Set(grupo.operaciones.map(
-          (op) => `${op.tipo_comprobante || 'COMPROBANTE'} ${op.serie || ''}-${op.numero || ''}`.trim()
-        ))];
-        const clientes = [...new Set(grupo.operaciones.map((op) => op.cliente).filter(Boolean))];
-        const medios = [...new Set(grupo.operaciones.flatMap((op) => (
-          Array.isArray(op.pagos) ? op.pagos : []
-        )).map((pago) => pago.medio_pago || pago.nombre_medio || 'Efectivo'))];
+      operacionesFiltradas.forEach((op, index) => {
+        const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+        const medios = [...new Set(pagos
+          .map((pago) => pago.medio_pago || pago.nombre_medio || 'Efectivo')
+          .filter(Boolean))];
+        const referencias = pagos
+          .map((pago) => pago.referencia_bancaria || pago.referencia)
+          .filter((referencia) => referencia != null && String(referencia).trim() !== '');
+        const fechaISO = normalizarFechaISO(op.fecha);
         const row = worksheet.addRow({
-          periodo: grupo.titulo || grupo.fecha,
-          fecha: grupo.fecha,
-          operaciones: grupo.operaciones.length,
-          comprobantes: comprobantes.join(', ') || '-',
-          clientes: clientes.join(', ') || '-',
-          medios: medios.join(', ') || '-',
-          monto: grupo.total,
+          fecha: fechaISO ? new Date(`${fechaISO}T00:00:00.000Z`) : '',
+          tipo: op.tipo_comprobante || 'COMPROBANTE',
+          comprobante: `${op.serie || ''}-${op.numero || ''}`.replace(/^-|-$/g, '') || '-',
+          cliente: op.cliente || '-',
+          medios: medios.join(' | ') || '-',
+          referencia: referencias.join(' | ') || '-',
+          monto: obtenerMontoOperacion(op),
         });
+        row.getCell('fecha').numFmt = 'dd/mm/yyyy';
         row.getCell('monto').numFmt = '"S/" #,##0.00';
-        row.getCell('operaciones').alignment = { horizontal: 'center' };
+        row.alignment = { vertical: 'middle' };
+        row.getCell('monto').alignment = { horizontal: 'right', vertical: 'middle' };
 
-        if (index % 2 === 0) {
+        if (index % 2 === 1) {
           row.eachCell((cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
           });
         }
       });
