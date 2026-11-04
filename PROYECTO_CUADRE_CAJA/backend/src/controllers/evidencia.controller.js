@@ -12,6 +12,7 @@ import {
   uploadObject,
   deleteObject
 } from '../services/ociStorage.service.js';
+import { emitirEvento } from '../services/socket.service.js';
 
 const optimizarImagen = async (inputPath, outputPath) => {
   await sharp(inputPath)
@@ -129,6 +130,13 @@ export const create = async (req, res, next) => {
         observacion: req.body.observacion ?? null,
         texto_ocr: textoOcr,
         datos_ocr: datosOcrStr
+      });
+
+      emitirEvento('evidencia_creada', {
+        id: evidencia.id_evidencia,
+        id_operacion: idOperacion,
+        id_pago: idPago,
+        tipo_evidencia: evidencia.tipo_evidencia,
       });
 
       return res.status(201).json({

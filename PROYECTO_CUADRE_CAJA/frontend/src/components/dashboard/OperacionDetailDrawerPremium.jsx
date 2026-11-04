@@ -721,40 +721,65 @@ export function OperacionDetailDrawerPremium({
   const handleEvidenciaPagoSubida = async (evidencia, pago, tipoEvidencia) => {
     setPagoAReemplazar(null);
     if (evidencia && typeof evidencia === 'object' && evidencia.storage_key) {
-      setEvidenciasLocales((actuales) => [...actuales, evidencia]);
+      setEvidenciasLocales((actuales) => [
+        ...actuales.filter(
+          (actual) => String(actual.id_evidencia) !== String(evidencia.id_evidencia)
+        ),
+        evidencia,
+      ]);
     }
 
-    if (evidencia?.id_evidencia != null) {
-      setFreshOperation((actual) => {
-        if (actual?.id !== idOperacion) return actual;
-        const verificacionesActuales = Array.isArray(actual.data.verificaciones)
-          ? actual.data.verificaciones
-          : [];
-        const existe = verificacionesActuales.some(
-          (item) => String(item.id_pago) === String(pago.id_pago)
-        );
-        const verificacionesActualizadas = existe
+    const campoIdEvidencia = tipoEvidencia === 'EMPRESA'
+      ? 'id_evidencia_empresa'
+      : 'id_evidencia_cliente';
+    const requestId = ++operationLoadRequestRef.current;
+    setFreshOperation((actual) => {
+      const datosActuales = actual?.id === idOperacion
+        ? actual.data
+        : initialOpData;
+      if (!datosActuales) return actual;
+
+      const verificacionesActuales = Array.isArray(datosActuales.verificaciones)
+        ? datosActuales.verificaciones
+        : [];
+      const existe = verificacionesActuales.some(
+        (item) => String(item.id_pago) === String(pago.id_pago)
+      );
+      const verificacionesActualizadas = evidencia?.id_evidencia == null
+        ? verificacionesActuales
+        : existe
           ? verificacionesActuales.map((item) => (
             String(item.id_pago) === String(pago.id_pago)
-            ? {
-              ...item,
-              [tipoEvidencia === 'EMPRESA' ? 'id_evidencia_empresa' : 'id_evidencia_cliente']: evidencia.id_evidencia,
-            }
-            : item
+              ? { ...item, [campoIdEvidencia]: evidencia.id_evidencia }
+              : item
           ))
           : [...verificacionesActuales, {
             id_pago: pago.id_pago,
-            [tipoEvidencia === 'EMPRESA' ? 'id_evidencia_empresa' : 'id_evidencia_cliente']: evidencia.id_evidencia,
+            [campoIdEvidencia]: evidencia.id_evidencia,
           }];
-        return {
-          ...actual,
-          data: { ...actual.data, verificaciones: verificacionesActualizadas },
-        };
-      });
-    }
+      const evidenciasActuales = Array.isArray(datosActuales.evidencias)
+        ? datosActuales.evidencias
+        : [];
+      const evidenciasActualizadas = evidencia?.id_evidencia == null
+        ? evidenciasActuales
+        : [
+          ...evidenciasActuales.filter(
+            (item) => String(item.id_evidencia) !== String(evidencia.id_evidencia)
+          ),
+          evidencia,
+        ];
+
+      return {
+        id: idOperacion,
+        data: {
+          ...datosActuales,
+          evidencias: evidenciasActualizadas,
+          verificaciones: verificacionesActualizadas,
+        },
+      };
+    });
 
     setOperationLoadError(null);
-    const requestId = ++operationLoadRequestRef.current;
     try {
       const operacionActualizada = await cargarOperacionActualizada();
       if (requestId === operationLoadRequestRef.current) {
@@ -1169,12 +1194,14 @@ export function OperacionDetailDrawerPremium({
                     const evidenciaEmpresaPago = buscarEvidenciaDePago(pago, 'EMPRESA');
                     const evidenciaClientePago = buscarEvidenciaDePago(pago, 'CLIENTE');
                     const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
+                    const referenciaCliente =
+                      datosOcrCliente.referencia_bancaria
+                      || datosOcrCliente.numero_operacion
+                      || pago?.referencia
+                      || null;
                     const pagoParaEvaluacion = {
                       ...pago,
-                      referencia: pago?.referencia
-                        || datosOcrCliente.referencia_bancaria
-                        || datosOcrCliente.numero_operacion
-                        || null,
+                      referencia: referenciaCliente,
                     };
                     const evaluacion = evaluarPago(pagoParaEvaluacion, evidenciaEmpresaPago);
                     const datosOcr = evidenciaEmpresaPago?.datos_ocr || {};
@@ -1327,6 +1354,12 @@ export function OperacionDetailDrawerPremium({
                     const esEfectivo = medio.includes('efectivo');
                     const evidenciaClientePago = buscarEvidenciaDePago(p, 'CLIENTE');
                     const evidenciaClientePagoUrl = getEvidenciaUrl(evidenciaClientePago);
+                    const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
+                    const referenciaCliente =
+                      datosOcrCliente.referencia_bancaria
+                      || datosOcrCliente.numero_operacion
+                      || p.referencia
+                      || null;
                     const puedeVerCliente = !esEfectivo && evidenciaClientePagoUrl;
                     const estadoPago = String(p.estado || 'REGISTRADO').toUpperCase();
                     const pagoVerificado = ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(estadoPago);
@@ -1344,9 +1377,9 @@ export function OperacionDetailDrawerPremium({
                                 {p.medio_pago || p.nombre_medio || 'Efectivo'}
                               </p>
 
-                              {p.referencia && p.referencia !== 'None' && (
+                              {referenciaCliente && referenciaCliente !== 'None' && (
                                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                                  Ref: {p.referencia}
+                                  Ref: {referenciaCliente}
                                 </p>
                               )}
                             </div>
