@@ -173,7 +173,7 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
   const hayMedio = Boolean(pago.id_medio_pago); // <-- NUEVA VALIDACIÓN
   const medioLower = String(pago.nombre_medio || '').toLowerCase();
   
-  const esEfectivo = pago.es_efectivo || medioLower.includes('efectivo');
+  const esEfectivo = Boolean(pago.es_efectivo || medioLower.includes('efectivo'));
   const esTarjeta = medioLower.includes('tarjeta') || medioLower.includes('pos');
   const esTransferencia = medioLower.includes('transferencia') || medioLower.includes('deposito') || medioLower.includes('depósito');
   const esTransferenciaBCP = esTransferencia && medioLower.includes('bcp');
@@ -364,71 +364,85 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
         </div>
 
         {/* CAMPOS DINÁMICOS */}
-        {mostrarRef && (
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-              {esTarjeta ? 'Venta ID' : 'Referencia bancaria'}
-            </label>
-            <input
-              type="text"
-              value={pago.referencia || ''}
-              onChange={(e) => handleChange('referencia', e.target.value)}
-              placeholder="Opcional"
-              disabled={loadingOCR}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-            />
-          </div>
-        )}
+        {!esEfectivo && (
+          <>
+            {mostrarRef && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  {esTarjeta ? 'Venta ID' : 'Referencia bancaria'}
+                </label>
+                <input
+                  type="text"
+                  value={pago.referencia || ''}
+                  onChange={(e) => handleChange('referencia', e.target.value)}
+                  placeholder="Opcional"
+                  disabled={loadingOCR}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+            )}
 
-        {mostrarFecha && (
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Fecha de Operación</label>
-            <input
-              type="text"
-              value={pago.fecha_operacion || ''}
-              onChange={(e) => handleChange('fecha_operacion', e.target.value)}
-              placeholder="DD/MM/AAAA"
-              disabled={loadingOCR}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-            />
-          </div>
-        )}
+            {mostrarFecha && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Fecha de Operación</label>
+                <input
+                  type="text"
+                  value={pago.fecha_operacion || ''}
+                  onChange={(e) => handleChange('fecha_operacion', e.target.value)}
+                  placeholder="DD/MM/AAAA"
+                  disabled={loadingOCR}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+            )}
 
-        {mostrarBeneficiario && (
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Beneficiario</label>
-            <input
-              type="text"
-              value={pago.beneficiario || ''}
-              onChange={(e) => handleChange('beneficiario', e.target.value)}
-              placeholder="Nombre de la empresa/persona"
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-            />
-          </div>
-        )}
+            {mostrarBeneficiario && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Beneficiario</label>
+                <input
+                  type="text"
+                  value={pago.beneficiario || ''}
+                  onChange={(e) => handleChange('beneficiario', e.target.value)}
+                  placeholder="Nombre de la empresa/persona"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+            )}
 
-        {mostrarCuentaDestino && (
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Cuenta Destino</label>
-            <input
-              type="text"
-              value={pago.cuenta_destino || ''}
-              onChange={(e) => handleChange('cuenta_destino', e.target.value)}
-              placeholder="**** 5010"
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-            />
-          </div>
+            {mostrarCuentaDestino && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Cuenta Destino</label>
+                <input
+                  type="text"
+                  value={pago.cuenta_destino || ''}
+                  onChange={(e) => handleChange('cuenta_destino', e.target.value)}
+                  placeholder="**** 5010"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+            )}
+          </>
         )}
 
         <div className="sm:col-span-2">
           <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Observación</label>
-          <input
-            type="text"
-            value={pago.observacion || ''}
-            onChange={(e) => handleChange('observacion', e.target.value)}
-            placeholder="Opcional"
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
-          />
+          {esEfectivo ? (
+            <textarea
+              value={pago.observacion || ''}
+              onChange={(e) => handleChange('observacion', e.target.value)}
+              placeholder="Opcional"
+              rows={3}
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+            />
+          ) : (
+            <input
+              type="text"
+              value={pago.observacion || ''}
+              onChange={(e) => handleChange('observacion', e.target.value)}
+              placeholder="Opcional"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+            />
+          )}
         </div>
       </div>
 
