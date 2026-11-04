@@ -2,8 +2,9 @@ import { query } from './base.repository.js';
 
 export const createConciliacion = async ({
   id_usuario, fecha, diferencia_detectada, resultado, observacion = null
-}) => {
-  const result = await query(
+}, client = null) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
     `INSERT INTO conciliacion (id_usuario, fecha, diferencia_detectada, resultado, observacion)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id_conciliacion, id_usuario, fecha, diferencia_detectada, resultado, observacion, fecha_registro`,
@@ -25,12 +26,14 @@ export const findConciliacionById = async (idConciliacion) => {
   return result.rows[0] ?? null;
 };
 
-export const findConciliacionByFecha = async (fecha) => {
-  const result = await query(
+export const findConciliacionByFecha = async (fecha, client = null) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
     `SELECT id_conciliacion
      FROM conciliacion
      WHERE fecha = $1
-       AND UPPER(resultado) = 'CONCILIADO'`,
+     ORDER BY fecha_registro DESC, id_conciliacion DESC
+     LIMIT 1`,
     [fecha]
   );
   return result.rows[0] ?? null;
@@ -60,9 +63,57 @@ export const findAllConciliaciones = async () => {
          ELSE 'EN REVISIÓN'
        END AS resultado,
        c.observacion, c.fecha_registro,
-       u.nombres || ' ' || u.apellidos AS usuario
+       u.nombres || ' ' || u.apellidos AS usuario,
+       COALESCE(resumen.total_ingresos, 0) AS total_ingresos,
+       COALESCE(resumen.total_efectivo, 0) AS total_efectivo,
+       COALESCE(resumen.total_no_efectivo, 0) AS total_no_efectivo
      FROM conciliacion c
      LEFT JOIN usuario u ON u.id_usuario = c.id_usuario
+     LEFT JOIN LATERAL (
+       SELECT
+         COALESCE(SUM(cierres.total_ingresos), 0) AS total_ingresos,
+         COALESCE(SUM(cierres.total_efectivo), 0) AS total_efectivo,
+         COALESCE(SUM(cierres.total_no_efectivo), 0) AS total_no_efectivo
+       FROM (
+         SELECT
+           CASE
+             WHEN UPPER(COALESCE(cc.estado, '')) = 'ABIERTO'
+               THEN totales.total_ingresos
+             ELSE cc.total_ingresos
+           END AS total_ingresos,
+           CASE
+             WHEN UPPER(COALESCE(cc.estado, '')) = 'ABIERTO'
+               THEN totales.total_ingresos - totales.total_no_efectivo
+             ELSE cc.efectivo_esperado
+           END AS total_efectivo,
+           CASE
+             WHEN UPPER(COALESCE(cc.estado, '')) = 'ABIERTO'
+               THEN totales.total_no_efectivo
+             ELSE cc.total_no_efectivo
+           END AS total_no_efectivo
+         FROM cierre_caja cc
+         LEFT JOIN LATERAL (
+           SELECT
+             COALESCE(SUM(p.monto), 0) AS total_ingresos,
+             COALESCE(
+               SUM(CASE
+                 WHEN mp.es_efectivo = FALSE
+                   OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito')
+                 THEN p.monto ELSE 0
+               END),
+               0
+             ) AS total_no_efectivo
+           FROM operacion o
+           JOIN pago p ON p.id_operacion = o.id_operacion
+           JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+           WHERE o.id_cierre = cc.id_cierre
+             AND UPPER(COALESCE(cc.estado, '')) = 'ABIERTO'
+             AND COALESCE(o.estado, '') <> 'ANULADA'
+             AND COALESCE(p.estado, '') NOT IN ('ANULADO', 'ANULADA')
+         ) totales ON TRUE
+         WHERE cc.fecha = c.fecha
+       ) cierres
+     ) resumen ON TRUE
      ORDER BY c.fecha DESC, c.id_conciliacion DESC`
   );
   return result.rows;

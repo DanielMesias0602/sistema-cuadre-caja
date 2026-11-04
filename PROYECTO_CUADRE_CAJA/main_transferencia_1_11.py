@@ -112,7 +112,13 @@ def detect_transfer_status(lines):
     return None
 
 def extract_amount(lines):
-    texto_completo = '\n'.join(lines)
+    corregir_ceros_ocr = lambda texto: re.sub(
+        r'(?<=\d)[Oo](?=\d|[.,]\d|\b)',
+        '0',
+        str(texto)
+    )
+    lineas_limpias = [corregir_ceros_ocr(linea) for linea in lines]
+    texto_completo = '\n'.join(lineas_limpias)
     normalizar_linea = lambda texto: ''.join(
         caracter
         for caracter in unicodedata.normalize('NFD', texto.lower())
@@ -122,7 +128,7 @@ def extract_amount(lines):
         'impulsa', 'proyecto', 'credito', 'hasta', 'iracreditos',
         'tusproyecto'
     )
-    lineas_normalizadas = [normalizar_linea(str(linea)) for linea in lines]
+    lineas_normalizadas = [normalizar_linea(linea) for linea in lineas_limpias]
     indices_promocionales = [
         indice
         for indice, linea in enumerate(lineas_normalizadas)
@@ -130,8 +136,10 @@ def extract_amount(lines):
     ]
     candidatos = []
     patron_monto_explicito = re.compile(
-        r'(?:(?<![A-Z])[$S]\s*/?\s*|PEN\s*)'
-        r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]{1,6})',
+        r'(?<![\d/])'
+        r'(?:(?P<prefijo>(?<![A-Z])[$S]\s*/?\s*|PEN\s*))?'
+        r'(?P<monto>[\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]+[.,]\d{2}|[\d]{1,6})'
+        r'(?![\d/])',
         re.IGNORECASE
     )
     etiquetas_montos_secundarios = (
@@ -139,17 +147,38 @@ def extract_amount(lines):
         'impulsa', 'proyecto', 'credito', 'hasta', 'iracreditos',
         'tusproyecto'
     )
+    etiquetas_transaccion = (
+        'yapeaste', 'importe enviado', 'transferiste', 'enviaste',
+        'deposito', 'depositaste', 'monto'
+    )
     hay_monto_secundario = False
 
-    for indice, linea in enumerate(lines):
+    for indice, linea in enumerate(lineas_limpias):
         for match in patron_monto_explicito.finditer(str(linea)):
-            monto = parse_money(match.group(1))
-            if monto is None:
-                continue
+            valor_monto = match.group('monto')
+            prefijo_monetario = match.group('prefijo')
             contexto_previo = ' '.join(
                 lineas_normalizadas[max(0, indice - 1):indice]
             )
+            contexto_transaccion = ' '.join(
+                lineas_normalizadas[max(0, indice - 2):indice]
+            )
             texto_antes_del_monto = lineas_normalizadas[indice][:match.start()]
+            texto_despues_del_monto = lineas_normalizadas[indice][match.end():]
+            texto_contexto = (
+                f'{contexto_transaccion} {texto_antes_del_monto} '
+                f'{texto_despues_del_monto}'
+            )
+            es_monto_decimal = bool(re.search(r'[.,]\d{2}$', valor_monto))
+            if not prefijo_monetario and not es_monto_decimal and not any(
+                etiqueta in texto_contexto
+                for etiqueta in etiquetas_transaccion
+            ):
+                continue
+
+            monto = parse_money(valor_monto)
+            if monto is None:
+                continue
             contexto_monto = f'{contexto_previo} {texto_antes_del_monto}'
             if any(
                 etiqueta in contexto_monto
@@ -169,22 +198,20 @@ def extract_amount(lines):
                     and siguiente_linea_promocional - indice <= 1
                 )
             )
-            texto_previo = ' '.join(
-                lineas_normalizadas[max(0, indice - 2):indice]
-            ) + ' ' + texto_antes_del_monto
             tiene_etiqueta_transaccion = any(
-                etiqueta in texto_previo
-                for etiqueta in ('yapeaste', 'importe enviado', 'transferiste', 'enviaste')
+                etiqueta in texto_contexto
+                for etiqueta in etiquetas_transaccion
             )
-            tiene_etiqueta_transaccion = tiene_etiqueta_transaccion or bool(
-                re.search(r'\bmonto\b(?!\s+aprox)', texto_previo)
+            tiene_etiqueta_transaccion = tiene_etiqueta_transaccion and not bool(
+                re.search(r'\bmonto\b\s+aprox', texto_contexto)
             )
             candidatos.append({
                 'indice': indice,
                 'monto': monto,
                 'promocional': es_promocional,
                 'transaccional': tiene_etiqueta_transaccion,
-                'yapeaste': 'yapeaste' in texto_previo,
+                'yapeaste': 'yapeaste' in texto_contexto,
+                'deposito': 'deposito' in texto_contexto or 'depositaste' in texto_contexto,
             })
 
     candidato_yapeaste = next(
@@ -193,6 +220,13 @@ def extract_amount(lines):
     )
     if candidato_yapeaste:
         return candidato_yapeaste['monto'], 'PEN'
+
+    candidato_deposito = next(
+        (candidato for candidato in candidatos if candidato['deposito']),
+        None
+    )
+    if candidato_deposito:
+        return candidato_deposito['monto'], 'PEN'
 
     candidato_transaccion = next(
         (candidato for candidato in candidatos if candidato['transaccional']),

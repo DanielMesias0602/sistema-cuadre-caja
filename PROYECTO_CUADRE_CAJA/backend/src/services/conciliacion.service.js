@@ -8,6 +8,7 @@ import {
   findOperacionesConNumeros,
   ponerConciliacionEnRevision as actualizarConciliacionEnRevision
 } from '../repositories/conciliacion.repository.js';
+import { withTransaction } from '../repositories/base.repository.js';
 import { emitirEvento } from './socket.service.js';
 
 const validationError = (message) => {
@@ -64,17 +65,30 @@ export const registrarConciliacion = async ({
     throw validationError('El resultado debe ser CONCILIADO o EN REVISIÓN');
   }
 
-  const existe = await findConciliacionByFecha(fecha);
-  if (existe) {
-    throw validationError(`Ya existe una conciliación registrada para la fecha ${fecha}`);
-  }
+  const conciliacion = await withTransaction(async (client) => {
+    await client.query(
+      `SELECT pg_advisory_xact_lock(
+         hashtextextended('conciliacion-fecha:' || $1::date::text, 0)
+       )`,
+      [fecha]
+    );
 
-  const conciliacion = await createConciliacion({
-    id_usuario,
-    fecha,
-    diferencia_detectada: diferenciaNumerica,
-    resultado: resultadoNormalizado,
-    observacion: observacion?.trim() || null
+    const existe = await findConciliacionByFecha(fecha, client);
+    if (existe) {
+      const error = new Error(
+        `Ya existe una conciliación registrada para la fecha ${fecha}`
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return createConciliacion({
+      id_usuario,
+      fecha,
+      diferencia_detectada: diferenciaNumerica,
+      resultado: resultadoNormalizado,
+      observacion: observacion?.trim() || null
+    }, client);
   });
   emitirEvento('conciliacion_actualizada', { id: conciliacion.id_conciliacion });
   return conciliacion;

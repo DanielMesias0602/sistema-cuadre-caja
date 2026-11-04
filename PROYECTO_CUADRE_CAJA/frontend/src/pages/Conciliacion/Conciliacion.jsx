@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDatosActualizados } from '../../hooks/useSocket';
@@ -69,10 +69,44 @@ export function Conciliacion() {
     operaciones_con_numeros: []
   });
 
-  // NUEVO: Detectar si la fecha del formulario ya está conciliada
-  const yaConciliado = conciliaciones.some(
-    c => c.fecha === formConciliacion.fecha &&
-      String(c.resultado || '').toUpperCase() === 'CONCILIADO'
+  const conciliacionesUnicas = useMemo(() => {
+    const porFecha = new Map();
+    conciliaciones.forEach((conciliacion) => {
+      const fecha = String(conciliacion.fecha || '').slice(0, 10);
+      if (!fecha) return;
+
+      const existente = porFecha.get(fecha);
+      if (!existente) {
+        porFecha.set(fecha, conciliacion);
+        return;
+      }
+
+      const fechaRegistroNueva = Date.parse(conciliacion.fecha_registro || '');
+      const fechaRegistroExistente = Date.parse(existente.fecha_registro || '');
+      const idNuevo = Number(conciliacion.id_conciliacion) || 0;
+      const idExistente = Number(existente.id_conciliacion) || 0;
+      const esMasReciente = Number.isFinite(fechaRegistroNueva) &&
+        (!Number.isFinite(fechaRegistroExistente) ||
+          fechaRegistroNueva > fechaRegistroExistente ||
+          (fechaRegistroNueva === fechaRegistroExistente && idNuevo > idExistente));
+
+      if (esMasReciente || (
+        !Number.isFinite(fechaRegistroNueva) &&
+        !Number.isFinite(fechaRegistroExistente) &&
+        idNuevo > idExistente
+      )) {
+        porFecha.set(fecha, conciliacion);
+      }
+    });
+
+    return Array.from(porFecha.values()).sort((a, b) => (
+      String(b.fecha || '').localeCompare(String(a.fecha || ''))
+    ));
+  }, [conciliaciones]);
+
+  const fechaOcupada = conciliacionesUnicas.some(
+    (conciliacion) =>
+      String(conciliacion.fecha || '').slice(0, 10) === formConciliacion.fecha
   );
 
   const formatCurrency = (val) => {
@@ -190,7 +224,7 @@ export function Conciliacion() {
 
   const handleGuardar = async (e) => {
     e.preventDefault();
-    if (guardando || yaConciliado) return;
+    if (guardando || fechaOcupada) return;
     setErrorModal(null);
     setExitoModal(null);
     setGuardando(true);
@@ -219,7 +253,7 @@ export function Conciliacion() {
     }
   };
 
-  const conciliacionesFiltradas = conciliaciones.filter(c => {
+  const conciliacionesFiltradas = conciliacionesUnicas.filter(c => {
     if (busqueda) {
       const userStr = (c.usuario || '').toLowerCase();
       if (!userStr.includes(busqueda.toLowerCase())) return false;
@@ -302,35 +336,49 @@ export function Conciliacion() {
           {conciliacionesFiltradas.map((c) => (
             <div key={c.id_conciliacion} className="w-full max-w-full sm:max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md dark:bg-slate-800/60 dark:border-slate-600 dark:shadow-none dark:hover:shadow-none">
 
-              <div className="bg-slate-50/50 p-3 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 dark:bg-slate-800 dark:border-slate-600">
-                <div className="min-w-0">
-                  <h3 className="text-base sm:text-lg font-black text-slate-900 capitalize break-words dark:text-slate-100">
-                    {formatearFecha(c.fecha)}
-                  </h3>
-                  <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5 dark:text-slate-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
-                    <span className="truncate">Conciliado por: <span className="font-semibold text-slate-700 dark:text-slate-300">{c.usuario || 'No asignado'}</span></span>
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <div className="text-left sm:text-right">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">Diferencia</p>
-                    <p className={`text-sm sm:text-base font-black tabular-nums ${Number(c.diferencia) === 0 ? 'text-slate-900 dark:text-slate-100' : Number(c.diferencia) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                      {formatCurrency(c.diferencia)}
+              <div className="bg-gradient-to-r from-blue-700 to-blue-800 p-3 sm:p-4 border-b border-blue-900/30 flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-black text-white capitalize break-words">
+                      {formatearFecha(c.fecha)}
+                    </h3>
+                    <p className="text-[10px] sm:text-xs text-blue-100 font-medium mt-1 flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.resultado === 'CONCILIADO' ? 'bg-emerald-300' : 'bg-amber-300'}`}></span>
+                      <span className="truncate">Registrado por: <span className="font-semibold text-white">{c.usuario || 'No asignado'}</span></span>
                     </p>
                   </div>
-                  <div className={`px-2 sm:px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1 ${c.resultado === 'CONCILIADO' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60' : 'bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60'}`}>
-                    {c.resultado === 'CONCILIADO' ? <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
-                    {c.resultado}
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
+                    <div className="text-left sm:text-right">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-blue-100">Diferencia</p>
+                      <p className={`text-sm sm:text-base font-black tabular-nums ${Number(c.diferencia) === 0 ? 'text-white' : Number(c.diferencia) < 0 ? 'text-rose-200' : 'text-emerald-200'}`}>
+                        {formatCurrency(c.diferencia)}
+                      </p>
+                    </div>
+                    <div className={`px-2 sm:px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1 ${c.resultado === 'CONCILIADO' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                      {c.resultado === 'CONCILIADO' ? <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
+                      {c.resultado}
+                    </div>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                  {[
+                    ['Total Ingresos', c.total_ingresos],
+                    ['Total Efectivo', c.total_efectivo],
+                    ['Total No Efectivo', c.total_no_efectivo],
+                  ].map(([label, amount]) => (
+                    <div key={label} className="min-w-0 rounded-xl border border-white/15 bg-white/10 px-2.5 py-2 sm:px-3">
+                      <p className="truncate text-[8px] sm:text-[10px] font-bold uppercase tracking-wide text-blue-100">{label}</p>
+                      <p className="mt-0.5 truncate text-xs sm:text-sm font-black tabular-nums text-white">{formatCurrency(amount)}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {String(c.resultado || '').toUpperCase() === 'EN REVISIÓN' && c.observacion && (
-                <div className="border-b border-rose-100 bg-rose-50/70 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
-                  <span className="font-bold">Observación:</span> {c.observacion}
-                </div>
+                <p className="px-3 pt-3 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Observación:</span> {c.observacion}
+                </p>
               )}
 
               <div className="p-3 sm:p-4 flex-1">
@@ -448,13 +496,12 @@ export function Conciliacion() {
                 />
               </div>
 
-              {/* NUEVO: Aviso visual si la fecha ya está conciliada */}
-              {yaConciliado && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in dark:bg-amber-950/40 dark:border-amber-800/60">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5 dark:text-amber-400" />
+              {fechaOcupada && (
+                <div role="alert" className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in dark:bg-rose-950/40 dark:border-rose-800/60">
+                  <AlertTriangle className="h-5 w-5 text-rose-600 flex-shrink-0 mt-0.5 dark:text-rose-400" />
                   <div>
-                    <p className="text-sm font-bold text-amber-900 dark:text-amber-300">Esta fecha ya fue conciliada</p>
-                    <p className="text-xs text-amber-800 mt-0.5 dark:text-amber-400">Ya existe un registro para esta fecha. No puedes volver a conciliar el mismo día.</p>
+                    <p className="text-sm font-bold text-rose-900 dark:text-rose-300">Atención: Esta fecha ya tiene una conciliación registrada.</p>
+                    <p className="text-xs text-rose-800 mt-0.5 dark:text-rose-400">Solo puede existir un registro por fecha. Revisa la conciliación existente antes de continuar.</p>
                   </div>
                 </div>
               )}
@@ -606,8 +653,8 @@ export function Conciliacion() {
 
               <div className="pt-2 border-t border-slate-200 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 dark:border-slate-600">
                 <button type="button" onClick={cerrarModal} disabled={guardando} className="h-10 sm:h-11 flex-1 rounded-xl bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-200 cursor-pointer dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Cancelar</button>
-                <button type="submit" disabled={guardando || yaConciliado} className={`h-10 sm:h-11 flex-[2] rounded-xl text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-2 transition-all ${yaConciliado ? 'bg-slate-300 cursor-not-allowed dark:bg-slate-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</> : yaConciliado ? 'Fecha ya Conciliada' : 'Guardar Conciliación'}
+                <button type="submit" disabled={guardando || fechaOcupada} className={`h-10 sm:h-11 flex-[2] rounded-xl text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-2 transition-all ${fechaOcupada ? 'bg-slate-300 cursor-not-allowed dark:bg-slate-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</> : fechaOcupada ? 'Fecha ya registrada' : 'Guardar Conciliación'}
                 </button>
               </div>
             </form>
