@@ -59,6 +59,20 @@ const normalizarReferencia = (ref) => {
   return s;
 };
 
+const obtenerReferenciaOCR = (datosOcr) => {
+  if (!datosOcr || typeof datosOcr !== 'object') return null;
+  for (const referencia of [
+    datosOcr.referencia_bancaria,
+    datosOcr.numero_operacion,
+    datosOcr.nro_operacion,
+  ]) {
+    if (referencia == null) continue;
+    const referenciaNormalizada = String(referencia).trim();
+    if (referenciaNormalizada) return referenciaNormalizada;
+  }
+  return null;
+};
+
 const compararMontos = (montoPago, montoEvidencia) => {
   const p = Number(montoPago);
   const e = Number(montoEvidencia);
@@ -1194,14 +1208,10 @@ export function OperacionDetailDrawerPremium({
                     const evidenciaEmpresaPago = buscarEvidenciaDePago(pago, 'EMPRESA');
                     const evidenciaClientePago = buscarEvidenciaDePago(pago, 'CLIENTE');
                     const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
-                    const referenciaCliente =
-                      datosOcrCliente.referencia_bancaria
-                      || datosOcrCliente.numero_operacion
-                      || pago?.referencia
-                      || null;
+                    const referenciaClienteOCR = obtenerReferenciaOCR(datosOcrCliente);
                     const pagoParaEvaluacion = {
                       ...pago,
-                      referencia: referenciaCliente,
+                      referencia: referenciaClienteOCR || pago?.referencia || null,
                     };
                     const evaluacion = evaluarPago(pagoParaEvaluacion, evidenciaEmpresaPago);
                     const datosOcr = evidenciaEmpresaPago?.datos_ocr || {};
@@ -1356,10 +1366,7 @@ export function OperacionDetailDrawerPremium({
                     const evidenciaClientePagoUrl = getEvidenciaUrl(evidenciaClientePago);
                     const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
                     const referenciaCliente =
-                      datosOcrCliente.referencia_bancaria
-                      || datosOcrCliente.numero_operacion
-                      || p.referencia
-                      || null;
+                      p.referencia || obtenerReferenciaOCR(datosOcrCliente);
                     const puedeVerCliente = !esEfectivo && evidenciaClientePagoUrl;
                     const estadoPago = String(p.estado || 'REGISTRADO').toUpperCase();
                     const pagoVerificado = ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(estadoPago);

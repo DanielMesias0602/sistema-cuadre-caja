@@ -38,6 +38,33 @@ const enrichWithUrl = async (evidencia) => {
   }
 };
 
+const obtenerReferenciaOCR = (datosOcr) => {
+  let datos = datosOcr;
+  if (typeof datos === 'string') {
+    try {
+      datos = JSON.parse(datos);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!datos || typeof datos !== 'object' || Array.isArray(datos)) {
+    return null;
+  }
+
+  for (const referencia of [
+    datos.referencia_bancaria,
+    datos.numero_operacion,
+    datos.nro_operacion,
+  ]) {
+    if (referencia === null || referencia === undefined) continue;
+    const referenciaNormalizada = String(referencia).trim();
+    if (referenciaNormalizada) return referenciaNormalizada;
+  }
+
+  return null;
+};
+
 export const registerEvidencia = async (data) => {
   const {
     id_operacion,
@@ -128,6 +155,17 @@ export const registerEvidencia = async (data) => {
           const error = new Error('No existe una verificación para el pago indicado');
           error.statusCode = 404;
           throw error;
+        }
+
+        const referenciaOCR = obtenerReferenciaOCR(datos_ocr);
+        if (referenciaOCR) {
+          await client.query(
+            `UPDATE pago
+             SET referencia_bancaria = $1,
+                 fecha_modificacion = CURRENT_TIMESTAMP
+             WHERE id_pago = $2 AND id_operacion = $3`,
+            [referenciaOCR, id_pago, id_operacion]
+          );
         }
       }
 
