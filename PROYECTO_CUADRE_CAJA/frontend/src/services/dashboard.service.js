@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { authService } from './auth.service';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/cuadrecaja/api';
+const BASE_URL = import.meta.env.DEV ? '/api' : '/cuadrecaja/api';
 
 export const dashboardService = {
   async getDashboardData(filters = {}) {

@@ -2,9 +2,10 @@ import axios from 'axios';
 import { notifyToast } from '../components/ui/toastEvents';
 
 const AUTH_TOKEN_KEY = 'finito_auth_token';
+const API_BASE_URL = import.meta.env.DEV ? '/api' : '/cuadrecaja/api';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

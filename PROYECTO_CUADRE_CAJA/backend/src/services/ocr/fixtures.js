@@ -615,6 +615,7 @@ export const fixturesPythonComprobantes = [
       'CLIENTE:ZENON IRENE SORIANO CUSTODIO'
     ],
     esperado: {
+      tipo_comprobante: 'BOLETA',
       fecha: '06/10/2026',
       hora: '19:57:31',
       op_gravada: 343.22,
@@ -636,6 +637,7 @@ export const fixturesPythonComprobantes = [
       '405.00'
     ],
     esperado: {
+      tipo_comprobante: 'BOLETA',
       fecha: null,
       hora: null,
       op_gravada: 343.22,
@@ -653,6 +655,7 @@ export const fixturesPythonComprobantes = [
       'VENDEDOR(A): PENA MUNOZ CANAS NINO'
     ],
     esperado: {
+      tipo_comprobante: 'BOLETA',
       fecha: null,
       hora: null,
       op_gravada: null,
@@ -670,6 +673,7 @@ export const fixturesPythonComprobantes = [
       'VENDEDOR(A): PEÑA'
     ],
     esperado: {
+      tipo_comprobante: 'BOLETA',
       fecha: null,
       hora: null,
       op_gravada: null,
@@ -687,6 +691,7 @@ export const fixturesPythonComprobantes = [
       'VENDEDOR(A):LIZFRANCESCA'
     ],
     esperado: {
+      tipo_comprobante: 'BOLETA',
       fecha: null,
       hora: null,
       op_gravada: null,
@@ -704,12 +709,112 @@ export const fixturesPythonComprobantes = [
       'VENDEDOR(A): LORENA'
     ],
     esperado: {
+      tipo_comprobante: 'BOLETA',
       fecha: null,
       hora: null,
       op_gravada: null,
       igv: null,
       total: null,
       cliente: 'ALEXANDRA PEÑA',
+      vendedor: 'LORENA'
+    }
+  },
+  {
+    id: 'Factura tolerante con razón social y vendedor en una línea',
+    lineasOCR: [
+      'F A C T U R A ELECTRÓNICA',
+      'CLIENTE: ODONTOMIA S.A.C.',
+      'VENDEDOR(A): LORENA'
+    ],
+    esperado: {
+      tipo_comprobante: 'FACTURA',
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'ODONTOMIA S.A.C.',
+      vendedor: 'LORENA'
+    }
+  },
+  {
+    id: 'Factura con campos separados en varias líneas',
+    lineasOCR: [
+      '[0.98] f a c t u r a e l e c t r ó n i c a',
+      '[0.97] CLIENTE',
+      'ODONTOMIA',
+      'S.A.C.',
+      'VENDEDOR:',
+      'LORENA'
+    ],
+    esperado: {
+      tipo_comprobante: 'FACTURA',
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'ODONTOMIA S.A.C.',
+      vendedor: 'LORENA'
+    }
+  },
+  {
+    id: 'Factura con JSON contaminante y prefijo OCR en la serie',
+    lineasOCR: [
+      '[0.98] FACTURA ELECTRÓNICA',
+      '[0.97] NFE03-00001234',
+      '[0.96] 10:11:24',
+      '[0.95] CLIENTE: ODONTOMIA S.A.C."*cliente"*null,"productos":[]',
+      '[0.94] VENDEDOR(A): LORENA,"cliente":null,"productos":[]'
+    ],
+    esperado: {
+      tipo_comprobante: 'FACTURA',
+      serie: 'FE03',
+      numero: '00001234',
+      fecha: null,
+      hora: '10:11:24',
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'ODONTOMIA S.A.C.',
+      vendedor: 'LORENA'
+    }
+  },
+  {
+    id: 'Cliente no absorbe representacion impresa en la siguiente línea',
+    lineasOCR: [
+      'FACTURA ELECTRONICA',
+      'CLIENTE: GRUPO DEL RIOS E.I.R.L.',
+      'Representacion impresa del comprobante electronico',
+      'PEDIDOS: 01-234-5678',
+      'VENDEDOR(A): LORENA'
+    ],
+    esperado: {
+      tipo_comprobante: 'FACTURA',
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'GRUPO DEL RIOS E.I.R.L.',
+      vendedor: 'LORENA'
+    }
+  },
+  {
+    id: 'Cliente se limita a 60 caracteres',
+    lineasOCR: [
+      'FACTURA ELECTRONICA',
+      `CLIENTE: ${'A'.repeat(70)}`,
+      'VENDEDOR(A): LORENA'
+    ],
+    esperado: {
+      tipo_comprobante: 'FACTURA',
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'A'.repeat(60),
       vendedor: 'LORENA'
     }
   }

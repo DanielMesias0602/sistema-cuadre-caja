@@ -1,2 +1,6 @@
 rapidocr-onnxruntime==1.4.4
+opencv-python-headless
 pypdfium2>=4.30,<6
+fastapi>=0.115,<1
+python-multipart>=0.0.20,<1
+uvicorn>=0.34,<1

@@ -1,12 +1,10 @@
-import { spawn } from 'node:child_process';
+import { openAsBlob } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parsearComprobante, parsearEvidencia } from './ocr/parser.js';
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../');
-const RAPID_OCR_SCRIPT = path.join(PROJECT_ROOT, 'ocr-service', 'rapid_ocr_service.py');
-const PYTHON_EXECUTABLE = process.env.PYTHON_BIN
-  || (process.platform === 'win32' ? 'python' : 'python3');
+const OCR_WORKER_URL = process.env.OCR_WORKER_URL || 'http://127.0.0.1:8000/ocr';
 const OCR_TIMEOUT_MS = 180_000;
 let colaOcr = Promise.resolve();
 const ALLOWED_MIME_TYPES = new Set([
@@ -31,90 +29,69 @@ const isTransferencia = (tipoEvidencia) => {
   );
 };
 
-const ejecutarOcrLocal = ({ filePath, tipoEvidencia }) => new Promise((resolve, reject) => {
+const ejecutarOcrHttp = async ({ filePath, mimeType, tipoEvidencia }) => {
   const absoluteFilePath = path.isAbsolute(filePath)
     ? filePath
     : path.resolve(PROJECT_ROOT, 'backend', filePath);
+  const formData = new FormData();
+  const archivo = await openAsBlob(absoluteFilePath, { type: mimeType });
+  formData.append('archivo', archivo, path.basename(absoluteFilePath));
+  formData.append('tipo_evidencia', tipoEvidencia);
 
-  const proceso = spawn(
-    PYTHON_EXECUTABLE,
-    [RAPID_OCR_SCRIPT, absoluteFilePath, tipoEvidencia],
-    {
-      cwd: PROJECT_ROOT,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        PYTHONIOENCODING: 'utf-8'
-      }
-    }
-  );
+  let response;
+  try {
+    response = await fetch(OCR_WORKER_URL, {
+      method: 'POST',
+      body: formData,
+      signal: AbortSignal.timeout(OCR_TIMEOUT_MS)
+    });
+  } catch (error) {
+    const agotado = error.name === 'TimeoutError' || error.name === 'AbortError';
+    const ocrError = new Error(
+      agotado
+        ? 'El procesamiento OCR excedió el tiempo máximo'
+        : 'No se pudo conectar con el worker OCR'
+    );
+    ocrError.statusCode = agotado ? 504 : 503;
+    throw ocrError;
+  }
 
-  let salida = '';
-  let errores = '';
-  let agotado = false;
-  let finalizado = false;
-  let killTimer;
+  const cuerpo = await response.text();
+  let resultado;
+  try {
+    resultado = JSON.parse(cuerpo);
+  } catch (error) {
+    console.error('[OCR RapidOCR] El worker devolvió una respuesta JSON no válida:', error);
+    const ocrError = new Error('El worker OCR devolvió una respuesta no válida');
+    ocrError.statusCode = 502;
+    throw ocrError;
+  }
 
-  const timeout = setTimeout(() => {
-    agotado = true;
-    proceso.kill('SIGTERM');
-    killTimer = setTimeout(() => proceso.kill('SIGKILL'), 5_000);
-    killTimer.unref();
-  }, OCR_TIMEOUT_MS);
+  if (!response.ok) {
+    console.error('[OCR RapidOCR] El worker respondió con error:', response.status, resultado);
+    const ocrError = new Error('No se pudo procesar la imagen con el motor OCR');
+    ocrError.statusCode = response.status >= 500 ? 502 : response.status;
+    throw ocrError;
+  }
 
-  const finalizar = (callback, valor) => {
-    if (finalizado) return;
-    finalizado = true;
-    clearTimeout(timeout);
-    clearTimeout(killTimer);
-    callback(valor);
-  };
+  if (
+    !resultado
+    || typeof resultado.texto_completo !== 'string'
+    || !resultado.datos_extraidos
+    || typeof resultado.datos_extraidos !== 'object'
+  ) {
+    const ocrError = new Error('El worker OCR devolvió una respuesta incompleta');
+    ocrError.statusCode = 502;
+    throw ocrError;
+  }
 
-  proceso.stdout.setEncoding('utf8');
-  proceso.stderr.setEncoding('utf8');
-  proceso.stdout.on('data', (fragmento) => {
-    salida += fragmento;
-  });
-  proceso.stderr.on('data', (fragmento) => {
-    errores += fragmento;
-  });
-
-  proceso.on('error', (error) => {
-    console.error('[OCR RapidOCR] No se pudo iniciar Python:', error);
-    const ocrError = new Error('No se pudo iniciar el motor OCR local');
-    ocrError.statusCode = 500;
-    finalizar(reject, ocrError);
-  });
-
-  proceso.on('close', (codigo) => {
-    if (agotado) {
-      const error = new Error('El procesamiento OCR excedió el tiempo máximo');
-      error.statusCode = 504;
-      finalizar(reject, error);
-      return;
-    }
-
-    if (codigo !== 0) {
-      console.error('[OCR RapidOCR] El proceso Python falló:', errores.trim());
-      const error = new Error('No se pudo procesar la imagen con el motor OCR');
-      error.statusCode = 500;
-      finalizar(reject, error);
-      return;
-    }
-
-    if (!salida.includes('DATOS EXTRAIDOS:')) {
-      const error = new Error('El motor OCR devolvió una respuesta no válida');
-      error.statusCode = 502;
-      finalizar(reject, error);
-      return;
-    }
-
-    finalizar(resolve, salida);
-  });
-});
+  return `${resultado.texto_completo}\n\nDATOS EXTRAIDOS:\n${
+    JSON.stringify(resultado.datos_extraidos)
+  }`;
+};
 
 const ejecutarOcrEnCola = (parametros) => {
-  const ejecucion = colaOcr.then(() => ejecutarOcrLocal(parametros));
+  const ejecucion = colaOcr.then(() => ejecutarOcrHttp(parametros));
   colaOcr = ejecucion.then(() => undefined, () => undefined);
   return ejecucion;
 };
@@ -133,7 +110,7 @@ export const extractEvidenceData = async ({ filePath, mimeType, tipoEvidencia })
   }
 
   const transferencia = isTransferencia(tipoEvidencia);
-  const salidaOcr = await ejecutarOcrEnCola({ filePath, tipoEvidencia });
+  const salidaOcr = await ejecutarOcrEnCola({ filePath, mimeType, tipoEvidencia });
   const datosExtraidos = transferencia
     ? parsearEvidencia(salidaOcr)
     : parsearComprobante(salidaOcr);

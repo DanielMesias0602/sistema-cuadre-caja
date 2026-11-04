@@ -4,23 +4,18 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
-const obtenerUrlSocket = () => {
-  if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
-
-  const apiUrl = import.meta.env.VITE_API_URL;
-  if (apiUrl && /^https?:\/\//i.test(apiUrl)) {
-    return new URL(apiUrl).origin;
-  }
-
-  return window.location.origin;
-};
+const obtenerConfiguracionSocket = () => ({
+  url: import.meta.env.DEV ? 'http://localhost:3000' : window.location.origin,
+  path: import.meta.env.DEV ? '/socket.io' : '/cuadrecaja/socket.io',
+});
 
 export function SocketProvider({ children }) {
   const { isAuthenticated, token } = useAuth();
   const socket = useMemo(() => {
     if (!isAuthenticated || !token) return null;
-    return io(obtenerUrlSocket(), {
-      path: '/socket.io',
+    const { url, path } = obtenerConfiguracionSocket();
+    return io(url, {
+      path,
       auth: { token },
       autoConnect: false,
     });

@@ -164,10 +164,22 @@ try {
   });
 
   fixturesPythonComprobantes.forEach((caso, indice) => {
+    const campos = [
+      'tipo_comprobante',
+      'fecha',
+      'hora',
+      'op_gravada',
+      'igv',
+      'total',
+      'cliente',
+      'vendedor'
+    ];
+    if (Object.hasOwn(caso.esperado, 'serie')) campos.push('serie');
+    if (Object.hasOwn(caso.esperado, 'numero')) campos.push('numero');
     validarCasoPython(
       caso,
       resultadosPython.comprobantes[indice],
-      ['fecha', 'hora', 'op_gravada', 'igv', 'total', 'cliente', 'vendedor']
+      campos
     );
   });
 } catch (error) {

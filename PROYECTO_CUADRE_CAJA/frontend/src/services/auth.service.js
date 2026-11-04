@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/cuadrecaja/api';
+const BASE_URL = import.meta.env.DEV ? '/api' : '/cuadrecaja/api';
 const AUTH_TOKEN_KEY = 'finito_auth_token';
 const AUTH_USER_KEY = 'finito_auth_user';
 

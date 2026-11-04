@@ -817,12 +817,122 @@ def reconstruir_espacios_nombre(nombre):
     return " ".join(conservar_formato(palabra) for palabra in partes)
 
 
+def _texto_comprobante_sin_json(texto_completo):
+    texto = str(texto_completo or "").split("DATOS EXTRAIDOS:", 1)[0]
+    lineas_limpias = []
+
+    for linea in texto.splitlines():
+        linea = re.sub(r"^\s*\[\s*\d+(?:[.,]\d+)?\s*\]\s*", "", linea)
+        cortes = [
+            posicion
+            for caracter in ('{', '}', '"', '[', ']')
+            if (posicion := linea.find(caracter)) >= 0
+        ]
+        match_null = re.search(r"\bnull\b", linea, flags=re.IGNORECASE)
+        if match_null:
+            cortes.append(match_null.start())
+        if cortes:
+            linea = linea[:min(cortes)]
+        lineas_limpias.append(linea.rstrip())
+
+    return "\n".join(lineas_limpias)
+
+
 def extraer_cliente(texto_completo):
     """
-    Busca CLIENTE o NOMBRE y captura el nombre real.
-    Tolera: valor en misma linea con ':', valor en siguiente linea,
-    ruido como 'oda' intercalado, multiples lineas.
+    Busca CLIENTE o NOMBRE y limita la captura al nombre, sin incorporar
+    descripciones, direcciones ni campos posteriores.
     """
+    patron_fin_nombre = re.compile(
+        r"\b(?:REPRESENTACI[ÓO]N|DIRECCI[ÓO]N|RUC|DNI|VENDEDOR|PEDIDOS|"
+        r"PUNTO\s+DE\s+VENTA)\b|"
+        r"(?<!\S)(?:AV|JR|CAL|OTR)\.|https?\b\S*|www\.\S*",
+        flags=re.IGNORECASE
+    )
+    etiquetas_parada = re.compile(
+        r"^(?:REPRESENTACI[ÓO]N|DIRECCI[ÓO]N|DNI|RUC|TOTAL|SUBTOTAL|IGV|OP\.?|"
+        r"EFECTIVO|VENDEDOR(?:\s*\(\s*A\s*\))?|PEDIDOS|PUNTO\s+DE\s+VENTA|"
+        r"AV\.|JR\.|CAL\.|OTR\.|HTTPS?://|WWW\.|TIPO|SERIE|N[ÚU]MERO|FECHA|HORA|"
+        r"TEL[ÉE]FONO|CORREO|MONEDA|FORMA\s+DE\s+PAGO)\b",
+        flags=re.IGNORECASE
+    )
+    texto_ocr = _texto_comprobante_sin_json(texto_completo)
+    lineas = [linea.strip() for linea in texto_ocr.splitlines()]
+
+    def limpiar_valor(valor):
+        coincidencia_fin = patron_fin_nombre.search(valor)
+        if coincidencia_fin:
+            valor = valor[:coincidencia_fin.start()]
+        valor = re.split(
+            r"\b(?:null|undefined|productos|tipo_comprobante)\b",
+            valor,
+            maxsplit=1,
+            flags=re.IGNORECASE
+        )[0]
+        valor = re.split(
+            r"\s*(?=(?:DIRECCI[ÓO]N|DNI|RUC|TOTAL|SUBTOTAL|IGV|OP\.?|"
+            r"EFECTIVO|VENDEDOR|TIPO|SERIE|N[ÚU]MERO|FECHA|HORA|"
+            r"TEL[ÉE]FONO|CORREO|MONEDA|FORMA\s+DE\s+PAGO)\b)",
+            valor,
+            maxsplit=1,
+            flags=re.IGNORECASE
+        )[0]
+        valor = re.sub(r"[^a-zA-ZÁÉÍÓÚÜÑáéíóúüñ\s.&/-]", "", valor)
+        valor = re.sub(r"\s+", " ", valor).strip(" :-")
+        if len(valor) > 60:
+            puntos = [coincidencia.start() for coincidencia in re.finditer(r"\.", valor)]
+            palabras_clave = [
+                coincidencia.start()
+                for coincidencia in patron_fin_nombre.finditer(valor)
+            ]
+            cortes = puntos + palabras_clave
+            valor = valor[:min(cortes)] if cortes else valor[:60]
+            valor = valor[:60].rstrip()
+        return valor
+
+    def normalizar_nombre(valor):
+        nombre = corregir_nombres_espanoles(
+            reconstruir_espacios_nombre(valor)
+        )
+        return nombre[:60].rstrip() if len(nombre) > 60 else nombre
+
+    for indice, linea in enumerate(lineas):
+        match = re.match(
+            r"^\s*(?:CLIENTE|NOMBRE)\b\s*:?\s*([^\r\n]{0,160})$",
+            linea,
+            re.IGNORECASE
+        )
+        if not match:
+            continue
+
+        partes = []
+        valor_inicial = limpiar_valor(match.group(1))
+        if valor_inicial:
+            partes.append(valor_inicial)
+        else:
+            siguiente_indice = indice + 1
+            while siguiente_indice < len(lineas) and not lineas[siguiente_indice]:
+                siguiente_indice += 1
+            if siguiente_indice < len(lineas):
+                siguiente = lineas[siguiente_indice]
+                if not etiquetas_parada.match(siguiente):
+                    candidato = limpiar_valor(siguiente)
+                    if candidato and not re.search(r"\d{2,}", candidato):
+                        partes.append(candidato)
+                        siguiente_indice += 1
+                        if siguiente_indice < len(lineas):
+                            sufijo = limpiar_valor(lineas[siguiente_indice])
+                            if re.fullmatch(
+                                r"(?:S\.?\s*A\.?\s*C\.?|E\.?\s*I\.?\s*R\.?\s*L\.?|S\.?\s*A\.?)",
+                                sufijo,
+                                flags=re.IGNORECASE
+                            ):
+                                partes.append(sufijo)
+
+        nombre = re.sub(r"\s+", " ", " ".join(partes)).strip()
+        if len(nombre) >= 4:
+            return normalizar_nombre(nombre)
+
     PALABRAS_RUIDO = [
         'representacion', 'impresa', 'comprobante', 'electronico',
         'documento', 'consulta', 'gracias', 'pedidos', 'aceptan',
@@ -832,24 +942,22 @@ def extraer_cliente(texto_completo):
         'null', 'undefined', 'true', 'false', 'none'
     ]
 
-    lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
+    lineas = [l.strip() for l in texto_ocr.split('\n') if l.strip()]
 
     for i, linea in enumerate(lineas):
         linea_upper = linea.upper()
         if 'CLIENTE' in linea_upper or 'NOMBRE' in linea_upper:
-            # Caso 1: misma linea con ':'
+            # Compatibilidad con etiquetas OCR embebidas en una línea.
             if ':' in linea:
                 partes = linea.split(':', 1)
                 if len(partes) > 1:
-                    valor = partes[1].strip()
+                    valor = limpiar_valor(partes[1])
                     if len(valor) >= 4 and re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{4,}", valor):
                         if not any(p in valor.lower() for p in PALABRAS_RUIDO):
-                            return corregir_nombres_espanoles(
-                                reconstruir_espacios_nombre(valor)
-                            )
+                            return normalizar_nombre(valor)
 
-            # Caso 2: buscar en las siguientes 5 lineas
-            for j in range(i + 1, min(i + 6, len(lineas))):
+            # Compatibilidad con OCR que pone el valor en la línea siguiente.
+            for j in range(i + 1, min(i + 2, len(lineas))):
                 linea_j = lineas[j]
                 linea_j_upper = linea_j.upper()
                 linea_j_lower = linea_j.lower()
@@ -869,11 +977,53 @@ def extraer_cliente(texto_completo):
                     continue
 
                 # Limpiar y retornar
-                limpio = re.sub(r"[^a-zA-ZÁÉÍÓÚáéíóúÑñ\s.]", "", linea_j).strip()
+                limpio = limpiar_valor(linea_j)
                 if len(limpio) >= 4:
-                    return corregir_nombres_espanoles(
-                        reconstruir_espacios_nombre(limpio)
-                    )
+                    return normalizar_nombre(limpio)
+
+    return None
+
+
+def extraer_vendedor(texto_completo):
+    texto_ocr = _texto_comprobante_sin_json(texto_completo)
+    lineas = [linea.strip() for linea in texto_ocr.splitlines()]
+    etiquetas_parada = re.compile(
+        r"^(?:CLIENTE|NOMBRE|RUC|DNI|DIRECCI[ÓO]N|FECHA|HORA|"
+        r"TIPO|SERIE|N[ÚU]MERO|OP\.?|IGV|TOTAL|EFECTIVO)\b",
+        flags=re.IGNORECASE
+    )
+
+    for indice, linea in enumerate(lineas):
+        match = re.match(
+            r"^\s*VENDEDOR\s*(?:\(\s*A\s*\)|A)?\s*:?\s*([^\r\n]{0,160})$",
+            linea,
+            flags=re.IGNORECASE
+        )
+        if not match:
+            continue
+
+        valor = match.group(1).strip()
+        if not valor:
+            for siguiente in lineas[indice + 1:indice + 3]:
+                if etiquetas_parada.match(siguiente):
+                    break
+                if siguiente:
+                    valor = siguiente
+                    break
+
+        valor = re.split(
+            r"\s*(?=(?:CLIENTE|NOMBRE|RUC|DNI|DIRECCI[ÓO]N|FECHA|HORA|"
+            r"TIPO|SERIE|N[ÚU]MERO|OP\.?|IGV|TOTAL|EFECTIVO)\b)",
+            valor,
+            maxsplit=1,
+            flags=re.IGNORECASE
+        )[0]
+        valor = re.sub(r"^[\s,:;*]+|[\s,:;*]+$", "", valor)
+        valor = limpiar_texto(valor)
+        if valor and re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", valor):
+            return corregir_nombres_espanoles(
+                reconstruir_espacios_nombre(valor)
+            )
 
     return None
 
@@ -882,13 +1032,15 @@ def extraer_serie_numero(texto_completo):
     """
     Tolera N°, No, Nº, y formatos con/sin guion.
     """
+    texto_ocr = _texto_comprobante_sin_json(texto_completo)
     patrones = [
+        r"(?<![A-Z0-9])N?((?:FE|BE)\d{2,4})\s*[- ]\s*(\d{6,})(?!\d)",
         r"N[o°º]?\s*([A-Z]{2}\d{2,4})\s*-\s*(\d{6,})",
         r"N[o°º]?\s*([A-Z]{2}\d{2,4})\s+(\d{6,})",
         r"([A-Z]{2}\d{2,4})-(\d{6,})",
     ]
     for patron in patrones:
-        coincidencia = re.search(patron, texto_completo, flags=re.IGNORECASE)
+        coincidencia = re.search(patron, texto_ocr, flags=re.IGNORECASE)
         if coincidencia:
             return coincidencia.group(1).upper(), coincidencia.group(2)
     return None, None
@@ -924,10 +1076,19 @@ def extraer_datos_comprobante(textos):
     # TIPO
     # ========================================================
 
-    if re.search(r"\bFACTURA\b", texto_completo, flags=re.IGNORECASE):
+    texto_tipo = _texto_comprobante_sin_json(texto_completo).upper().translate(str.maketrans({
+        "Á": "A",
+        "É": "E",
+        "Í": "I",
+        "Ó": "O",
+        "Ú": "U",
+        "Ü": "U",
+    }))
+    tipo_normalizado = re.sub(r"[^A-Z]", "", texto_tipo)
+    if "FACTURA" in tipo_normalizado:
         resultado["tipo_comprobante"] = "FACTURA"
 
-    elif re.search(r"\bBOLETA\b", texto_completo, flags=re.IGNORECASE):
+    elif "BOLETA" in tipo_normalizado:
         resultado["tipo_comprobante"] = "BOLETA"
 
     # ========================================================
@@ -956,11 +1117,11 @@ def extraer_datos_comprobante(textos):
     # HORA
     # ========================================================
 
-    hora = buscar_patron(
-        texto_completo,
-        r"HORA\s*:\s*"
-        r"(\d{2}:\d{2}:\d{2})"
+    coincidencia_hora = re.search(
+        r"(?<!\d)(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?!\d)",
+        _texto_comprobante_sin_json(texto_completo)
     )
+    hora = coincidencia_hora.group(0) if coincidencia_hora else None
 
     if hora:
         resultado["hora"] = hora
@@ -969,13 +1130,7 @@ def extraer_datos_comprobante(textos):
     # VENDEDOR
     # ========================================================
 
-    vendedor = buscar_patron(
-        texto_completo,
-        r"VENDEDOR\s*"
-        r"(?:\(\s*A\s*\)|A)?"
-        r"\s*:\s*"
-        r"([^\r\n]+)"
-    )
+    vendedor = extraer_vendedor(texto_completo)
 
     if vendedor:
         vendedor = corregir_nombres_espanoles(
