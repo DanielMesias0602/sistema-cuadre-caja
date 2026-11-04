@@ -173,7 +173,7 @@ export function OperacionesRecientesTable({ operaciones, selectedOpId, onSelectO
                     <td className="py-3.5 px-5 whitespace-nowrap">
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-900 dark:text-slate-100">{op.fecha}</span>
-                        {op.hora && <span className="text-[10px] font-medium text-slate-400">{op.hora.substring(0, 5)}</span>}
+                        {op.hora && <span className="text-[10px] font-medium text-slate-400">{op.hora}</span>}
                       </div>
                     </td>
 

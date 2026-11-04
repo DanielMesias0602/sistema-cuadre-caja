@@ -851,12 +851,28 @@ def extract_culqi_data(lines):
         'requiere_revision': True, 'requiere_confirmacion': True
     }
 
-    match_monto = re.search(
-        r'\bTota[l1i]\s*:?\s*S\s*/\s*([\d.,]+)',
-        texto_completo,
+    patron_etiqueta_total = re.compile(
+        r'^\s*Tota[l1i]\b(?:\s*:\s*|\s+|$)(.*)$',
         re.IGNORECASE
     )
-    if match_monto: data['monto'] = parse_money(match_monto.group(1))
+    patron_monto_total = re.compile(
+        r'^\s*(?:S\s*/\s*:?\s*)?'
+        r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})(?!\d)',
+        re.IGNORECASE
+    )
+    for indice, linea in enumerate(lines):
+        etiqueta_total = patron_etiqueta_total.match(str(linea))
+        if not etiqueta_total:
+            continue
+
+        texto_monto = etiqueta_total.group(1)
+        match_monto = patron_monto_total.match(texto_monto)
+        if not match_monto and not texto_monto.strip() and indice + 1 < len(lines):
+            match_monto = patron_monto_total.match(str(lines[indice + 1]))
+        if match_monto:
+            data['monto'] = parse_money(match_monto.group(1))
+            if data['monto'] is not None:
+                break
 
     match_ref = re.search(r'VENTA\s*ID\s*:?\s*(\d+)', texto_completo, re.IGNORECASE)
     if match_ref:

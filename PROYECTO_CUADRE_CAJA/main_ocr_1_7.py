@@ -689,6 +689,20 @@ def extraer_monto_tolerante(texto, etiqueta):
     return None
 
 
+def extraer_total_explicito(texto):
+    patron = re.compile(
+        r"(?im)^[ \t]*TOTAL\b[ \t]*"
+        r"(?:(?:S[ \t]*[/|][ \t]*:?)|:)?[ \t]*"
+        r"(?:S[ \t]*[/|][ \t]*:?[ \t]*)?"
+        r"(?:\r?\n[ \t]*(?:S[ \t]*[/|][ \t]*:?[ \t]*)?)?"
+        r"(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?!\d)"
+    )
+    coincidencia = patron.search(texto)
+    if coincidencia:
+        return normalizar_monto(coincidencia.group(1))
+    return None
+
+
 def validar_totales_comprobante(resultado):
     op_gravada = resultado.get("op_gravada")
     igv = resultado.get("igv")
@@ -1175,10 +1189,13 @@ def extraer_datos_comprobante(textos):
     # TOTAL (tolerante)
     # ========================================================
 
-    total = extraer_monto_tolerante(
-        texto_completo,
-        r"TOTAL\s*S[/|]\s*:?"
-    )
+    total = extraer_total_explicito(texto_completo)
+
+    if total is None:
+        total = extraer_monto_tolerante(
+            texto_completo,
+            r"TOTAL\s*S[/|]\s*:?"
+        )
 
     if total is not None:
         resultado["total"] = total
