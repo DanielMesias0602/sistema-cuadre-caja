@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createConciliacion,
+  updateConciliacion,
   getConciliacion,
   getConciliaciones,
   getPreCalculo,
@@ -16,6 +17,7 @@ router.use(requireAuth, requireRole(1));
 router.post('/', createConciliacion);
 router.get('/', getConciliaciones);
 router.get('/pre-calculo', getPreCalculo);
+router.put('/:id', updateConciliacion);
 router.put('/:id/revisar', revisarConciliacion);
 router.put('/:id/revertir', revisarConciliacion);
 router.get('/:id', getConciliacion);

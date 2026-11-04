@@ -53,6 +53,24 @@ export const ponerConciliacionEnRevision = async (idConciliacion, observacion) =
   return result.rows[0] ?? null;
 };
 
+export const actualizarConciliacion = async (
+  idConciliacion,
+  { diferencia_detectada, resultado, observacion },
+  client
+) => {
+  const result = await client.query(
+    `UPDATE conciliacion
+     SET diferencia_detectada = $2,
+         resultado = $3,
+         observacion = $4
+     WHERE id_conciliacion = $1
+     RETURNING id_conciliacion, id_usuario, fecha, diferencia_detectada,
+               resultado, observacion, fecha_registro`,
+    [idConciliacion, diferencia_detectada, resultado, observacion]
+  );
+  return result.rows[0] ?? null;
+};
+
 export const findAllConciliaciones = async () => {
   const result = await query(
     `SELECT

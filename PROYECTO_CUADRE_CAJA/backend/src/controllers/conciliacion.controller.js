@@ -1,5 +1,6 @@
 import {
   registrarConciliacion,
+  actualizarConciliacion as actualizarConciliacionService,
   obtenerConciliacion,
   listarConciliaciones,
   obtenerPreCalculoConciliacion,
@@ -33,6 +34,27 @@ export const createConciliacion = async (req, res, next) => {
     return res.status(201).json({ status: 'success', data: conciliacion });
   } catch (error) {
     next(error);
+  }
+};
+
+export const updateConciliacion = async (req, res, next) => {
+  try {
+    const conciliacion = await actualizarConciliacionService(
+      Number(req.params.id),
+      {
+        ...req.body,
+        id_usuario: req.user.id_usuario
+      }
+    );
+    return res.status(200).json({ status: 'success', data: conciliacion });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+    return next(error);
   }
 };
 

@@ -104,10 +104,11 @@ export function Conciliacion() {
     ));
   }, [conciliaciones]);
 
-  const fechaOcupada = conciliacionesUnicas.some(
+  const conciliacionExistente = conciliacionesUnicas.find(
     (conciliacion) =>
       String(conciliacion.fecha || '').slice(0, 10) === formConciliacion.fecha
   );
+  const fechaOcupada = Boolean(conciliacionExistente);
 
   const formatCurrency = (val) => {
     const num = Number(val || 0);
@@ -213,7 +214,15 @@ export function Conciliacion() {
     setErrorModal(null);
     setExitoModal(null);
     const hoy = new Date().toLocaleDateString('en-CA');
-    setFormConciliacion({ fecha: hoy, diferencia_detectada: 0, resultado: 'CONCILIADO', observacion: '' });
+    const conciliacionHoy = conciliacionesUnicas.find(
+      (conciliacion) => String(conciliacion.fecha || '').slice(0, 10) === hoy
+    );
+    setFormConciliacion({
+      fecha: hoy,
+      diferencia_detectada: conciliacionHoy?.diferencia ?? 0,
+      resultado: conciliacionHoy?.resultado || 'CONCILIADO',
+      observacion: conciliacionHoy?.observacion || ''
+    });
     calcularPreCalculo(hoy);
   };
 
@@ -224,7 +233,7 @@ export function Conciliacion() {
 
   const handleGuardar = async (e) => {
     e.preventDefault();
-    if (guardando || fechaOcupada) return;
+    if (guardando) return;
     setErrorModal(null);
     setExitoModal(null);
     setGuardando(true);
@@ -237,8 +246,16 @@ export function Conciliacion() {
         observacion: formConciliacion.observacion.trim() || null
       };
 
-      await api.post('/conciliaciones', payload);
-      setExitoModal('Conciliación registrada exitosamente.');
+      if (conciliacionExistente) {
+        await api.put(
+          `/conciliaciones/${conciliacionExistente.id_conciliacion}`,
+          payload
+        );
+        setExitoModal('Conciliación actualizada exitosamente.');
+      } else {
+        await api.post('/conciliaciones', payload);
+        setExitoModal('Conciliación registrada exitosamente.');
+      }
       await recargarDatos();
 
       setTimeout(() => {
@@ -489,7 +506,17 @@ export function Conciliacion() {
                 <SingleDatePicker
                   value={formConciliacion.fecha}
                   onChange={(nuevaFecha) => {
-                    setFormConciliacion({ ...formConciliacion, fecha: nuevaFecha });
+                    const existente = conciliacionesUnicas.find(
+                      (conciliacion) =>
+                        String(conciliacion.fecha || '').slice(0, 10) === nuevaFecha
+                    );
+                    setFormConciliacion((actual) => ({
+                      ...actual,
+                      fecha: nuevaFecha,
+                      diferencia_detectada: existente?.diferencia ?? 0,
+                      resultado: existente?.resultado || 'CONCILIADO',
+                      observacion: existente?.observacion || ''
+                    }));
                     calcularPreCalculo(nuevaFecha);
                   }}
                   placeholder="Seleccionar fecha a conciliar"
@@ -497,11 +524,11 @@ export function Conciliacion() {
               </div>
 
               {fechaOcupada && (
-                <div role="alert" className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in dark:bg-rose-950/40 dark:border-rose-800/60">
-                  <AlertTriangle className="h-5 w-5 text-rose-600 flex-shrink-0 mt-0.5 dark:text-rose-400" />
+                <div role="status" className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 animate-fade-in dark:bg-amber-950/40 dark:border-amber-800/60">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5 dark:text-amber-400" />
                   <div>
-                    <p className="text-sm font-bold text-rose-900 dark:text-rose-300">Atención: Esta fecha ya tiene una conciliación registrada.</p>
-                    <p className="text-xs text-rose-800 mt-0.5 dark:text-rose-400">Solo puede existir un registro por fecha. Revisa la conciliación existente antes de continuar.</p>
+                    <p className="text-sm font-bold text-amber-900 dark:text-amber-300">Esta fecha ya tiene una conciliación registrada.</p>
+                    <p className="text-xs text-amber-800 mt-0.5 dark:text-amber-400">Al guardar, actualizarás el registro existente sin crear otra tarjeta.</p>
                   </div>
                 </div>
               )}
@@ -653,8 +680,12 @@ export function Conciliacion() {
 
               <div className="pt-2 border-t border-slate-200 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 dark:border-slate-600">
                 <button type="button" onClick={cerrarModal} disabled={guardando} className="h-10 sm:h-11 flex-1 rounded-xl bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-200 cursor-pointer dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Cancelar</button>
-                <button type="submit" disabled={guardando || fechaOcupada} className={`h-10 sm:h-11 flex-[2] rounded-xl text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-2 transition-all ${fechaOcupada ? 'bg-slate-300 cursor-not-allowed dark:bg-slate-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</> : fechaOcupada ? 'Fecha ya registrada' : 'Guardar Conciliación'}
+                <button type="submit" disabled={guardando} className="h-10 sm:h-11 flex-[2] rounded-xl bg-blue-600 text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-2 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {guardando
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</>
+                    : fechaOcupada
+                      ? 'Actualizar Conciliación'
+                      : 'Guardar Conciliación'}
                 </button>
               </div>
             </form>

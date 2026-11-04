@@ -6,6 +6,7 @@ import {
   findConciliacionByFecha,
   contarOperacionesSinEvidenciaEmpresaPorFecha,
   findOperacionesConNumeros,
+  actualizarConciliacion as actualizarConciliacionRepository,
   ponerConciliacionEnRevision as actualizarConciliacionEnRevision
 } from '../repositories/conciliacion.repository.js';
 import { withTransaction } from '../repositories/base.repository.js';
@@ -102,6 +103,74 @@ export const obtenerConciliacion = async (idConciliacion) => {
     throw error;
   }
   return conciliacion;
+};
+
+export const actualizarConciliacion = async (
+  idConciliacion,
+  { id_usuario, diferencia_detectada, resultado, observacion = null }
+) => {
+  const idNumerico = Number(idConciliacion);
+  if (!Number.isInteger(idNumerico) || idNumerico <= 0) {
+    throw validationError('El identificador de conciliación no es válido');
+  }
+  if (!id_usuario) throw validationError('El usuario es obligatorio');
+
+  const diferenciaNumerica = Number(diferencia_detectada);
+  if (!Number.isFinite(diferenciaNumerica)) {
+    throw validationError('La diferencia detectada debe ser numérica');
+  }
+  if (typeof resultado !== 'string' || !resultado.trim()) {
+    throw validationError('El resultado de la conciliación es obligatorio');
+  }
+  const resultadoNormalizado = resultado.trim().toUpperCase() === 'EN REVISION'
+    ? 'EN REVISIÓN'
+    : resultado.trim().toUpperCase();
+  if (!['CONCILIADO', 'EN REVISIÓN'].includes(resultadoNormalizado)) {
+    throw validationError('El resultado debe ser CONCILIADO o EN REVISIÓN');
+  }
+  if (observacion != null && typeof observacion !== 'string') {
+    throw validationError('La observación debe ser texto');
+  }
+  if (observacion != null && observacion.trim().length > 500) {
+    throw validationError('La observación no puede superar los 500 caracteres');
+  }
+
+  const conciliacionActualizada = await withTransaction(async (client) => {
+    const existente = await client.query(
+      `SELECT id_conciliacion
+       FROM conciliacion
+       WHERE id_conciliacion = $1
+       FOR UPDATE`,
+      [idNumerico]
+    );
+    if (existente.rows.length === 0) {
+      const error = new Error('La conciliación no existe');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return actualizarConciliacionRepository(
+      idNumerico,
+      {
+        diferencia_detectada: diferenciaNumerica,
+        resultado: resultadoNormalizado,
+        observacion: observacion?.trim() || null
+      },
+      client
+    );
+  });
+
+  if (!conciliacionActualizada) {
+    const error = new Error('No se pudo actualizar la conciliación');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  emitirEvento('conciliacion_actualizada', {
+    id: conciliacionActualizada.id_conciliacion,
+    resultado: conciliacionActualizada.resultado
+  });
+  return conciliacionActualizada;
 };
 
 export const ponerConciliacionEnRevision = async (idConciliacion, idUsuario, motivo) => {
