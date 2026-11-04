@@ -222,24 +222,39 @@ export const findOperacionesConNumeros = async (fecha) => {
        c.serie,
        c.numero,
        c.monto AS monto_comprobante,
-       p.referencia_bancaria AS num_operacion_pago,
-       (
-         SELECT (e.datos_ocr::jsonb->>'referencia_bancaria')
-         FROM evidencia e
-         WHERE e.id_operacion = o.id_operacion AND e.tipo_evidencia = 'EMPRESA'
-         LIMIT 1
+       COALESCE(
+         NULLIF(BTRIM(e_cliente.datos_ocr->>'referencia_bancaria'), ''),
+         NULLIF(BTRIM(e_cliente.datos_ocr->>'numero_operacion'), ''),
+         NULLIF(BTRIM(e_cliente.datos_ocr->>'nro_operacion'), ''),
+         p.referencia_bancaria
+       ) AS num_operacion_pago,
+       COALESCE(
+         NULLIF(BTRIM(e_empresa.datos_ocr->>'referencia_bancaria'), ''),
+         NULLIF(BTRIM(e_empresa.datos_ocr->>'numero_operacion'), ''),
+         NULLIF(BTRIM(e_empresa.datos_ocr->>'nro_operacion'), '')
        ) AS num_operacion_empresa,
-       (
-         SELECT (e.datos_ocr::jsonb->>'numero_operacion')
-         FROM evidencia e
-         WHERE e.id_operacion = o.id_operacion AND e.tipo_evidencia = 'EMPRESA'
-         LIMIT 1
-       ) AS num_op_empresa_alt,
+       NULLIF(BTRIM(e_empresa.datos_ocr->>'numero_operacion'), '')
+         AS num_op_empresa_alt,
        mp.nombre AS medio_pago
      FROM operacion o
      JOIN comprobante c ON c.id_comprobante = o.id_comprobante
      JOIN pago p ON p.id_operacion = o.id_operacion
      JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+     LEFT JOIN LATERAL (
+       SELECT vp.id_evidencia_cliente, vp.id_evidencia_empresa
+       FROM verificacion_pago vp
+       WHERE vp.id_pago = p.id_pago
+       ORDER BY vp.id_verificacion DESC
+       LIMIT 1
+     ) vp ON TRUE
+     LEFT JOIN evidencia e_cliente
+       ON e_cliente.id_evidencia = vp.id_evidencia_cliente
+       AND e_cliente.id_operacion = o.id_operacion
+       AND e_cliente.tipo_evidencia = 'CLIENTE'
+     LEFT JOIN evidencia e_empresa
+       ON e_empresa.id_evidencia = vp.id_evidencia_empresa
+       AND e_empresa.id_operacion = o.id_operacion
+       AND e_empresa.tipo_evidencia = 'EMPRESA'
      WHERE o.fecha = $1
        AND o.estado != 'ANULADA'
        AND (
