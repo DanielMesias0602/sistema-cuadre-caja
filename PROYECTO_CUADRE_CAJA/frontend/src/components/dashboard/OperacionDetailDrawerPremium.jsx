@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Calendar,
   Check,
@@ -15,6 +15,7 @@ import {
   Clock,
   Upload,
   Pencil,
+  Save,
   LoaderCircle,
   FileText,
   Banknote,
@@ -63,8 +64,9 @@ const compararMontos = (montoPago, montoEvidencia) => {
   const p = Number(montoPago);
   const e = Number(montoEvidencia);
   if (!Number.isFinite(p) || !Number.isFinite(e)) return false;
-  // Tolerancia de ±1 sol por redondeo
-  return Math.abs(p - e) <= 1;
+  const pagoEnCentimos = Math.round((p + Number.EPSILON) * 100);
+  const evidenciaEnCentimos = Math.round((e + Number.EPSILON) * 100);
+  return pagoEnCentimos === evidenciaEnCentimos;
 };
 
 const evaluarPago = (pago, evidenciaEmpresa) => {
@@ -309,7 +311,7 @@ function EvidenciaEmpresaPagoForm({
           {!procesandoOcr && ocr && (
             <div className="mb-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-3">
               <h5 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Datos extraídos por OCR</h5>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {ocr.monto != null && <DatoOCR icon={<Banknote className="h-3.5 w-3.5 text-emerald-500" />} label="Monto">{formatPEN(ocr.monto)}</DatoOCR>}
                 {ocr.fecha_operacion && <DatoOCR icon={<Calendar className="h-3.5 w-3.5 text-blue-500" />} label="Fecha">{ocr.fecha_operacion}</DatoOCR>}
                 {(ocr.referencia_bancaria || ocr.numero_operacion) && <DatoOCR icon={<Hash className="h-3.5 w-3.5 text-purple-500" />} label="N.º operación">{ocr.referencia_bancaria || ocr.numero_operacion}</DatoOCR>}
@@ -339,7 +341,12 @@ function EvidenciaEmpresaPagoForm({
 // ============================================================
 // COMPONENTE PRINCIPAL
 // ============================================================
-export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida }) {
+export function OperacionDetailDrawerPremium({
+  op,
+  onClose,
+  onEvidenciaSubida,
+  onRegistroActualizado,
+}) {
   const { user } = useAuth();
   const esAdmin = user?.id_rol === 1 || user?.rol?.toUpperCase() === 'ADMINISTRADOR';
   const open = op !== null;
@@ -361,12 +368,45 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
   const [pagoAReemplazar, setPagoAReemplazar] = useState(null);
   const [pagoEnValidacion, setPagoEnValidacion] = useState(null);
   const [errorValidacionManual, setErrorValidacionManual] = useState(null);
+  const [modalEdicionAbierto, setModalEdicionAbierto] = useState(false);
+  const [guardandoRegistro, setGuardandoRegistro] = useState(false);
+  const [errorEdicionRegistro, setErrorEdicionRegistro] = useState(null);
+  const [mediosPagoDisponibles, setMediosPagoDisponibles] = useState([]);
+  const [pagosEdicion, setPagosEdicion] = useState([]);
+  const [formularioEdicionRegistro, setFormularioEdicionRegistro] = useState({
+    monto_comprobante: '',
+    id_pago: '',
+    monto_pago: '',
+    id_medio_pago: '',
+    referencia_bancaria: '',
+    observacion: '',
+  });
 
   const idOperacion = Number(
     initialOpData?.id_operacion ??
     initialOpData?.idOperacion ??
     initialOpData?.operacion?.id_operacion
   );
+  const cargarOperacionActualizada = useCallback(async () => {
+    const [operationResponse, paymentsResponse] = await Promise.all([
+      api.get(`/operaciones/${idOperacion}`),
+      api.get(`/pagos/operacion/${idOperacion}`),
+    ]);
+    const operationData = operationResponse.data?.data || operationResponse.data;
+    const paymentsData = paymentsResponse.data?.data || paymentsResponse.data;
+    if (!Array.isArray(paymentsData)) {
+      throw new Error('La respuesta de pagos no tiene el formato esperado.');
+    }
+
+    return {
+      ...(op || lastOperation || {}),
+      ...operationData,
+      pagos: paymentsData.map((payment) => ({
+        ...payment,
+        referencia: payment.referencia ?? payment.referencia_bancaria,
+      })),
+    };
+  }, [idOperacion, lastOperation, op]);
   const opData = freshOperation?.id === idOperacion
     ? freshOperation.data
     : initialOpData;
@@ -397,26 +437,10 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     if (!open || !Number.isFinite(idOperacion)) return undefined;
 
     let active = true;
-    const cargarOperacionActualizada = async () => {
+    const refrescarOperacion = async () => {
       setOperationLoadError(null);
       try {
-        const [operationResponse, paymentsResponse] = await Promise.all([
-          api.get(`/operaciones/${idOperacion}`),
-          api.get(`/pagos/operacion/${idOperacion}`),
-        ]);
-        const operationData = operationResponse.data?.data || operationResponse.data;
-        const paymentsData = paymentsResponse.data?.data || paymentsResponse.data;
-        if (!Array.isArray(paymentsData)) {
-          throw new Error('La respuesta de pagos no tiene el formato esperado.');
-        }
-        const data = {
-          ...(op || {}),
-          ...operationData,
-          pagos: paymentsData.map((payment) => ({
-            ...payment,
-            referencia: payment.referencia ?? payment.referencia_bancaria,
-          })),
-        };
+        const data = await cargarOperacionActualizada();
         if (active) {
           setFreshOperation({ id: idOperacion, data });
         }
@@ -428,11 +452,11 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
       }
     };
 
-    void cargarOperacionActualizada();
+    void refrescarOperacion();
     return () => {
       active = false;
     };
-  }, [open, idOperacion, op, operationRefreshKey]);
+  }, [open, idOperacion, cargarOperacionActualizada, operationRefreshKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -541,6 +565,38 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
 
   const opGravada = dataComprobante.op_gravada ?? opData.op_gravada;
   const igv = dataComprobante.igv ?? opData.igv;
+  const totalNumerico = montoFinal == null || String(montoFinal).trim() === ''
+    ? null
+    : Number(montoFinal);
+  const opGravadaNumerica = opGravada == null || String(opGravada).trim() === ''
+    ? null
+    : Number(opGravada);
+  const igvNumerico = igv == null || String(igv).trim() === ''
+    ? null
+    : Number(igv);
+  const baseYTotalValidos = opGravadaNumerica !== null &&
+    Number.isFinite(opGravadaNumerica) &&
+    opGravadaNumerica >= 0 &&
+    totalNumerico !== null &&
+    Number.isFinite(totalNumerico) &&
+    totalNumerico >= opGravadaNumerica;
+  const igvCalculadoDesdeTotal = baseYTotalValidos
+    ? Math.round((totalNumerico - opGravadaNumerica + Number.EPSILON) * 100) / 100
+    : null;
+  const igvCalculadoDesdeTotalBruto = totalNumerico !== null &&
+    Number.isFinite(totalNumerico) &&
+    totalNumerico >= 0
+    ? Math.round((totalNumerico * 0.18 / 1.18 + Number.EPSILON) * 100) / 100
+    : null;
+  const igvVisualizado = Number.isFinite(igvNumerico) &&
+    igvNumerico > 0 &&
+    (opGravadaNumerica === null ||
+      !Number.isFinite(opGravadaNumerica) ||
+      igvNumerico !== opGravadaNumerica)
+    ? igvNumerico
+    : (igvCalculadoDesdeTotal > 0
+      ? igvCalculadoDesdeTotal
+      : igvCalculadoDesdeTotalBruto ?? igv);
 
   let rawItems = opData.items || dataComprobante.items;
 
@@ -758,6 +814,101 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
     return String(selectedImageUrl || '').toLowerCase().includes('.pdf');
   })();
 
+  const abrirEdicionRegistro = async () => {
+    setErrorEdicionRegistro(null);
+    try {
+      const [mediosResponse, pagosResponse] = await Promise.all([
+        api.get('/medios-pago'),
+        api.get(`/pagos/operacion/${idOperacion}`),
+      ]);
+      const medios = mediosResponse.data?.data || mediosResponse.data || [];
+      const pagosActualizados = pagosResponse.data?.data || pagosResponse.data;
+      if (!Array.isArray(medios)) {
+        throw new Error('No se pudo obtener la lista de medios de pago.');
+      }
+      if (!Array.isArray(pagosActualizados)) {
+        throw new Error('No se pudo obtener la lista completa de pagos de esta operación.');
+      }
+      const pagosNormalizados = pagosActualizados.map((pago) => ({
+        ...pago,
+        referencia: pago.referencia ?? pago.referencia_bancaria,
+      }));
+      const pagosEditables = pagosNormalizados.filter((pago) =>
+        String(pago.estado || '').toUpperCase() !== 'ANULADO'
+      );
+      if (pagosEditables.length === 0) {
+        throw new Error('Esta operación no tiene pagos editables.');
+      }
+      const pagoInicial = pagosEditables[0];
+      setMediosPagoDisponibles(medios);
+      setPagosEdicion(pagosNormalizados);
+      setFormularioEdicionRegistro({
+        monto_comprobante: String(montoFinal ?? ''),
+        id_pago: pagoInicial ? String(pagoInicial.id_pago) : '',
+        monto_pago: pagoInicial ? String(pagoInicial.monto ?? '') : '',
+        id_medio_pago: pagoInicial ? String(pagoInicial.id_medio_pago ?? '') : '',
+        referencia_bancaria: String(
+          pagoInicial?.referencia_bancaria ?? pagoInicial?.referencia ?? ''
+        ),
+        observacion: String(pagoInicial?.observacion ?? ''),
+      });
+      setModalEdicionAbierto(true);
+    } catch (error) {
+      setErrorEdicionRegistro(
+        error.response?.data?.message || error.message || 'No se pudo preparar la edición.'
+      );
+    }
+  };
+
+  const cambiarPagoEdicion = (idPago) => {
+    const pagoSeleccionado = pagosEdicion.find((pago) => String(pago.id_pago) === String(idPago));
+    setFormularioEdicionRegistro((actual) => ({
+      ...actual,
+      id_pago: idPago,
+      monto_pago: String(pagoSeleccionado?.monto ?? ''),
+      id_medio_pago: String(pagoSeleccionado?.id_medio_pago ?? ''),
+      referencia_bancaria: String(
+        pagoSeleccionado?.referencia_bancaria ?? pagoSeleccionado?.referencia ?? ''
+      ),
+      observacion: String(pagoSeleccionado?.observacion ?? ''),
+    }));
+  };
+
+  const guardarEdicionRegistro = async (event) => {
+    event.preventDefault();
+    setErrorEdicionRegistro(null);
+    setGuardandoRegistro(true);
+    try {
+      const response = await api.put(`/operaciones/${idOperacion}/registro`, {
+        monto_comprobante: Number(formularioEdicionRegistro.monto_comprobante),
+        id_pago: Number(formularioEdicionRegistro.id_pago),
+        monto_pago: Number(formularioEdicionRegistro.monto_pago),
+        id_medio_pago: Number(formularioEdicionRegistro.id_medio_pago),
+        referencia_bancaria: formularioEdicionRegistro.referencia_bancaria.trim() || null,
+        observacion: formularioEdicionRegistro.observacion.trim() || null,
+      });
+      const resultado = response.data?.data;
+      if (!resultado?.pago || !resultado?.operacion) {
+        throw new Error('El servidor guardó una respuesta incompleta al actualizar el registro.');
+      }
+
+      const operacionRefrescada = await cargarOperacionActualizada();
+      setFreshOperation({ id: idOperacion, data: operacionRefrescada });
+
+      const refrescoCorrecto = await onRegistroActualizado?.(idOperacion);
+      if (refrescoCorrecto === false) {
+        throw new Error('El registro se guardó, pero no se pudo actualizar la tabla de operaciones.');
+      }
+      setModalEdicionAbierto(false);
+    } catch (error) {
+      setErrorEdicionRegistro(
+        error.response?.data?.message || error.message || 'No se pudieron guardar los cambios.'
+      );
+    } finally {
+      setGuardandoRegistro(false);
+    }
+  };
+
   return (
     <div
       className={`fixed inset-0 z-50 ${open ? '' : 'pointer-events-none'}`}
@@ -773,10 +924,10 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
         role="dialog"
         aria-modal="true"
         aria-label="Detalle de operación"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-[500px] flex-col bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl shadow-slate-900/20 dark:shadow-black/60 border-l dark:border-slate-700 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'
+        className={`absolute inset-y-0 right-0 flex w-full max-w-[500px] flex-col border-l bg-white text-slate-900 shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:shadow-black/60 ${open ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
-        <header className="border-b border-slate-100 dark:border-slate-700 px-6 pb-6 pt-5 sm:px-8 bg-white dark:bg-slate-800">
+        <header className="shrink-0 border-b border-slate-100 bg-white px-4 pb-4 pt-4 dark:border-slate-700 dark:bg-slate-800 sm:px-8 sm:pb-6 sm:pt-5">
           <div className="flex items-center justify-between">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${isPagada
@@ -792,7 +943,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
               ref={closeRef}
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors focus-visible:outline-2 focus-visible:outline-brand-orange"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-orange dark:hover:bg-slate-700 dark:hover:text-slate-200"
             >
               <X className="h-5 w-5" />
               <span className="sr-only">Cerrar panel</span>
@@ -817,9 +968,19 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
           <p className="mt-1 text-4xl font-black tracking-tight text-brand-orange dark:text-orange-400 tabular-nums">
             {formatPEN(montoFinal)}
           </p>
+          {esAdmin && (
+            <button
+              type="button"
+              onClick={abrirEdicionRegistro}
+              className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-brand-orange/30 bg-orange-50 px-4 py-2 text-sm font-bold text-brand-orange transition hover:bg-orange-100 dark:border-orange-800/60 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-950/60"
+            >
+              <Pencil className="h-4 w-4" />
+              Editar Registro
+            </button>
+          )}
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-900/60 px-6 py-6 sm:px-8">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4 dark:bg-slate-900/60 sm:px-8 sm:py-6">
           <div className="flex flex-col gap-6">
             <section className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm dark:shadow-none">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-5 p-5">
@@ -866,7 +1027,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                   <div className="flex items-center justify-between">
                     <dt className="text-slate-500 dark:text-slate-400">IGV (18%)</dt>
                     <dd className="font-medium text-slate-700 dark:text-slate-300 tabular-nums">
-                      {formatPEN(igv)}
+                      {formatPEN(igvVisualizado)}
                     </dd>
                   </div>
 
@@ -992,7 +1153,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                   Validación de Pagos
                 </h3>
                 <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                  Comparación automática entre los pagos registrados y los datos extraídos de la evidencia de la empresa.
+                  Comparación automática entre los pagos registrados y los datos OCR de las evidencias del cliente y de la empresa.
                 </p>
 
                 <ul className="flex flex-col gap-3">
@@ -1011,6 +1172,16 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                     const datosOcr = evidenciaEmpresaPago?.datos_ocr || {};
                     const refEmpresa = datosOcr.referencia_bancaria || datosOcr.numero_operacion || null;
                     const montoEmpresa = datosOcr.monto ?? null;
+                    const datosOcrClientePago = evidenciaClientePago?.datos_ocr || {};
+                    const montosOcr = [
+                      { tipo: 'empresa', etiqueta: 'Evidencia de empresa', monto: montoEmpresa },
+                      { tipo: 'cliente', etiqueta: 'Evidencia del cliente', monto: datosOcrClientePago.monto },
+                    ].filter(({ monto }) => (
+                      monto !== null &&
+                      monto !== undefined &&
+                      String(monto).trim() !== '' &&
+                      Number.isFinite(Number(monto))
+                    ));
                     const refPago = pagoParaEvaluacion.referencia;
 
                     return (
@@ -1058,6 +1229,37 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
                             </p>
                           </div>
                         )}
+
+                        {evaluacion.estado !== 'EFECTIVO' && montosOcr.map(({ tipo, etiqueta, monto }) => {
+                          const montoCoincide = compararMontos(pago.monto, monto);
+                          return (
+                            <div
+                              key={`${tipo}-${pago.id_pago}`}
+                              role={montoCoincide ? 'status' : 'alert'}
+                              className={`mt-2 rounded-lg border p-3 ${
+                                montoCoincide
+                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                  : 'border-red-300 bg-red-50 text-red-800 dark:border-red-800/70 dark:bg-red-950/40 dark:text-red-300'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                {montoCoincide ? (
+                                  <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                                ) : (
+                                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold">
+                                    {montoCoincide
+                                      ? 'Monto coincide'
+                                      : `ALERTA: Discrepancia de monto. El pago registrado es ${formatPEN(pago.monto)} pero la evidencia muestra ${formatPEN(monto)}.`}
+                                  </p>
+                                  <p className="mt-1 text-[11px] opacity-80">{etiqueta}</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
 
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 italic">
                           {evaluacion.mensaje}
@@ -1250,7 +1452,7 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
           </div>
         </div>
 
-        <footer className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-4 sm:px-8">
+        <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800 sm:px-8 sm:py-4">
           <button
             type="button"
             onClick={onClose}
@@ -1261,10 +1463,192 @@ export function OperacionDetailDrawerPremium({ op, onClose, onEvidenciaSubida })
         </footer>
       </aside>
 
+      {modalEdicionAbierto && (
+        <div
+          className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm sm:items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !guardandoRegistro) {
+              setModalEdicionAbierto(false);
+            }
+          }}
+        >
+          <form
+            onSubmit={guardarEdicionRegistro}
+            className="my-auto max-h-[90vh] max-h-[90dvh] w-[95%] max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-7"
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+                  Editar registro de operación
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Los cambios actualizan el comprobante y el pago existente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEdicionAbierto(false)}
+                disabled={guardandoRegistro}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700"
+                aria-label="Cerrar edición"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {errorEdicionRegistro && (
+              <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300">
+                {errorEdicionRegistro}
+              </p>
+            )}
+
+            <div className="space-y-4">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Monto del comprobante (S/)
+                </span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  value={formularioEdicionRegistro.monto_comprobante}
+                  onChange={(event) => setFormularioEdicionRegistro((actual) => ({
+                    ...actual,
+                    monto_comprobante: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Pago que se corrige
+                </span>
+                <select
+                  required
+                  value={formularioEdicionRegistro.id_pago}
+                  onChange={(event) => cambiarPagoEdicion(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  {pagosEdicion.filter((pago) => String(pago.estado || '').toUpperCase() !== 'ANULADO')
+                    .map((pago) => (
+                      <option key={pago.id_pago} value={pago.id_pago}>
+                        {(pago.medio_pago || pago.nombre_medio || 'Pago')} · {formatPEN(pago.monto)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Monto del pago (S/)
+                  </span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value={formularioEdicionRegistro.monto_pago}
+                    onChange={(event) => setFormularioEdicionRegistro((actual) => ({
+                      ...actual,
+                      monto_pago: event.target.value,
+                    }))}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Medio de pago
+                  </span>
+                  <select
+                    required
+                    value={formularioEdicionRegistro.id_medio_pago}
+                    onChange={(event) => setFormularioEdicionRegistro((actual) => ({
+                      ...actual,
+                      id_medio_pago: event.target.value,
+                    }))}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Selecciona un medio</option>
+                    {mediosPagoDisponibles.filter((medio) => medio.estado !== false)
+                      .map((medio) => (
+                        <option key={medio.id_medio_pago} value={medio.id_medio_pago}>
+                          {medio.nombre}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Referencia bancaria
+                </span>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={formularioEdicionRegistro.referencia_bancaria}
+                  onChange={(event) => setFormularioEdicionRegistro((actual) => ({
+                    ...actual,
+                    referencia_bancaria: event.target.value,
+                  }))}
+                  placeholder="Número de operación o referencia"
+                  disabled={mediosPagoDisponibles.find(
+                    (medio) => String(medio.id_medio_pago) === String(formularioEdicionRegistro.id_medio_pago)
+                  )?.es_efectivo === true}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Observación
+                </span>
+                <textarea
+                  maxLength={500}
+                  rows={3}
+                  value={formularioEdicionRegistro.observacion}
+                  onChange={(event) => setFormularioEdicionRegistro((actual) => ({
+                    ...actual,
+                    observacion: event.target.value,
+                  }))}
+                  placeholder="Observación del pago (opcional)"
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+              <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                El total de los pagos activos no puede superar el monto del comprobante. Si cambias la referencia de un pago virtual, quedará pendiente de nueva conciliación.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setModalEdicionAbierto(false)}
+                disabled={guardandoRegistro}
+                className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoRegistro || pagos.length === 0}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-orange px-4 py-2 text-sm font-bold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardandoRegistro
+                  ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                  : <Save className="h-4 w-4" />}
+                Guardar cambios
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* VISOR SPLIT-SCREEN RESPONSIVE */}
       {isImageOpen && selectedImageUrl && (
         <div
-          className="fixed inset-y-0 left-0 z-[60] flex w-full select-none flex-col items-center justify-center border-r border-slate-700 bg-slate-950/95 p-3 backdrop-blur-md animate-in fade-in duration-200 sm:p-6 lg:right-[500px] lg:w-auto"
+          className="fixed inset-y-0 left-0 z-[60] flex w-full select-none flex-col items-center justify-center border-r border-slate-700 bg-slate-950/95 p-3 backdrop-blur-md animate-in fade-in duration-200 sm:p-6 xl:right-[500px] xl:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {visorEsPreview && (

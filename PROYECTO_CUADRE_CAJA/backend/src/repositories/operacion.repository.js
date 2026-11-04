@@ -21,20 +21,53 @@ export const createOperacion = async ({
   return result.rows[0];
 };
 
+export const updateOperacionMonto = async (
+  idOperacion,
+  monto,
+  idUsuarioModificacion,
+  client = null
+) => {
+  const executor = client ?? { query };
+  const result = await executor.query(
+    `UPDATE operacion
+     SET monto = $1,
+        fecha_modificacion = CURRENT_TIMESTAMP,
+        id_usuario_modificacion = $2
+     WHERE id_operacion = $3
+     RETURNING id_operacion, id_usuario, id_cierre, id_comprobante,
+       TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha, monto, estado, observacion,
+       fecha_registro, fecha_modificacion, id_usuario_modificacion`,
+    [monto, idUsuarioModificacion, idOperacion]
+  );
+
+  return result.rows[0] ?? null;
+};
+
 export const findOperacionById = async (idOperacion) => {
   const result = await query(
     `SELECT
-       id_operacion,
-       id_usuario,
-       id_cierre,
-       id_comprobante,
-       TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha,
-       monto,
-       estado,
-       observacion,
-       fecha_registro,
-       fecha_modificacion,
-       id_usuario_modificacion,
+       o.id_operacion,
+       o.id_usuario,
+       o.id_cierre,
+       o.id_comprobante,
+       TO_CHAR(o.fecha, 'YYYY-MM-DD') AS fecha,
+       o.monto,
+       o.estado,
+       o.observacion,
+       o.fecha_registro,
+       o.fecha_modificacion,
+       o.id_usuario_modificacion,
+       c.tipo_comprobante,
+       c.serie,
+       c.numero,
+       c.cliente,
+       c.vendedor,
+       c.hora,
+       c.moneda,
+       c.igv,
+       c.op_gravada,
+       c.items,
+       c.monto AS comprobante_monto,
        COALESCE(
          (
            SELECT jsonb_agg(
@@ -52,6 +85,7 @@ export const findOperacionById = async (idOperacion) => {
          '[]'::jsonb
        ) AS verificaciones
      FROM operacion o
+     INNER JOIN comprobante c ON c.id_comprobante = o.id_comprobante
      WHERE o.id_operacion = $1`,
     [idOperacion]
   );

@@ -84,7 +84,7 @@ function CamposConToggle({ campos, storageKey, expandidos, onToggle }) {
 
   return (
     <div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
         {prioritarios.map((c, i) => (
           <CampoOCR key={`prio-${i}`} {...c} />
         ))}
@@ -93,7 +93,7 @@ function CamposConToggle({ campos, storageKey, expandidos, onToggle }) {
       {extras.length > 0 && (
         <>
           {estaExpandido && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
               {extras.map((c, i) => (
                 <CampoOCR key={`extra-${i}`} {...c} />
               ))}
@@ -512,7 +512,7 @@ export function Paso4Confirmacion({
             : 'Información ingresada manualmente para la boleta/factura.'}
         </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
           {comprobante?.cliente && <CampoOCR icon="user" label="Cliente" value={comprobante.cliente} color="indigo" />}
           {comprobante?.vendedor && <CampoOCR icon="user" label="Vendedor" value={comprobante.vendedor} color="orange" />}
           {comprobante?.hora && <CampoOCR icon="clock" label="Hora" value={comprobante.hora} color="teal" />}

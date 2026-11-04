@@ -36,7 +36,7 @@ DATOS EXTRAIDOS:
   "fecha": "None",
   "hora": "19:19:17",
   "vendedor": "JEFFERSON",
-  "cliente": null,
+  "cliente": "CLARA TORNERO DIAZ",
   "monto": 155,
   "igv": 23.64,
   "efectivo": null,
@@ -105,8 +105,8 @@ DATOS EXTRAIDOS:
   "numero": "00002937",
   "fecha": "19/10/2026",
   "hora": "17:34:01",
-  "vendedor": null,
-  "cliente": "oda",
+  "vendedor": "JEFFERSON",
+  "cliente": "LIZ FRANCESCA LOZA AYBAR",
   "monto": 2279,
   "igv": 347.64,
   "op_gravada": 3,
@@ -249,8 +249,8 @@ DATOS EXTRAIDOS:
   "numero": "00024034",
   "fecha": "29/09/2026",
   "hora": "08:32:39",
-  "vendedor": null,
-  "cliente": null,
+  "vendedor": "LORENA",
+  "cliente": "GLORIA ESMERALDA DE PAZ DE CORTEZ",
   "monto": 30,
   "igv": 4.58,
   "op_gravada": null,
@@ -307,8 +307,8 @@ DATOS EXTRAIDOS:
   "numero": "00002548",
   "fecha": "29/09/2026",
   "hora": "02:20:36",
-  "vendedor": null,
-  "cliente": null,
+  "vendedor": "JEFFERSON",
+  "cliente": "GRUPO DEL RIOS E.I.R.L.",
   "monto": 1472,
   "igv": 224.54,
   "op_gravada": null,
@@ -343,4 +343,374 @@ export const fixturesEvidencias = [
   { id: 'Plin 394', textoReal: `S/ 394.00\nCódigo de operación: 79546982`, esperado: { monto: 394.00, nro_operacion: '79546982' } },
   { id: 'BBVA 500', textoReal: `S/ 500.00\nNúmero de operación 9AABEEBA2B13`, esperado: { monto: 500.00, nro_operacion: '9AABEEBA2B13' } },
   { id: 'BCP 2279', textoReal: `S/ 2,279.00\nNúmero de operación 04894831`, esperado: { monto: 2279.00, nro_operacion: '04894831' } }
+];
+
+export const fixturesPythonEvidencias = [
+  {
+    id: 'Depósito en efectivo',
+    lineasOCR: [
+      'Depositoenefectivo',
+      '31deoctubrede2026,17:04',
+      'PEN10.00',
+      'ABONOINMEDIATOOO2MARILYNYESELA',
+      'ASC',
+      'RESUMEN',
+      'Cuenta deorigen',
+      '002',
+      'Concepto',
+      'ABONOINMEDIATOOO2MARILYNYESELAASC',
+      'DATOSADICIONALES',
+      'Numerodemovimiento',
+      '7344',
+      'Fechadeoperacion',
+      '31deoctubrede2026.17:04',
+      'Compartir'
+    ],
+    esperado: {
+      monto: 10,
+      referencia_bancaria: '7344',
+      fecha_operacion: '31/10/2026',
+      hora_operacion: '17:04',
+      destinatario: null
+    }
+  },
+  {
+    id: 'BBVA con código alfanumérico',
+    lineasOCR: [
+      '12:510',
+      'Operacion',
+      'exitosa',
+      '17octubre2026,12:51h',
+      'Importeenviado',
+      'S/40.00',
+      'Entidad de destino',
+      'Yape',
+      'Comision',
+      'S/0.00',
+      'Numerodeoperacion',
+      '8A9D5FBBD8CB',
+      'Tipo d',
+      'eracion',
+      'Envioa contactos',
+      'Contacto',
+      'Distribuidora d',
+      'acabadoss',
+      '·5583',
+      'Salir'
+    ],
+    esperado: {
+      monto: 40,
+      referencia_bancaria: '8A9D5FBBD8CB',
+      fecha_operacion: '17/10/2026',
+      hora_operacion: '12:51',
+      destinatario: 'Distribuidora d'
+    }
+  },
+  {
+    id: 'Interbank con fecha y referencia',
+    lineasOCR: [
+      '9:19日',
+      'l4G',
+      'appmovil@cmacica.com.pe',
+      'Ahora',
+      'Constancia:Transferencia Interbancaria Inmediata-..',
+      'Hola ANABEL NATALY.Esta es la Constancia de fu',
+      'operacion:Transterenca interbanearia mmediata Codig..',
+      'Operacionexitosa',
+      'Leenviaremos su comprobantedepago a su correo',
+      'electronico',
+      'Transferencia Interbancaria Inmediata',
+      'Numerodeoperacion:209050808',
+      'Fecha y hora:',
+      '23/10/20269:18:49AM',
+      'Cuenta de origen',
+      '*************18558',
+      'Entidad financiera destino:',
+      'BBVA',
+      'CCIdestino:',
+      '01121500010002102011',
+      'Beneficiario(s):',
+      'DISTRIBUIDORADECERAMICAY',
+      'ACABADOSSAC',
+      'Moneda ymonto',
+      'ComisionCaja lca',
+      'S/1,920.00',
+      'S/4.00',
+      'ITF (Cuenta origen)',
+      'S/ 0.05',
+      'Comision destino:',
+      'S/ 0.80'
+    ],
+    esperado: {
+      monto: 1920,
+      referencia_bancaria: '209050808',
+      fecha_operacion: '23/10/2026',
+      hora_operacion: '09:18:49',
+      destinatario: 'DISTRIBUIDORADECERAMICAY ACABADOSSAC',
+      cuenta_destino: '01121500010002102011'
+    }
+  },
+  {
+    id: 'Yape con banner publicitario',
+    lineasOCR: [
+      'iYapeaste!',
+      'S/ 20',
+      'Distribuidora De CeramicaY',
+      'AcabadosS.a.c',
+      '31oct.2026105:04p.m.',
+      'DATOS DE LA TRANSACCION',
+      'Destino',
+      'Yape',
+      'Nro.deoperacion',
+      '04543200',
+      'S/20',
+      'S/60,00',
+      'Impulsa',
+      'tusproyecto',
+      'IraCreditos'
+    ],
+    esperado: {
+      monto: 20,
+      referencia_bancaria: '04543200',
+      fecha_operacion: '31/10/2026',
+      hora_operacion: '17:04',
+      destinatario: 'Distribuidora De CeramicaY'
+    }
+  },
+  {
+    id: 'Banco de la Nación y Yape',
+    lineasOCR: [
+      'iGracias,Edwin!',
+      'Le operacionfue realizada con exito',
+      '20/10/202617:39:59',
+      'Nro.operacion:2679277',
+      'S/54.00',
+      'Entidad destino:YAPE',
+      'Beneficiario:DISTRIBUIDORADE',
+      'CERAMICAYAC',
+      'Cuenta origen:04-010-660756',
+      'Banco de la Nacion',
+      'Comision:Gratis',
+      'Monto cargado:S/54.00',
+      'Nro.transferencia:000000000005685',
+      'Compartir',
+      'Irainicio'
+    ],
+    esperado: {
+      monto: 54,
+      referencia_bancaria: '000000000005685',
+      fecha_operacion: '20/10/2026',
+      hora_operacion: '17:39:59',
+      destinatario: 'DISTRIBUIDORADE CERAMICAYAC'
+    }
+  },
+  {
+    id: 'Transferencia BCP con destinatario en varias líneas',
+    lineasOCR: [
+      '5:339',
+      'Xe 1l 36',
+      'iTransferencia exitosa!',
+      'S/ 2,279.00',
+      'Lunes,190ctubre2026-05:33p.m.',
+      'Compartir',
+      '+Descargar',
+      'Enviadoa',
+      'Distribuidora De CeramicaY',
+      'AcabadosS.',
+      '****5010',
+      'Moneda Soles',
+      'CuentasDeAhorro',
+      'Desde',
+      '****6038',
+      '04894831',
+      'Numero de operacion',
+      'SEGURO',
+      'ONCORESPALDO'
+    ],
+    esperado: {
+      monto: 2279,
+      referencia_bancaria: '04894831',
+      fecha_operacion: '19/10/2026',
+      hora_operacion: '17:33',
+      destinatario: 'Distribuidora De CeramicaY AcabadosS.'
+    }
+  },
+  {
+    id: 'Culqi con monto mal reconocido y fecha pegada',
+    lineasOCR: [
+      'Culqi',
+      'Tota1:s/ 72.50',
+      '27/10/2607:54PM',
+      'VENTA ID: 12345678'
+    ],
+    esperado: {
+      monto: 72.5,
+      referencia_bancaria: '12345678',
+      fecha_operacion: '27/10/2026',
+      hora_operacion: '07:54 PM',
+      destinatario: 'Distribuidora de CerÐ“ÐŽmica y Acabados'
+    }
+  },
+  {
+    id: 'Culqi con Total convencional',
+    lineasOCR: ['Culqi', 'Total: S/ 72.50', 'VENTA ID: 12345678'],
+    esperado: {
+      monto: 72.5,
+      referencia_bancaria: '12345678',
+      fecha_operacion: null,
+      hora_operacion: null,
+      destinatario: 'Distribuidora de CerÐ“ÐŽmica y Acabados'
+    }
+  },
+  {
+    id: 'Culqi con TOTAL en mayúsculas',
+    lineasOCR: ['Culqi', 'TOTAL:S/ 72.50', 'VENTA ID: 12345678'],
+    esperado: {
+      monto: 72.5,
+      referencia_bancaria: '12345678',
+      fecha_operacion: null,
+      hora_operacion: null,
+      destinatario: 'Distribuidora de CerÐ“ÐŽmica y Acabados'
+    }
+  },
+  {
+    id: 'Culqi con letra I confundida con L',
+    lineasOCR: ['Culqi', 'TotaI:s/ 72.50', 'VENTA ID: 12345678'],
+    esperado: {
+      monto: 72.5,
+      referencia_bancaria: '12345678',
+      fecha_operacion: null,
+      hora_operacion: null,
+      destinatario: 'Distribuidora de CerÐ“ÐŽmica y Acabados'
+    }
+  },
+  {
+    id: 'Culqi con L final reconocida en mayúscula',
+    lineasOCR: ['Culqi', 'TotaL:s/ 72.50', 'VENTA ID: 12345678'],
+    esperado: {
+      monto: 72.5,
+      referencia_bancaria: '12345678',
+      fecha_operacion: null,
+      hora_operacion: null,
+      destinatario: 'Distribuidora de CerÐ“ÐŽmica y Acabados'
+    }
+  }
+];
+
+export const fixturesPythonComprobantes = [
+  {
+    id: 'Boleta con IGV y operación gravada correctos',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      'BE03-00002774',
+      'FECHADEEMISION:06/10/2026 HORA:19:57:31',
+      'OP.GRAVADAS/:',
+      '343.22',
+      'I.G.V. S/ :',
+      '61.78',
+      'TOTAL S/ :',
+      '405.00',
+      'EFECTIVO S/:',
+      '405.00',
+      'CLIENTE:ZENON IRENE SORIANO CUSTODIO'
+    ],
+    esperado: {
+      fecha: '06/10/2026',
+      hora: '19:57:31',
+      op_gravada: 343.22,
+      igv: 61.78,
+      total: 405,
+      cliente: 'ZENON IRENE SORIANO CUSTODIO',
+      vendedor: null
+    }
+  },
+  {
+    id: 'IGV duplicado corregido por validación matemática',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      'OP.GRAVADAS/:',
+      '343.22',
+      'I.G.V. S/ :',
+      '343.22',
+      'TOTAL S/ :',
+      '405.00'
+    ],
+    esperado: {
+      fecha: null,
+      hora: null,
+      op_gravada: 343.22,
+      igv: 61.78,
+      total: 405,
+      cliente: null,
+      vendedor: null
+    }
+  },
+  {
+    id: 'Nombres españoles con Ñ leída como N',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      'CLIENTE: ALEXANDRA PENA MUNOZ CANAS NINO',
+      'VENDEDOR(A): PENA MUNOZ CANAS NINO'
+    ],
+    esperado: {
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'ALEXANDRA PEÑA MUÑOZ CAÑAS NIÑO',
+      vendedor: 'PEÑA MUÑOZ CAÑAS NIÑO'
+    }
+  },
+  {
+    id: 'Nombres españoles con Ñ original conservada',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      'CLIENTE: ALEXANDRA PEÑA',
+      'VENDEDOR(A): PEÑA'
+    ],
+    esperado: {
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'ALEXANDRA PEÑA',
+      vendedor: 'PEÑA'
+    }
+  },
+  {
+    id: 'Nombre cliente y vendedor sin espacios',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      'CLIENTE:LIZFRANCESCALOZAAYBAR',
+      'VENDEDOR(A):LIZFRANCESCA'
+    ],
+    esperado: {
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'LIZ FRANCESCA LOZA AYBAR',
+      vendedor: 'LIZ FRANCESCA'
+    }
+  },
+  {
+    id: 'Nombre con espacios existentes no se modifica',
+    lineasOCR: [
+      'BOLETA DE VENTA ELECTRONICA',
+      'CLIENTE: ALEXANDRA PEÑA',
+      'VENDEDOR(A): LORENA'
+    ],
+    esperado: {
+      fecha: null,
+      hora: null,
+      op_gravada: null,
+      igv: null,
+      total: null,
+      cliente: 'ALEXANDRA PEÑA',
+      vendedor: 'LORENA'
+    }
+  }
 ];

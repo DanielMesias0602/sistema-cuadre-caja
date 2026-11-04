@@ -200,7 +200,7 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
         <button
           type="button"
           onClick={handleAgregarPago}
-          className="w-full py-2.5 sm:py-3 border border-dashed border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-slate-100 hover:border-gray-400 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+          className="min-h-11 w-full border border-dashed border-gray-300 dark:border-slate-700 rounded-lg py-2.5 sm:py-3 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-slate-100 hover:border-gray-400 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
         >
           <Plus className="w-4 h-4" />
           Agregar otro pago
@@ -209,12 +209,12 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
 
       {/* Card de totales */}
       <div className="bg-white dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-600 p-3 sm:p-6">
-        <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-3">
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
           <div>
             <p className="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400">Monto operación</p>
             <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">S/ {montoComprobante.toFixed(2)}</p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <p className="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400">Total pagado</p>
             <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">S/ {totalPagado.toFixed(2)}</p>
           </div>

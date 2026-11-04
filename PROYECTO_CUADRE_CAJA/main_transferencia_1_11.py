@@ -1,7 +1,12 @@
 import json
 import re
 import sys
+import unicodedata
+from datetime import date as datetime_date
 from paddleocr import PaddleOCR
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 # ============================================================
 # NUEVO: SINGLETON PADDLE OCR (Mantiene el modelo en RAM)
@@ -108,6 +113,72 @@ def detect_transfer_status(lines):
 
 def extract_amount(lines):
     texto_completo = '\n'.join(lines)
+    normalizar_linea = lambda texto: ''.join(
+        caracter
+        for caracter in unicodedata.normalize('NFD', texto.lower())
+        if unicodedata.category(caracter) != 'Mn'
+    )
+    palabras_promocionales = (
+        'impulsa', 'proyecto', 'credito', 'hasta', 'iracreditos',
+        'tusproyecto'
+    )
+    lineas_normalizadas = [normalizar_linea(str(linea)) for linea in lines]
+    indices_promocionales = [
+        indice
+        for indice, linea in enumerate(lineas_normalizadas)
+        if any(palabra in linea for palabra in palabras_promocionales)
+    ]
+    candidatos = []
+    patron_monto_explicito = re.compile(
+        r'(?:S/\s*|PEN\s*)'
+        r'([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2}|[\d]{1,6})',
+        re.IGNORECASE
+    )
+
+    for indice, linea in enumerate(lines):
+        for match in patron_monto_explicito.finditer(str(linea)):
+            monto = parse_money(match.group(1))
+            if monto is None:
+                continue
+            siguiente_linea_promocional = next(
+                (posicion for posicion in indices_promocionales if posicion >= indice),
+                None
+            )
+            es_promocional = (
+                any(palabra in lineas_normalizadas[indice] for palabra in palabras_promocionales)
+                or (
+                    siguiente_linea_promocional is not None
+                    and siguiente_linea_promocional - indice <= 1
+                )
+            )
+            texto_previo = ' '.join(lineas_normalizadas[max(0, indice - 2):indice + 1])
+            tiene_etiqueta_transaccion = any(
+                etiqueta in texto_previo
+                for etiqueta in ('yapeaste', 'monto', 'importe enviado', 'transferiste', 'enviaste')
+            )
+            candidatos.append({
+                'indice': indice,
+                'monto': monto,
+                'promocional': es_promocional,
+                'transaccional': tiene_etiqueta_transaccion,
+            })
+
+    candidato_transaccion = next(
+        (candidato for candidato in candidatos if candidato['transaccional']),
+        None
+    )
+    if candidato_transaccion:
+        return candidato_transaccion['monto'], 'PEN'
+
+    candidato_no_promocional = next(
+        (candidato for candidato in candidatos if not candidato['promocional']),
+        None
+    )
+    if candidato_no_promocional:
+        return candidato_no_promocional['monto'], 'PEN'
+    if candidatos:
+        return None, None
+
     patrones = [
         r'PEN\s*([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
         r'Monto[\s\S]{0,30}?(?:S/\s*)?([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})',
@@ -159,44 +230,90 @@ def extract_client_datetime(lines):
     months = {
         'ene': '01', 'feb': '02', 'mar': '03', 'abr': '04',
         'may': '05', 'jun': '06', 'jul': '07', 'ago': '08',
-        'sep': '09', 'set': '09', 'oct': '10', 'nov': '11', 'dic': '12',
+        'sep': '09', 'sept': '09', 'set': '09', 'oct': '10', 'nov': '11', 'dic': '12',
         'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
         'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
         'septiembre': '09', 'setiembre': '09', 'octubre': '10',
         'noviembre': '11', 'diciembre': '12'
     }
-    texto_unido = ' '.join(lines)
+    texto_unido = ' '.join(str(line) for line in lines)
 
-    # 1. Formato numérico: 20/10/2026 17:39:59
-    patron_numerico = re.compile(r'(\d{2}/\d{2}/\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
-    match_num = patron_numerico.search(texto_unido)
-    if match_num:
-        return match_num.group(1), match_num.group(2)
+    texto_normalizado = unicodedata.normalize('NFD', texto_unido)
+    texto_normalizado = ''.join(
+        caracter for caracter in texto_normalizado
+        if unicodedata.category(caracter) != 'Mn'
+    ).lower()
+    texto_normalizado = texto_normalizado.replace('0ctubre', 'octubre')
 
-    # 2. Formato textual: 17 Oct 2026 03:34 PM
-    patron_ampm = re.compile(
-        r'(\d{1,2})\s+(?:de\s+)?([a-zÐ“ÐŽÐ“Â©Ð“Ó¯Ð“Ñ–Ð“Ó™Ð“Ò±]{3,10})\.?\s*(?:de\s+)?(\d{4}).*?(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)',
+    meses_regex = '|'.join(
+        re.escape(mes)
+        for mes in sorted(months, key=len, reverse=True)
+    )
+    patron_fecha_numerica = re.compile(
+        r'(?<!\d)(\d{1,2})/(\d{1,2})/(\d{4})'
+    )
+    patron_fecha_textual = re.compile(
+        rf'(?<!\d)(\d{{1,2}})\s*(?:de\s*)?({meses_regex})\.?\s*(?:de\s*)?(\d{{4}})'
+    )
+    patron_hora = re.compile(
+        r'(\d{1,2}):(\d{2})(?::(\d{2}))?\s*'
+        r'(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?',
         re.IGNORECASE
     )
-    patron_24h = re.compile(
-        r'(\d{1,2})\s+(?:de\s+)?([a-zÐ“ÐŽÐ“Â©Ð“Ó¯Ð“Ñ–Ð“Ó™Ð“Ò±]{3,10})\.?\s*(?:de\s+)?(\d{4})[,\s]*(\d{1,2}):(\d{2})\s*(?:h|hrs)',
-        re.IGNORECASE
-    )
-    for patron in [patron_ampm, patron_24h]:
-        match = patron.search(texto_unido)
-        if match:
-            month_name = match.group(2).lower()
-            if month_name not in months: continue
-            day = match.group(1).zfill(2)
-            year = match.group(3)
-            hour = int(match.group(4))
-            minute = match.group(5)
-            if patron == patron_ampm:
-                period = match.group(6).lower()
-                if period.startswith('p') and hour < 12: hour += 12
-                if period.startswith('a') and hour == 12: hour = 0
-            month = months[month_name]
-            return (f'{day}/{month}/{year}', f'{hour:02d}:{minute}')
+
+    def extraer_hora(segmento):
+        match_hora = patron_hora.search(segmento)
+        if not match_hora:
+            return None
+
+        hora = int(match_hora.group(1))
+        minuto = int(match_hora.group(2))
+        segundos = match_hora.group(3)
+        sufijo = (match_hora.group(4) or '').replace('.', '').replace(' ', '')
+        if minuto > 59 or (segundos is not None and int(segundos) > 59):
+            return None
+        if sufijo:
+            if hora < 1 or hora > 12:
+                return None
+            hora = (hora % 12) + (12 if sufijo.startswith('p') else 0)
+        elif hora > 23:
+            return None
+        formato_hora = f'{hora:02d}:{minuto:02d}'
+        if segundos is not None:
+            formato_hora += f':{int(segundos):02d}'
+        return formato_hora
+
+    fechas = []
+    for patron, es_textual in (
+        (patron_fecha_numerica, False),
+        (patron_fecha_textual, True),
+    ):
+        for match in patron.finditer(texto_normalizado):
+            if es_textual:
+                dia_texto, mes_texto, anio_texto = match.groups()
+                mes_numero = int(months[mes_texto])
+            else:
+                dia_texto, mes_texto, anio_texto = match.groups()
+                mes_numero = int(mes_texto)
+
+            dia = int(dia_texto)
+            anio = int(anio_texto)
+            try:
+                datetime_date(anio, mes_numero, dia)
+            except ValueError:
+                continue
+            fechas.append((
+                match.start(),
+                match.end(),
+                f'{dia:02d}/{mes_numero:02d}/{anio}'
+            ))
+
+    for inicio, fin, fecha in sorted(fechas):
+        hora = extraer_hora(texto_normalizado[fin:fin + 60])
+        if not hora:
+            hora = extraer_hora(texto_normalizado[fin:])
+        return fecha, hora
+
     return None, None
 
 # ============================================================
@@ -204,72 +321,145 @@ def extract_client_datetime(lines):
 # ============================================================
 def extract_reference(lines):
     texto_completo = '\n'.join(lines)
-    basura = ['seguro', 'mensaje', 'responder', 'compartir', 'descargar', 'salir', 'oncorespaldo', 'tarjetas']
+    basura = {
+        'seguro', 'mensaje', 'responder', 'compartir', 'descargar', 'salir',
+        'oncorespaldo', 'tarjetas', 'inmediata', 'transferencia', 'yape'
+    }
+    etiqueta = re.compile(
+        r'(?:n[uú]mero|numero|nro\.?|n[°º])\s*(?:de\s*)?'
+        r'(?:operaci[oó6]n|movimiento|transferencia)|'
+        r'c[oó]digo\s*(?:de\s*)?operaci[oó]n|'
+        r'referencia(?:\s*bancaria)?',
+        re.IGNORECASE
+    )
+    token = re.compile(r'(?<![A-Z0-9])([A-Z0-9-]{4,30})(?![A-Z0-9])', re.IGNORECASE)
+    fecha_textual = re.compile(
+        r'\d{1,2}\s*(?:de\s*)?(?:ene(?:ro)?|feb(?:rero)?|mar(?:zo)?|'
+        r'abr(?:il)?|may(?:o)?|jun(?:io)?|jul(?:io)?|ago(?:sto)?|'
+        r'sep(?:tiembre)?|set(?:iembre)?|oct(?:ubre)?|nov(?:iembre)?|'
+        r'dic(?:iembre)?)\.?\s*\d{4}',
+        re.IGNORECASE
+    )
+    fecha_numerica = re.compile(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}')
 
-    patrones_etiqueta_primero = [
-        r'N[uú]mero\s+de\s+movimiento\s*:?\s*[\r\n]*\s*([A-Z0-9]{4,30})',
-        r'N[uú]mero\s+de\s+operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
-        r'Nro\.\s*de\s*operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})', 
-        r'N[r]?[o°]?[.,]?\s*de\s*operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
-        r'C[oó]digo\s*de\s+operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
-        r'Referencia\s*(?:bancaria)?\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
-        r'Nro\.\s*transferencia\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
-        r'Nro\.\s*operaci[oó]n\s*:?\s*[\r\n]*\s*([A-Z0-9]{5,30})',
-    ]
-    patrones_numero_primero = [
-        r'([A-Z0-9]{5,30})\s*\n?\s*N[uú]mero\s*de\s*operaci[oó]n',
-        r'([A-Z0-9]{5,30})\s*\n?\s*N[r]?[o°]?[.,]?\s*de\s*operaci[oó]n',
-        r'([A-Z0-9]{5,30})\s*\n?\s*C[oó]digo\s*de\s*operaci[oó]n',
-        r'([A-Z0-9]{5,30})\s*\n?\s*Referencia\s*(?:bancaria)?',
-        r'([A-Z0-9]{5,30})\s*\n?\s*Nro\.\s*transferencia',
-        r'([A-Z0-9]{5,30})\s*\n?\s*Nro\.\s*operaci[oó]n',
-    ]
+    def candidato_valido(value, longitud_minima=6):
+        value = value.strip().strip('.,:;')
+        compactado = re.sub(r'[^A-Z0-9]', '', value.upper())
+        valor_normalizado = value.lower().replace('0ctubre', 'octubre')
+        if len(compactado) < longitud_minima or len(compactado) > 30:
+            return None
+        if compactado.lower() in basura or not re.search(r'\d', compactado):
+            return None
+        if fecha_textual.search(valor_normalizado) or fecha_numerica.search(value):
+            return None
+        return value
 
-    for patron in patrones_etiqueta_primero + patrones_numero_primero:
-        match = re.search(patron, texto_completo, re.IGNORECASE)
-        if match:
-            ref = match.group(1).strip()
-            es_numero_movimiento = re.match(
-                r'N[uú]mero\s+de\s+movimiento',
-                match.group(0),
-                re.IGNORECASE
-            )
-            longitud_minima = 4 if es_numero_movimiento else 6
-            if ref.lower() not in basura and len(ref) >= longitud_minima:
-                return ref
+    lineas = [str(line) for line in lines]
+    for tipo_etiqueta in ('transferencia', 'movimiento', 'operacion', 'referencia', 'codigo'):
+        for indice, linea in enumerate(lineas):
+            match_etiqueta = etiqueta.search(linea)
+            if not match_etiqueta:
+                continue
+            etiqueta_detectada = match_etiqueta.group(0).lower()
+            if tipo_etiqueta == 'operacion' and 'operaci' not in etiqueta_detectada:
+                continue
+            if tipo_etiqueta == 'codigo' and 'código' not in etiqueta_detectada and 'codigo' not in etiqueta_detectada:
+                continue
+            if tipo_etiqueta == 'referencia' and 'referencia' not in etiqueta_detectada:
+                continue
+            if tipo_etiqueta in ('transferencia', 'movimiento') and tipo_etiqueta not in etiqueta_detectada:
+                continue
 
-    for i, line in enumerate(lines):
-        lower = line.lower()
-        if 'operaci' in lower or 'referencia' in lower:
-            candidatos = []
-            if i + 1 < len(lines): candidatos.append(lines[i + 1])
-            if i > 0: candidatos.append(lines[i - 1])
-            if i + 2 < len(lines): candidatos.append(lines[i + 2])
-            if i > 1: candidatos.append(lines[i - 2])
+            candidatos = [linea[match_etiqueta.end():]]
+            candidatos.extend(lineas[indice + 1:indice + 3])
+            candidatos.extend(reversed(lineas[max(0, indice - 2):indice]))
+            longitud_minima = 4 if tipo_etiqueta == 'movimiento' else 6
+            for valor in candidatos:
+                match_token = token.search(valor)
+                if match_token:
+                    referencia = candidato_valido(match_token.group(1), longitud_minima)
+                    if referencia:
+                        return referencia
 
-            for p in candidatos:
-                match = re.search(r'\b([A-Z0-9]{6,30})\b', p.upper())
-                if match:
-                    ref = match.group(1)
-                    if ref.lower() not in basura and re.search(r'\d', ref):
-                        return ref
+    for linea in lineas:
+        linea_normalizada = linea.lower().replace('0ctubre', 'octubre')
+        if fecha_textual.search(linea_normalizada) or fecha_numerica.search(linea):
+            continue
+        for match_token in token.finditer(linea):
+            referencia = candidato_valido(match_token.group(1))
+            if referencia:
+                return referencia
     return None
 
 # ============================================================
 # DESTINATARIO (NUEVAS FUNCIONES PARA NUEVOS FORMATOS)
 # ============================================================
 def extract_recipient_interbank(lines):
-    texto_completo = '\n'.join(lines)
-    match = re.search(r'Beneficiario\(s\):\s*([\s\S]+?)(?=Moneda y monto|Comisi[oó]n|$)', texto_completo, re.IGNORECASE)
-    if match:
-        return normalize_text(match.group(1))
+    def compactar_etiqueta(value):
+        normalizado = unicodedata.normalize('NFD', str(value))
+        sin_acentos = ''.join(
+            caracter for caracter in normalizado
+            if unicodedata.category(caracter) != 'Mn'
+        )
+        return re.sub(r'[^a-z0-9]', '', sin_acentos.lower())
+
+    etiquetas_parada = ('monedaymonto', 'comision', 'itf', 'cci')
+    for indice, linea in enumerate(lines):
+        match = re.search(r'beneficiario\s*(?:\(s\))?\s*:?\s*(.*)', str(linea), re.IGNORECASE)
+        if not match:
+            continue
+
+        partes = []
+        valor_inicial = normalize_text(match.group(1))
+        if valor_inicial:
+            partes.append(valor_inicial)
+
+        for siguiente in lines[indice + 1:indice + 8]:
+            valor = normalize_text(siguiente)
+            compactado = compactar_etiqueta(valor)
+            if any(compactado.startswith(etiqueta) for etiqueta in etiquetas_parada):
+                break
+            if valor:
+                partes.append(valor)
+
+        destinatario = limpiar_destinatario('\n'.join(partes))
+        if destinatario:
+            return destinatario
     return None
 
 def extract_recipient_bcp(lines):
-    texto_completo = '\n'.join(lines)
-    match = re.search(r'Destinatario\s*([\s\S]+?)(?=Nro\. celular|Entidad|CCI|Tipo de moneda|$)', texto_completo, re.IGNORECASE)
-    if match:
-        return normalize_text(match.group(1))
+    etiquetas_inicio = re.compile(r'(?:enviado\s*a|destinatario)\s*:?', re.IGNORECASE)
+    etiquetas_parada = (
+        'cuenta', 'desde', 'moneda', 'nro. celular', 'entidad', 'cci',
+        'comision', 'fecha', 'tipo de transferencia', 'numero de operacion',
+        'nro. de operacion'
+    )
+
+    for indice, linea in enumerate(lines):
+        match = etiquetas_inicio.search(str(linea))
+        if not match:
+            continue
+
+        partes = []
+        valor_inicial = str(linea)[match.end():].strip()
+        if valor_inicial:
+            partes.append(valor_inicial)
+
+        for siguiente in lines[indice + 1:indice + 8]:
+            valor = normalize_text(siguiente)
+            compactado = re.sub(r'[^a-z0-9]', '', valor.lower())
+            if any(etiqueta.replace(' ', '') in compactado for etiqueta in etiquetas_parada):
+                break
+            if re.fullmatch(r'[\s*#.-]*\d[\d\s*#.-]*', valor):
+                break
+            if re.search(r'\d{4,}', valor):
+                break
+            if re.search(r'[a-zA-Z]{2,}', valor):
+                partes.append(valor)
+
+        destinatario = limpiar_destinatario(' '.join(partes))
+        if destinatario:
+            return destinatario
     return None
 
 def extract_recipient_plin(lines):
@@ -278,6 +468,45 @@ def extract_recipient_plin(lines):
     if match:
         return normalize_text(match.group(1))
     return None
+
+def limpiar_destinatario(value):
+    if not value:
+        return None
+
+    lineas_validas = []
+    for linea in str(value).splitlines():
+        linea = normalize_text(linea)
+        if not linea:
+            continue
+
+        linea = re.sub(
+            r'^\s*(?:enviado\s+a|destinatario|beneficiario(?:\(s\))?)\s*:?\s*',
+            '',
+            linea,
+            flags=re.IGNORECASE
+        ).strip()
+        if not linea:
+            continue
+
+        normalizada = unicodedata.normalize('NFD', linea)
+        normalizada = ''.join(
+            caracter for caracter in normalizada
+            if unicodedata.category(caracter) != 'Mn'
+        ).lower()
+        if re.search(r'\b(moneda|soles|desde|cuenta)\b', normalizada):
+            continue
+        if re.fullmatch(
+            r'(?:bcp|bbva|interbank|scotiabank|banbif|plin|yape|'
+            r'banco de la nacion)',
+            normalizada
+        ):
+            continue
+        if not re.search(r'[a-z]', normalizada):
+            continue
+        lineas_validas.append(linea)
+
+    resultado = normalize_text(' '.join(lineas_validas))
+    return resultado or None
 
 def extract_recipient_banco_nacion(lines):
     for i, line in enumerate(lines):
@@ -347,14 +576,26 @@ def extract_recipient(lines):
         if _es_etiqueta(t): return False
         return True
 
+    for line in lines:
+        candidato = limpiar_destinatario(line)
+        if not candidato:
+            continue
+        normalizado = unicodedata.normalize('NFD', candidato)
+        normalizado = ''.join(
+            caracter for caracter in normalizado
+            if unicodedata.category(caracter) != 'Mn'
+        ).lower()
+        if re.search(r'\b(distribuidora|ceramica|acabados)\b', normalizado):
+            return candidato
+
     for i, line in enumerate(lines):
         if 'enviado a' in line.lower():
             partes = []
             if i > 0:
-                c = normalize_text(lines[i - 1])
+                c = limpiar_destinatario(lines[i - 1])
                 if c and _es_nombre_valido(c): partes.append(c)
             if i + 1 < len(lines):
-                c = normalize_text(lines[i + 1])
+                c = limpiar_destinatario(lines[i + 1])
                 if c and _es_nombre_valido(c): partes.append(c)
             if partes: return ' '.join(partes)
 
@@ -362,7 +603,7 @@ def extract_recipient(lines):
         if line.lower().startswith('contacto'):
             partes = []
             for j in range(i + 1, min(i + 10, len(lines))):
-                c = normalize_text(lines[j])
+                c = limpiar_destinatario(lines[j])
                 if not c: continue
                 if partes and _es_etiqueta(c): break
                 if _es_etiqueta(c): continue
@@ -374,7 +615,10 @@ def extract_recipient(lines):
     for i, line in enumerate(lines):
         if 'destinatario' in line.lower() and ':' in line:
             partes = line.split(':', 1)
-            if len(partes) > 1 and partes[1].strip(): return partes[1].strip()
+            if len(partes) > 1:
+                candidato = limpiar_destinatario(partes[1])
+                if candidato and _es_nombre_valido(candidato):
+                    return candidato
     return None
 
 def extract_recipient_yape_fallback(lines):
@@ -400,6 +644,28 @@ def extract_destination_account(lines):
     if es_extracto_bancario_empresa(lines): return None
 
     for i, line in enumerate(lines):
+        if not re.search(r'\bcci\s*destino\b', str(line), re.IGNORECASE):
+            continue
+
+        candidatos = [str(line)[re.search(r'\bcci\s*destino\b', str(line), re.IGNORECASE).end():]]
+        candidatos.extend(str(siguiente) for siguiente in lines[i + 1:i + 3])
+        for candidato in candidatos:
+            numeros = re.sub(r'\D', '', candidato)
+            match = re.search(r'\d{10,24}', numeros)
+            if match:
+                return match.group(0)
+
+    for i, line in enumerate(lines):
+        if re.search(r'\bcuenta\s+destino\b', str(line), re.IGNORECASE):
+            match = re.search(r'\bcuenta\s+destino\b\s*:?\s*(.*)', str(line), re.IGNORECASE)
+            candidatos = [match.group(1)] if match else []
+            candidatos.extend(str(siguiente) for siguiente in lines[i + 1:i + 2])
+            for candidato in candidatos:
+                valor = normalize_text(candidato)
+                if valor:
+                    return valor
+
+    for i, line in enumerate(lines):
         if '*' in line:
             numeros = re.findall(r'\d+', line)
             if not numeros and i + 1 < len(lines):
@@ -407,11 +673,6 @@ def extract_destination_account(lines):
                 if re.fullmatch(r'\d{3,10}', s):
                     return f"{normalize_text(line)} {s}"
             return normalize_text(line)
-        if 'cuenta destino' in line.lower():
-            if ':' in line:
-                partes = line.split(':', 1)
-                if len(partes) > 1 and partes[1].strip(): return partes[1].strip()
-            if i + 1 < len(lines): return normalize_text(lines[i + 1])
     return None
 
 def extract_displayed_currency(lines):
@@ -503,6 +764,80 @@ def es_voucher_culqi(lines):
     full_text = ' '.join(lines).lower()
     return 'culqi' in full_text or 'venta id' in full_text
 
+def extract_culqi_datetime(lines):
+    texto_completo = ' '.join(str(line) for line in lines)
+    sufijo_hora = r'(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?'
+    patrones_pegados = (
+        re.compile(
+            rf'(?<!\d)(\d{{1,2}})/(\d{{1,2}})/(\d{{4}})'
+            rf'(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?\s*{sufijo_hora}',
+            re.IGNORECASE
+        ),
+        re.compile(
+            rf'(?<!\d)(\d{{1,2}})/(\d{{1,2}})/(\d{{2}})'
+            rf'(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?\s*{sufijo_hora}',
+            re.IGNORECASE
+        ),
+    )
+
+    for patron in patrones_pegados:
+        match = patron.search(texto_completo)
+        if not match:
+            continue
+
+        dia, mes, anio, hora, minuto, segundos, sufijo = match.groups()
+        anio = int(anio)
+        if len(match.group(3)) == 2:
+            anio += 2000
+        try:
+            fecha = datetime_date(anio, int(mes), int(dia))
+        except ValueError:
+            continue
+
+        hora = int(hora)
+        minuto = int(minuto)
+        if hora > 23 or minuto > 59 or (segundos is not None and int(segundos) > 59):
+            continue
+
+        hora_formateada = f'{hora:02d}:{minuto:02d}'
+        if segundos is not None:
+            hora_formateada += f':{int(segundos):02d}'
+        if sufijo:
+            sufijo = sufijo.replace('.', '').replace(' ', '').upper()
+            hora_formateada += f' {sufijo}'
+        return fecha.strftime('%d/%m/%Y'), hora_formateada
+
+    patron_separado = re.compile(
+        rf'(?<!\d)(\d{{1,2}})/(\d{{1,2}})/(\d{{2,4}})\s+'
+        rf'(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?\s*{sufijo_hora}',
+        re.IGNORECASE
+    )
+    match = patron_separado.search(texto_completo)
+    if not match:
+        return None, None
+
+    dia, mes, anio, hora, minuto, segundos, sufijo = match.groups()
+    anio = int(anio)
+    if len(match.group(3)) == 2:
+        anio += 2000
+    try:
+        fecha = datetime_date(anio, int(mes), int(dia))
+    except ValueError:
+        return None, None
+
+    hora = int(hora)
+    minuto = int(minuto)
+    if hora > 23 or minuto > 59 or (segundos is not None and int(segundos) > 59):
+        return None, None
+
+    hora_formateada = f'{hora:02d}:{minuto:02d}'
+    if segundos is not None:
+        hora_formateada += f':{int(segundos):02d}'
+    if sufijo:
+        sufijo = sufijo.replace('.', '').replace(' ', '').upper()
+        hora_formateada += f' {sufijo}'
+    return fecha.strftime('%d/%m/%Y'), hora_formateada
+
 def extract_culqi_data(lines):
     texto_completo = '\n'.join(lines)
     data = {
@@ -516,7 +851,11 @@ def extract_culqi_data(lines):
         'requiere_revision': True, 'requiere_confirmacion': True
     }
 
-    match_monto = re.search(r'Total\s*:?\s*S/\s*([\d.,]+)', texto_completo, re.IGNORECASE)
+    match_monto = re.search(
+        r'\bTota[l1i]\s*:?\s*S\s*/\s*([\d.,]+)',
+        texto_completo,
+        re.IGNORECASE
+    )
     if match_monto: data['monto'] = parse_money(match_monto.group(1))
 
     match_ref = re.search(r'VENTA\s*ID\s*:?\s*(\d+)', texto_completo, re.IGNORECASE)
@@ -524,10 +863,9 @@ def extract_culqi_data(lines):
         data['referencia_bancaria'] = match_ref.group(1)
         data['referencia_bancaria_normalizada'] = normalize_reference(match_ref.group(1))
 
-    match_fecha_hora = re.search(r'(\d{2}/\d{2}/\d{2,4})\s+(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)', texto_completo)
-    if match_fecha_hora:
-        data['fecha_operacion'] = match_fecha_hora.group(1)
-        data['hora_operacion'] = match_fecha_hora.group(2).upper()
+    fecha, hora = extract_culqi_datetime(lines)
+    if fecha: data['fecha_operacion'] = fecha
+    if hora: data['hora_operacion'] = hora
     return data
 
 def extract_transfer_data(lines):
@@ -575,18 +913,19 @@ def extract_transfer_data(lines):
     recipient = None
 
     if banco == 'INTERBANK':
-        recipient = extract_recipient_interbank(lines)
+        recipient = limpiar_destinatario(extract_recipient_interbank(lines))
     elif banco == 'BCP':
-        recipient = extract_recipient_bcp(lines)
+        recipient = limpiar_destinatario(extract_recipient_bcp(lines))
     elif banco == 'PLIN':
-        recipient = extract_recipient_plin(lines)
+        recipient = limpiar_destinatario(extract_recipient_plin(lines))
     elif banco == 'BANCO_NACION':
-        recipient = extract_recipient_banco_nacion(lines)
+        recipient = limpiar_destinatario(extract_recipient_banco_nacion(lines))
 
     # Fallbacks si el banco no lo detectó o falló su extractor específico
-    if not recipient: recipient = extract_recipient(lines)
-    if not recipient: recipient = extract_recipient_generic(lines)
-    if not recipient: recipient = extract_recipient_yape_fallback(lines)
+    if not recipient: recipient = limpiar_destinatario(extract_recipient_bcp(lines))
+    if not recipient: recipient = limpiar_destinatario(extract_recipient(lines))
+    if not recipient: recipient = limpiar_destinatario(extract_recipient_generic(lines))
+    if not recipient: recipient = limpiar_destinatario(extract_recipient_yape_fallback(lines))
 
     if recipient: data['destinatario'] = recipient
 

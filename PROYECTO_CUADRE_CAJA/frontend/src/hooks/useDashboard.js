@@ -78,7 +78,12 @@ export function useDashboard() {
     const actualizarDashboard = () => {
       void fetchDashboardData();
     };
-    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    const eventos = [
+      'operacion_creada',
+      'operacion_actualizada',
+      'pago_actualizado',
+      'ajuste_creado',
+    ];
     eventos.forEach((evento) => socket.on(evento, actualizarDashboard));
 
     return () => {

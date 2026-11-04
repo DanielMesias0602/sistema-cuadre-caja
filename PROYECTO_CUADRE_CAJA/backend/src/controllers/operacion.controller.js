@@ -1,6 +1,7 @@
 import {
   registerOperacion,
   registerOperacionUnificada,
+  actualizarRegistroOperacion,
   getOperacionById,
   getOperaciones
 } from '../services/operacion.service.js';
@@ -37,6 +38,24 @@ export const registrarUnificado = async (req, res, next) => {
       status: 'ok', 
       message: 'Operación registrada con trazabilidad OCR completa',
       data: resultado 
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateRegistro = async (req, res, next) => {
+  try {
+    const resultado = await actualizarRegistroOperacion(
+      req.params.id,
+      req.body,
+      req.user.id_usuario
+    );
+
+    res.json({
+      status: 'ok',
+      message: 'Registro actualizado correctamente',
+      data: resultado
     });
   } catch (error) {
     next(error);

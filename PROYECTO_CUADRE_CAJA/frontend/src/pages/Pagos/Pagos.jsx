@@ -37,7 +37,45 @@ export function Pagos() {
     try {
       const res = await api.get('/operaciones');
       const data = res.data?.data || res.data;
-      setOperaciones(Array.isArray(data) ? data : []);
+      const listaOperaciones = Array.isArray(data) ? data : [];
+      setOperaciones(listaOperaciones);
+      setSelectedPago((actual) => {
+        if (!actual) return actual;
+
+        const operacion = listaOperaciones.find(
+          (item) => Number(item.id_operacion) === Number(actual.id_operacion)
+        );
+        const pagosOperacion = Array.isArray(operacion?.pagos)
+          ? operacion.pagos
+          : Array.isArray(operacion?.payments)
+            ? operacion.payments
+            : [];
+        const pagoActualizado = pagosOperacion.find(
+          (item) => Number(item.id_pago) === Number(actual.id_pago)
+        );
+        if (!operacion || !pagoActualizado) return actual;
+
+        return {
+          ...actual,
+          id_medio_pago: pagoActualizado.id_medio_pago,
+          fecha: operacion.fecha || actual.fecha,
+          hora: operacion.hora || actual.hora,
+          comprobante: `${operacion.tipo_comprobante || 'DOC'} ${operacion.serie || ''}-${operacion.numero || ''}`.trim(),
+          tipo_comprobante: operacion.tipo_comprobante || 'DOC',
+          serie: operacion.serie || '',
+          numero: operacion.numero || '',
+          cliente: operacion.cliente || 'No registrado',
+          vendedor: operacion.vendedor || '-',
+          medio_pago: pagoActualizado.medio_pago || pagoActualizado.nombre_medio || actual.medio_pago,
+          monto: Number(pagoActualizado.monto || 0),
+          referencia: pagoActualizado.referencia || pagoActualizado.referencia_bancaria || '',
+          observacion: pagoActualizado.observacion || '',
+          estado: pagoActualizado.estado || operacion.estado || 'PENDIENTE',
+          estado_operacion: operacion.estado || 'PENDIENTE',
+          esAnulada: String(operacion.estado || '').toUpperCase() === 'ANULADA',
+          operacionCompleta: operacion,
+        };
+      });
       setError(null);
       return true;
     } catch (err) {
@@ -64,7 +102,7 @@ export function Pagos() {
     const actualizarPagos = () => {
       void cargarDatos();
     };
-    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    const eventos = ['operacion_creada', 'operacion_actualizada', 'pago_actualizado', 'ajuste_creado'];
     eventos.forEach((evento) => socket.on(evento, actualizarPagos));
 
     return () => {
@@ -241,7 +279,7 @@ export function Pagos() {
             type="button"
             onClick={recargarDatos}
             disabled={loading}
-            className="inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/60 px-3 sm:px-3.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm dark:shadow-none transition hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 active:scale-95 disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-200 dark:shadow-none dark:hover:bg-slate-700 dark:hover:text-slate-100 sm:px-3.5"
             title="Recargar datos"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -601,7 +639,7 @@ export function Pagos() {
                       </td>
 
                       <td className="px-3 py-3.5">
-                        <div className={`max-w-[190px] truncate font-medium ${pago.esAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`} title={pago.cliente}>
+                        <div className={`max-w-[190px] whitespace-normal break-words font-medium ${pago.esAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`} title={pago.cliente}>
                           {pago.cliente}
                         </div>
                         <div className="text-[11px] text-slate-400 dark:text-slate-500">
@@ -627,10 +665,10 @@ export function Pagos() {
                           <span className="inline-block rounded-md bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200">
                             {pago.referencia}
                           </span>
+                        ) : !(pago.medio_pago || '').toLowerCase().includes('efectivo') ? (
+                          <span className="text-slate-400 dark:text-slate-500">Sin referencia</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-slate-400 dark:text-slate-500" title="Imagen no disponible">
-                            <ImageIcon className="h-4 w-4" /> Imagen no disponible
-                          </span>
+                          <span className="text-slate-400 dark:text-slate-500">-</span>
                         )}
                       </td>
 
@@ -672,7 +710,7 @@ export function Pagos() {
                               setSelectedPago(pago);
                               setDrawerAbierto(true);
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-300 transition hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:text-blue-700 dark:hover:text-blue-200 cursor-pointer"
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
                             title="Ver evidencia"
                           >
                             <Eye className="h-4 w-4" />
@@ -690,7 +728,7 @@ export function Pagos() {
                             setSelectedPago(pago);
                             setDrawerAbierto(true);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs dark:shadow-none transition hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 active:scale-95 cursor-pointer"
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:shadow-none dark:hover:bg-slate-700 dark:hover:text-slate-100"
                           title="Ver detalle del pago"
                         >
                           <Eye className="h-3.5 w-3.5" />

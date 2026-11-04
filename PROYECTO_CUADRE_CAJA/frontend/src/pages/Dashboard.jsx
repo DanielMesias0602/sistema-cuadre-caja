@@ -54,7 +54,7 @@ export function Dashboard() {
           <button
             type="button"
             onClick={refetch}
-            className="px-3.5 py-1.5 bg-red-100 dark:bg-rose-900/50 hover:bg-red-200 dark:hover:bg-rose-900 text-red-800 dark:text-rose-200 rounded-xl text-xs font-bold transition cursor-pointer"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-100 px-3.5 py-1.5 text-xs font-bold text-red-800 transition hover:bg-red-200 dark:bg-rose-900/50 dark:text-rose-200 dark:hover:bg-rose-900"
           >
             Reintentar
           </button>

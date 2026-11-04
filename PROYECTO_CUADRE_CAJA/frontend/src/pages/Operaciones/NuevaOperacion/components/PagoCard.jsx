@@ -28,44 +28,67 @@ const COLORES = {
   rose: 'text-rose-500',
 };
 
-const getCamposOCR = (datosOCR, medioPago) => {
-  if (!datosOCR) return [];
+const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaActual) => {
+  const datos = datosOCR || {};
   const medio = String(medioPago || '').toLowerCase();
   const campos = [];
 
-  if (datosOCR.monto != null) {
-    campos.push({ icon: 'banknote', label: 'Monto', value: `S/ ${Number(datosOCR.monto).toFixed(2)}`, color: 'emerald' });
-  }
-  if (datosOCR.fecha_operacion) {
-    campos.push({ icon: 'calendar', label: 'Fecha', value: datosOCR.fecha_operacion, color: 'blue' });
-  }
-  if (datosOCR.hora_operacion) {
-    campos.push({ icon: 'clock', label: 'Hora', value: datosOCR.hora_operacion, color: 'teal' });
+  const monto = montoActual !== '' && montoActual != null
+    ? montoActual
+    : datos.monto ?? '';
+  campos.push({
+    icon: 'banknote',
+    label: 'Monto',
+    value: monto == null ? '' : String(monto),
+    color: 'emerald',
+    editable: true,
+    field: 'monto'
+  });
+  campos.push({
+    icon: 'calendar',
+    label: 'Fecha',
+    value: fechaActual || datos.fecha_operacion || '',
+    color: 'blue',
+    editable: true,
+    field: 'fecha_operacion'
+  });
+  if (datos.hora_operacion) {
+    campos.push({ icon: 'clock', label: 'Hora', value: datos.hora_operacion, color: 'teal' });
   }
 
-  if (medio.includes('tarjeta') || datosOCR.aplicacion_banco === 'CULQI') {
-    if (datosOCR.referencia_bancaria) {
-      campos.push({ icon: 'hash', label: 'Venta ID', value: datosOCR.referencia_bancaria, color: 'purple' });
-    }
+  if (medio.includes('tarjeta') || datos.aplicacion_banco === 'CULQI') {
+    campos.push({
+      icon: 'hash',
+      label: 'Venta ID',
+      value: referenciaActual || datos.referencia_bancaria || '',
+      color: 'purple',
+      editable: true,
+      field: 'referencia'
+    });
   } else {
-    if (datosOCR.aplicacion_banco || datosOCR.banco) {
-      campos.push({ icon: 'building', label: 'Banco', value: datosOCR.aplicacion_banco || datosOCR.banco, color: 'indigo' });
+    if (datos.aplicacion_banco || datos.banco) {
+      campos.push({ icon: 'building', label: 'Banco', value: datos.aplicacion_banco || datos.banco, color: 'indigo' });
     }
-    if (datosOCR.cuenta_destino) {
-      campos.push({ icon: 'creditCard', label: 'Cuenta destino', value: datosOCR.cuenta_destino, color: 'slate' });
+    if (datos.cuenta_destino) {
+      campos.push({ icon: 'creditCard', label: 'Cuenta destino', value: datos.cuenta_destino, color: 'slate' });
     }
-    if (datosOCR.destinatario) {
-      campos.push({ icon: 'user', label: 'Beneficiario', value: datosOCR.destinatario, color: 'orange' });
+    if (datos.destinatario) {
+      campos.push({ icon: 'user', label: 'Beneficiario', value: datos.destinatario, color: 'orange' });
     }
-    if (datosOCR.referencia_bancaria) {
-      campos.push({ icon: 'hash', label: 'Nro. operación', value: datosOCR.referencia_bancaria, color: 'purple' });
-    }
+    campos.push({
+      icon: 'hash',
+      label: 'Referencia',
+      value: referenciaActual || datos.referencia_bancaria || '',
+      color: 'purple',
+      editable: true,
+      field: 'referencia'
+    });
   }
 
   return campos;
 };
 
-function CampoOCR({ icon, label, value, color, variant = 'default' }) {
+function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, onValueChange, disabled = false }) {
   const Icon = ICONOS[icon] || Info;
   const colorClass = COLORES[color] || 'text-slate-500 dark:text-slate-500';
 
@@ -80,7 +103,24 @@ function CampoOCR({ icon, label, value, color, variant = 'default' }) {
         <Icon className={`w-3.5 h-3.5 ${colorClass}`} />
         <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">{label}</p>
       </div>
-      <p className="font-bold text-slate-900 dark:text-slate-100 break-words">{value}</p>
+      {editable ? (
+        <div className="flex items-center gap-1">
+          <span className="font-bold text-slate-700 dark:text-slate-300">S/</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={value}
+            onChange={(event) => onValueChange?.(event.target.value)}
+            placeholder="0.00"
+            disabled={disabled}
+            aria-label="Monto del pago"
+            className="w-full min-w-0 bg-transparent font-bold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+          />
+        </div>
+      ) : (
+        <p className="font-bold text-slate-900 dark:text-slate-100 break-words">{value}</p>
+      )}
     </div>
   );
 }
@@ -89,8 +129,8 @@ function ModalConfirmarCambio({ open, onCancel, onConfirm }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/70 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl dark:shadow-none max-w-md w-full overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-4">
+      <div className="my-auto max-h-[90vh] max-h-[90dvh] w-[95%] max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-800 dark:shadow-none">
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-5">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -109,11 +149,11 @@ function ModalConfirmarCambio({ open, onCancel, onConfirm }) {
           </p>
         </div>
 
-        <div className="flex gap-3 p-5 pt-0">
-          <button type="button" onClick={onCancel} className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition text-sm">
+        <div className="flex flex-col-reverse gap-2 p-4 pt-0 sm:flex-row sm:gap-3 sm:p-5 sm:pt-0">
+          <button type="button" onClick={onCancel} className="min-h-11 flex-1 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">
             Cancelar
           </button>
-          <button type="button" onClick={onConfirm} className="flex-1 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-sm dark:shadow-none">
+          <button type="button" onClick={onConfirm} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 dark:shadow-none">
             <RefreshCw className="w-4 h-4" />
             Cambiar imagen
           </button>
@@ -138,9 +178,8 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
   const esTransferencia = medioLower.includes('transferencia') || medioLower.includes('deposito') || medioLower.includes('depósito');
   const esTransferenciaBCP = esTransferencia && medioLower.includes('bcp');
 
-  // CONDICIONES PARA MOSTRAR INPUTS: Solo si hayMedio es true
-  const mostrarRef = hayMedio && !esEfectivo;
-  const mostrarFecha = hayMedio && !esEfectivo;
+  const mostrarRef = true;
+  const mostrarFecha = true;
   const mostrarBeneficiario = hayMedio && !esEfectivo && !esTarjeta;
   const mostrarCuentaDestino = hayMedio && esTransferenciaBCP;
 
@@ -155,14 +194,27 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
       ...pago,
       id_medio_pago: idMedio,
       nombre_medio: medioSeleccionado ? medioSeleccionado.nombre : '',
-      es_efectivo: medioSeleccionado ? medioSeleccionado.es_efectivo : false
+      es_efectivo: medioSeleccionado ? medioSeleccionado.es_efectivo : false,
+      monto: '',
+      referencia: '',
+      fecha_operacion: '',
+      evidencia: null
     });
+    setPreview(null);
+    setError(null);
   };
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    onPagoChange({
+      ...pago,
+      monto: '',
+      referencia: '',
+      fecha_operacion: '',
+      evidencia: null
+    });
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result);
     reader.readAsDataURL(file);
@@ -177,6 +229,9 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
 
       onPagoChange({
         ...pago,
+        monto: '',
+        referencia: '',
+        fecha_operacion: '',
         evidencia: {
           ...pago.evidencia,
           imagenBase64: reader.result,
@@ -202,13 +257,16 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
     const fechaDetectada = datos.fecha_operacion || '';
     const beneficiarioDetectado = datos.destinatario || '';
     const cuentaDestinoDetectada = datos.cuenta_destino || '';
+    const montoActual = pago.monto !== '' && pago.monto != null
+      ? pago.monto
+      : (montoDetectado ?? '');
 
     onPagoChange({
       ...pago,
       evidencia: { ...pago.evidencia, confirmada: true },
-      monto: pago.monto || (montoDetectado ? montoDetectado : ''),
-      referencia: pago.referencia || (referenciaDetectada ? referenciaDetectada : ''),
-      fecha_operacion: pago.fecha_operacion || fechaDetectada,
+      monto: montoActual,
+      referencia: pago.referencia || referenciaDetectada || '',
+      fecha_operacion: pago.fecha_operacion || fechaDetectada || '',
       beneficiario: pago.beneficiario || beneficiarioDetectado,
       cuenta_destino: pago.cuenta_destino || cuentaDestinoDetectada,
       observacion: pago.observacion || ''
@@ -216,7 +274,13 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
   };
 
   const descartarEvidencia = () => {
-    onPagoChange({ ...pago, evidencia: null });
+    onPagoChange({
+      ...pago,
+      monto: '',
+      referencia: '',
+      fecha_operacion: '',
+      evidencia: null
+    });
     setPreview(null);
     setError(null);
   };
@@ -228,8 +292,21 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
     descartarEvidencia();
   };
 
-  const camposOCR = pago.evidencia?.datosOCR
-    ? getCamposOCR(pago.evidencia.datosOCR, pago.nombre_medio || pago.medio_pago)
+  const camposOCR = pago.evidencia?.imagenBase64
+    ? getCamposOCR(
+      pago.evidencia.datosOCR,
+      pago.nombre_medio || pago.medio_pago,
+      pago.monto,
+      pago.referencia,
+      pago.fecha_operacion
+    )
+      .map((campo) => campo.editable
+        ? {
+          ...campo,
+          onValueChange: (value) => handleChange(campo.field, value),
+          disabled: loadingOCR
+        }
+        : campo)
     : [];
 
   return (
@@ -281,6 +358,7 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
             onChange={(e) => handleChange('monto', e.target.value)}
             placeholder="0.00"
             step="0.01"
+            disabled={loadingOCR}
             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
           />
         </div>
@@ -296,6 +374,7 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
               value={pago.referencia || ''}
               onChange={(e) => handleChange('referencia', e.target.value)}
               placeholder="Opcional"
+              disabled={loadingOCR}
               className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
             />
           </div>
@@ -309,6 +388,7 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
               value={pago.fecha_operacion || ''}
               onChange={(e) => handleChange('fecha_operacion', e.target.value)}
               placeholder="DD/MM/AAAA"
+              disabled={loadingOCR}
               className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
             />
           </div>
@@ -414,16 +494,14 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
                 </div>
               </div>
 
-              {pago.evidencia.datosOCR && (
-                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-xs font-bold text-slate-500 uppercase mb-3">Datos detectados en la imagen:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {camposOCR.map((campo, i) => (
-                      <CampoOCR key={i} {...campo} />
-                    ))}
-                  </div>
+              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-xs font-bold text-slate-500 uppercase mb-3">Datos detectados en la imagen:</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+                  {camposOCR.map((campo, i) => (
+                    <CampoOCR key={i} {...campo} />
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -448,13 +526,11 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
                 </button>
               </div>
 
-              {pago.evidencia.datosOCR && (
-                <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {camposOCR.map((campo, i) => (
-                    <CampoOCR key={i} {...campo} variant="onGreen" />
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 md:grid-cols-4">
+                {camposOCR.map((campo, i) => (
+                  <CampoOCR key={i} {...campo} variant="onGreen" />
+                ))}
+              </div>
             </div>
           )}
         </div>

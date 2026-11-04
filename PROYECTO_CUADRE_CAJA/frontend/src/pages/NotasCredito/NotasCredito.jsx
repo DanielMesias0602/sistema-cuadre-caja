@@ -424,8 +424,8 @@ export function NotasCredito() {
 
       {/* MODAL CREAR */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm p-3 sm:p-6">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-none max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6">
+          <div className="my-auto flex max-h-[90vh] max-h-[90dvh] w-[95%] max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 sm:p-6 text-white relative overflow-hidden shrink-0">
               <svg className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" />
@@ -435,7 +435,7 @@ export function NotasCredito() {
                   <h2 className="text-lg sm:text-xl font-bold truncate">Registrar Nota de Crédito</h2>
                   <p className="text-blue-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1">Digita el comprobante afectado</p>
                 </div>
-                <button onClick={cerrarModal} className="text-white hover:bg-white/20 p-2 rounded-full transition cursor-pointer flex-shrink-0 ml-2">
+                <button type="button" onClick={cerrarModal} aria-label="Cerrar modal" className="ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/20">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -570,21 +570,21 @@ export function NotasCredito() {
 
       {/* MODAL EDITAR */}
       {modalEditarAbierto && notaAEditar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm p-3 sm:p-6">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-none flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6">
+          <div className="my-auto flex max-h-[90vh] max-h-[90dvh] w-[95%] max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
             <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 sm:p-6 text-white relative overflow-hidden shrink-0">
               <div className="relative z-10 flex justify-between items-center">
                 <div className="min-w-0">
                   <h2 className="text-lg sm:text-xl font-bold truncate">Editar Nota de Crédito</h2>
                   <p className="text-amber-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1">Corrige el motivo u observación</p>
                 </div>
-                <button onClick={() => setModalEditarAbierto(false)} className="text-white hover:bg-white/20 p-2 rounded-full transition cursor-pointer flex-shrink-0 ml-2">
+                <button type="button" onClick={() => setModalEditarAbierto(false)} aria-label="Cerrar modal" className="ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/20">
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <form onSubmit={handleEditarGuardar} className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-800 space-y-4">
+            <form onSubmit={handleEditarGuardar} className="min-h-0 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-slate-800 space-y-4">
               {errorModal && (
                 <div className="rounded-xl border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 p-3 text-xs sm:text-sm text-rose-800 dark:text-rose-400 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 dark:text-rose-400 shrink-0" /> {errorModal}

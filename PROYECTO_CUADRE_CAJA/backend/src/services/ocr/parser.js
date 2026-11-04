@@ -265,7 +265,14 @@ export const parsearComprobante = (stdout) => {
   const seccionTotales = extraerSeccion(texto, 'TOTALES');
   const seccionProductos = extraerSeccion(texto, 'DETALLE DE PRODUCTOS');
   
-  const cliente = reparsearCliente(texto);
+  const clienteTexto = reparsearCliente(texto);
+  const cliente = jsonPython && Object.hasOwn(jsonPython, 'cliente')
+    ? jsonPython.cliente
+    : clienteTexto;
+  const vendedorTexto = extraerCampo(seccionDatos, 'Vendedor');
+  const vendedor = jsonPython && Object.hasOwn(jsonPython, 'vendedor')
+    ? jsonPython.vendedor
+    : vendedorTexto;
   const op_gravada = reparsearOpGravada(texto);
   const fecha = reparsearFecha(texto);
   const items = parsearItemsDeSeccion(seccionProductos);
@@ -284,20 +291,21 @@ export const parsearComprobante = (stdout) => {
   
   let monto = extraerMonto(seccionTotales, 'Total');
   if (monto === null) monto = reparsearMonto(texto, op_gravada, igv);
-  if (monto === null) monto = jsonPython?.monto ? redondear(jsonPython.monto) : null;
+  const montoPython = jsonPython?.monto ?? jsonPython?.total;
+  if (monto === null && montoPython != null) monto = redondear(montoPython);
   
   return {
     tipo_comprobante: extraerCampo(seccionDatos, 'Tipo') || jsonPython?.tipo_comprobante || null,
     serie, numero,
     fecha: fecha || extraerCampo(seccionDatos, 'Fecha') || null,
     hora: extraerCampo(seccionDatos, 'Hora') || jsonPython?.hora || null,
-    vendedor: extraerCampo(seccionDatos, 'Vendedor') || jsonPython?.vendedor || null,
+    vendedor: vendedor ?? null,
     cliente: cliente || jsonPython?.cliente || null,
     monto, igv,
     efectivo: extraerMonto(seccionTotales, 'Efectivo') || (jsonPython?.efectivo ? redondear(jsonPython.efectivo) : null),
     moneda: extraerCampo(seccionTotales, 'Moneda') || jsonPython?.moneda || 'PEN',
     op_gravada: op_gravada || (jsonPython?.op_gravada ? redondear(jsonPython.op_gravada) : null),
-    items: items.length > 0 ? items : (jsonPython?.items || []),
+    items: items.length > 0 ? items : (jsonPython?.items ?? jsonPython?.productos ?? []),
     valido: true
   };
 };

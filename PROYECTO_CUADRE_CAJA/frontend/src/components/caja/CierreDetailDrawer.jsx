@@ -117,7 +117,7 @@ export function CierreDetailDrawer({ cierre, onClose }) {
               ref={closeRef}
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-2 focus-visible:outline-brand-orange"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg p-2 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-2 focus-visible:outline-brand-orange"
             >
               <X className="w-5 h-5" />
               <span className="sr-only">Cerrar panel</span>
@@ -162,7 +162,7 @@ export function CierreDetailDrawer({ cierre, onClose }) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-900 px-4 py-4 sm:px-6 sm:py-6 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-900 px-4 py-4 sm:px-6 sm:py-6 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
           <div className="flex flex-col gap-4 sm:gap-6">
 
             {/* RESPONSABLE */}
@@ -173,7 +173,7 @@ export function CierreDetailDrawer({ cierre, onClose }) {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Responsable de Caja</p>
-                  <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate">
+                  <p className="break-words text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
                     {cData.responsable || 'No asignado'}
                   </p>
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
@@ -204,7 +204,7 @@ export function CierreDetailDrawer({ cierre, onClose }) {
                           </div>
 
                           <div className="min-w-0">
-                            <p className="truncate text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            <p className="break-words text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
                               {p.nombre_completo}
                             </p>
                             <p className="mt-0.5 sm:mt-1 flex items-center gap-1 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">

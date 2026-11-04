@@ -4,6 +4,9 @@ import sys
 
 from paddleocr import PaddleOCR
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # ============================================================
 # NUEVO: SINGLETON PADDLE OCR (Mantiene el modelo en RAM)
 # ============================================================
@@ -686,6 +689,134 @@ def extraer_monto_tolerante(texto, etiqueta):
     return None
 
 
+def validar_totales_comprobante(resultado):
+    op_gravada = resultado.get("op_gravada")
+    igv = resultado.get("igv")
+    total = resultado.get("total")
+
+    if total is None:
+        if op_gravada is not None and igv is not None:
+            if round(op_gravada, 2) == round(igv, 2) and op_gravada > 0:
+                resultado["igv"] = round(op_gravada * 0.18, 2)
+                resultado["total"] = round(op_gravada + resultado["igv"], 2)
+            else:
+                resultado["total"] = round(op_gravada + igv, 2)
+        return resultado
+
+    if op_gravada is not None and igv is not None:
+        montos_iguales = round(op_gravada, 2) == round(igv, 2)
+        suma_coincide = abs((op_gravada + igv) - total) <= 0.10
+
+        if suma_coincide and not montos_iguales:
+            return resultado
+
+        igv_calculado = round(total - op_gravada, 2)
+        if igv_calculado >= 0:
+            resultado["igv"] = igv_calculado
+            return resultado
+
+        op_gravada_calculada = round(total - igv, 2)
+        if op_gravada_calculada >= 0:
+            resultado["op_gravada"] = op_gravada_calculada
+            return resultado
+
+    elif op_gravada is not None:
+        igv_calculado = round(total - op_gravada, 2)
+        if igv_calculado >= 0:
+            resultado["igv"] = igv_calculado
+            return resultado
+
+    elif igv is not None:
+        op_gravada_calculada = round(total - igv, 2)
+        if op_gravada_calculada >= 0:
+            resultado["op_gravada"] = op_gravada_calculada
+            return resultado
+
+    resultado["igv"] = round(total * 0.18 / 1.18, 2)
+    resultado["op_gravada"] = round(total - resultado["igv"], 2)
+    return resultado
+
+
+def corregir_nombres_espanoles(nombre):
+    if not nombre:
+        return nombre
+
+    correcciones = {
+        "PENA": "PEÑA",
+        "MUNOZ": "MUÑOZ",
+        "CANAS": "CAÑAS",
+        "NINO": "NIÑO",
+    }
+
+    def corregir_token(coincidencia):
+        token = coincidencia.group(0)
+        corregido = correcciones[token.upper()]
+        if token.isupper():
+            return corregido
+        if token.islower():
+            return corregido.lower()
+        return corregido[0] + corregido[1:].lower()
+
+    patron = re.compile(
+        r"\b(?:PENA|MUNOZ|CANAS|NINO)\b",
+        flags=re.IGNORECASE
+    )
+    return patron.sub(corregir_token, str(nombre))
+
+
+def reconstruir_espacios_nombre(nombre):
+    if not nombre:
+        return nombre
+
+    texto = str(nombre).strip()
+    if not texto or re.search(r"\s", texto):
+        return nombre
+
+    vocabulario = {
+        "ALEXANDRA", "ALEXIS", "ALFREDO", "ANA", "ANDREA", "ANGEL",
+        "ANTONIO", "CARMEN", "CARLOS", "CYNTHIA", "DAVID",
+        "EDWIN", "ELENA", "EMILIO", "FERNANDA", "FRANCESCA", "FRANCISCO",
+        "GABRIEL", "GLORIA", "IRENE", "JAVIER", "JESUS", "JOSE", "JUAN",
+        "JULIA", "LAURA", "LIZ", "LORENA", "LUIS", "MANUEL", "MARIA",
+        "MARTIN", "MIGUEL", "NATALY", "PEDRO", "ROSA", "SANDRA", "THALIA",
+        "ZENON", "AYBAR", "CAÑAS", "CASTRO", "DIAZ", "FERNANDEZ", "FLORES",
+        "GARCIA", "GONZALES", "GONZALEZ", "LOZA", "MARTINEZ", "MEDINA",
+        "MENDOZA", "MUÑOZ", "PAREDES", "PENA", "PEÑA", "PEREZ", "RAMIREZ",
+        "REBATA", "REBATTA", "ROJAS", "SALAZAR", "SANCHEZ", "SENISSE",
+        "SILVA", "SORIA", "SORIANO", "TORRES", "VALENCIA", "VARGAS",
+        "VASQUEZ", "VEGA",
+    }
+
+    normalizado = texto.upper()
+    mejores = [None] * (len(normalizado) + 1)
+    mejores[0] = []
+
+    for inicio in range(len(normalizado)):
+        if mejores[inicio] is None:
+            continue
+        for fin in range(inicio + 2, min(len(normalizado), inicio + 16) + 1):
+            palabra = normalizado[inicio:fin]
+            if palabra not in vocabulario:
+                continue
+            candidato = mejores[inicio] + [palabra]
+            actual = mejores[fin]
+            if actual is None or len(candidato) < len(actual):
+                mejores[fin] = candidato
+
+    partes = mejores[-1]
+    if not partes or len(partes) < 2:
+        return nombre
+
+    def conservar_formato(palabra):
+        if texto.isupper():
+            return palabra
+        if texto.islower():
+            return palabra.lower()
+        return palabra.capitalize()
+
+    return " ".join(conservar_formato(palabra) for palabra in partes)
+
+
 def extraer_cliente(texto_completo):
     """
     Busca CLIENTE o NOMBRE y captura el nombre real.
@@ -713,7 +844,9 @@ def extraer_cliente(texto_completo):
                     valor = partes[1].strip()
                     if len(valor) >= 4 and re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{4,}", valor):
                         if not any(p in valor.lower() for p in PALABRAS_RUIDO):
-                            return valor
+                            return corregir_nombres_espanoles(
+                                reconstruir_espacios_nombre(valor)
+                            )
 
             # Caso 2: buscar en las siguientes 5 lineas
             for j in range(i + 1, min(i + 6, len(lineas))):
@@ -738,7 +871,9 @@ def extraer_cliente(texto_completo):
                 # Limpiar y retornar
                 limpio = re.sub(r"[^a-zA-ZÁÉÍÓÚáéíóúÑñ\s.]", "", linea_j).strip()
                 if len(limpio) >= 4:
-                    return limpio
+                    return corregir_nombres_espanoles(
+                        reconstruir_espacios_nombre(limpio)
+                    )
 
     return None
 
@@ -789,18 +924,10 @@ def extraer_datos_comprobante(textos):
     # TIPO
     # ========================================================
 
-    if re.search(
-        r"FACTURA\s+ELECTR[ÓO]NICA",
-        texto_completo,
-        flags=re.IGNORECASE
-    ):
+    if re.search(r"\bFACTURA\b", texto_completo, flags=re.IGNORECASE):
         resultado["tipo_comprobante"] = "FACTURA"
 
-    elif re.search(
-        r"BOLETA\s+DE\s+VENTA",
-        texto_completo,
-        flags=re.IGNORECASE
-    ):
+    elif re.search(r"\bBOLETA\b", texto_completo, flags=re.IGNORECASE):
         resultado["tipo_comprobante"] = "BOLETA"
 
     # ========================================================
@@ -819,7 +946,7 @@ def extraer_datos_comprobante(textos):
 
     fecha = buscar_patron(
         texto_completo,
-        r"FECHA\s+DE\s+EMISI[ÓO]N[\s\S]{0,60}?(\d{2}/\d{2}/\d{4})"
+        r"FECHA\s*DE\s*EMISI[ÓO]N[\s\S]{0,60}?(\d{2}/\d{2}/\d{4})"
     )
 
     if fecha:
@@ -851,7 +978,9 @@ def extraer_datos_comprobante(textos):
     )
 
     if vendedor:
-        vendedor = limpiar_texto(vendedor)
+        vendedor = corregir_nombres_espanoles(
+            reconstruir_espacios_nombre(limpiar_texto(vendedor))
+        )
         if vendedor:
             resultado["vendedor"] = vendedor
 
@@ -912,19 +1041,10 @@ def extraer_datos_comprobante(textos):
         resultado["efectivo"] = efectivo
 
     # ========================================================
-    # FALLBACK MATEMATICO
+    # VALIDACION MATEMATICA DE TOTALES
     # ========================================================
 
-    igv = resultado["igv"]
-    op_gravada = resultado["op_gravada"]
-    total = resultado["total"]
-
-    if op_gravada is not None and igv is not None and total is None:
-        resultado["total"] = round(op_gravada + igv, 2)
-    elif op_gravada is not None and total is not None and igv is None:
-        resultado["igv"] = round(total - op_gravada, 2)
-    elif igv is not None and total is not None and op_gravada is None:
-        resultado["op_gravada"] = round(total - igv, 2)
+    validar_totales_comprobante(resultado)
 
     # ========================================================
     # PRODUCTOS (orquesta las 3 estrategias)

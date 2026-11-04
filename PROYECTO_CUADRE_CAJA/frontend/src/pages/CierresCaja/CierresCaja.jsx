@@ -602,7 +602,7 @@ export function CierresCaja() {
           </div>
 
           {/* DESKTOP: tabla */}
-          <div className="hidden md:block overflow-x-auto [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+          <div className="hidden w-full overflow-x-auto [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -735,8 +735,8 @@ export function CierresCaja() {
 
       {/* MODAL NUEVO CIERRE */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm p-3 sm:p-6">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-none max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6">
+          <div className="my-auto flex max-h-[90vh] max-h-[90dvh] w-[95%] max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
 
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 sm:p-6 text-white relative overflow-hidden shrink-0">
               <svg className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -747,7 +747,7 @@ export function CierresCaja() {
                   <h2 className="text-lg sm:text-xl font-bold truncate">{pasoModal === 1 ? 'Seleccionar Turno' : 'Arqueo de Caja'}</h2>
                   <p className="text-blue-100 text-[11px] sm:text-sm mt-0.5 sm:mt-1">Gestiona el cierre de forma segura</p>
                 </div>
-                <button onClick={cerrarModal} className="text-white hover:bg-white/20 p-2 rounded-full transition-colors flex-shrink-0 ml-2">
+                <button type="button" onClick={cerrarModal} aria-label="Cerrar modal" className="ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/20">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -891,8 +891,8 @@ export function CierresCaja() {
 
       {/* MODAL CONFIRMACIÓN */}
       {confirmacionAbierta && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm p-3 sm:p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-none p-4 sm:p-6">
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-4">
+          <div className="my-auto max-h-[90vh] max-h-[90dvh] w-[95%] max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-none sm:p-6">
             <div className="flex items-center gap-3 mb-3 sm:mb-4">
               <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex-shrink-0">
                 <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -953,15 +953,15 @@ export function CierresCaja() {
 
       {/* MODAL REABRIR TURNO */}
       {modalReabrirAbierto && cierreAReabrir && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 dark:bg-black/70 backdrop-blur-sm p-3 sm:p-6">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-none overflow-hidden">
+        <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6">
+          <div className="my-auto max-h-[90vh] max-h-[90dvh] w-[95%] max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
             <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 sm:p-5 text-white relative overflow-hidden">
               <div className="relative z-10 flex justify-between items-center">
                 <div className="min-w-0">
                   <h2 className="text-lg font-bold truncate">Reabrir Turno</h2>
                   <p className="text-amber-100 text-[11px] sm:text-xs mt-0.5">Esto permitirá registrar nuevas operaciones</p>
                 </div>
-                <button onClick={() => setModalReabrirAbierto(false)} className="text-white hover:bg-white/20 p-2 rounded-full transition-colors flex-shrink-0 ml-2">
+                <button type="button" onClick={() => setModalReabrirAbierto(false)} aria-label="Cerrar modal" className="ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/20">
                   <X className="h-5 w-5" />
                 </button>
               </div>

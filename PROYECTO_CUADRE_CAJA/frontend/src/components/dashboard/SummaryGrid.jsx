@@ -105,7 +105,7 @@ export function SummaryGrid({ filteredOps }) {
         };
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5 sm:gap-4 mb-4 sm:mb-6">
+    <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 2xl:grid-cols-5">
       {/* Card 1: Operaciones Registradas */}
       <div className="relative bg-white dark:bg-slate-800/80 p-3 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-600 shadow-xs dark:shadow-none overflow-hidden group hover:shadow-md dark:hover:border-slate-600 transition">
         <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
@@ -195,7 +195,7 @@ export function SummaryGrid({ filteredOps }) {
       </div>
 
       {/* Card 5: Requieren Verificación */}
-      <div className="relative bg-white dark:bg-slate-800/80 p-3 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-600 shadow-xs dark:shadow-none overflow-hidden group hover:shadow-md dark:hover:border-slate-600 transition col-span-2 md:col-span-1">
+      <div className="relative col-span-1 overflow-hidden rounded-2xl border border-gray-100 bg-white p-3 shadow-xs transition group hover:shadow-md dark:border-slate-600 dark:bg-slate-800/80 dark:shadow-none dark:hover:border-slate-600 sm:col-span-2 sm:p-5 lg:col-span-1">
         <div className={`absolute top-0 left-0 right-0 h-1 ${reqStyles.barColor}`}></div>
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-col min-w-0">

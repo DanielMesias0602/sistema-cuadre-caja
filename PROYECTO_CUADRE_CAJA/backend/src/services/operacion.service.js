@@ -2,11 +2,15 @@
 import { emitirEvento } from './socket.service.js';
 import {
   createOperacion,
+  updateOperacionMonto,
   findOperacionById,
   findAllOperaciones
 } from '../repositories/operacion.repository.js';
-import { createComprobante } from '../repositories/comprobante.repository.js';
-import { createPago } from '../repositories/pago.repository.js';
+import {
+  createComprobante,
+  updateComprobanteMonto
+} from '../repositories/comprobante.repository.js';
+import { createPago, updatePago } from '../repositories/pago.repository.js';
 import { createEvidencia } from '../repositories/evidencia.repository.js';
 import { createVerificacionPago } from '../repositories/verificacionPago.repository.js';
 import { createCierreCaja } from '../repositories/cierreCaja.repository.js';
@@ -305,6 +309,227 @@ export const getOperaciones = async () => {
   }));
 
   return operacionesConLinks;
+};
+
+export const actualizarRegistroOperacion = async (idOperacion, data, idUsuario) => {
+  const id = Number(idOperacion);
+  const idPago = Number(data?.id_pago);
+  const idMedioPago = Number(data?.id_medio_pago);
+  const montoComprobante = Number(data?.monto_comprobante);
+  const montoPago = Number(data?.monto_pago);
+  const referenciaEnviada = Object.prototype.hasOwnProperty.call(data || {}, 'referencia_bancaria');
+  const observacionEnviada = Object.prototype.hasOwnProperty.call(data || {}, 'observacion');
+
+  if (!Number.isSafeInteger(id) || id <= 0 ||
+      !Number.isSafeInteger(idPago) || idPago <= 0 ||
+      !Number.isSafeInteger(idMedioPago) || idMedioPago <= 0 ||
+      !Number.isFinite(montoComprobante) || montoComprobante <= 0 ||
+      !Number.isFinite(montoPago) || montoPago <= 0) {
+    const error = new Error('Los datos del registro y del pago deben ser válidos');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const resultado = await withTransaction(async (client) => {
+    const fechaResult = await client.query(
+      'SELECT fecha FROM operacion WHERE id_operacion = $1',
+      [id]
+    );
+    if (fechaResult.rows.length === 0) {
+      const error = new Error('La operación no existe');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended('caja-turno:' || $1::date::text, 0))`,
+      [fechaResult.rows[0].fecha]
+    );
+
+    const operacionResult = await client.query(
+      `SELECT id_operacion, id_cierre, id_comprobante, fecha, estado
+       FROM operacion
+       WHERE id_operacion = $1
+       FOR UPDATE`,
+      [id]
+    );
+    const operacion = operacionResult.rows[0];
+
+    if (!operacion) {
+      const error = new Error('La operación no existe');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (String(operacion.estado).toUpperCase() === 'ANULADA') {
+      const error = new Error('No se puede editar una operación anulada');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (operacion.id_cierre != null) {
+      const cierreResult = await client.query(
+        `SELECT estado
+         FROM cierre_caja
+         WHERE id_cierre = $1`,
+        [operacion.id_cierre]
+      );
+      if (String(cierreResult.rows[0]?.estado || '').toUpperCase() === 'CERRADO') {
+        const error = new Error('No se puede editar una operación de un turno ya cerrado');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    const pagosResult = await client.query(
+      `SELECT id_pago, id_medio_pago, monto, referencia_bancaria, observacion, estado
+       FROM pago
+       WHERE id_operacion = $1
+       ORDER BY id_pago
+       FOR UPDATE`,
+      [id]
+    );
+    const pagoActual = pagosResult.rows.find((pago) => Number(pago.id_pago) === idPago);
+    if (!pagoActual) {
+      const error = new Error('El pago no pertenece a la operación indicada');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const medioPagoResult = await client.query(
+      `SELECT id_medio_pago, es_efectivo
+       FROM medio_pago
+       WHERE id_medio_pago = $1 AND estado = TRUE`,
+      [idMedioPago]
+    );
+    const medioPago = medioPagoResult.rows[0];
+    if (!medioPago) {
+      const error = new Error('El medio de pago no existe o está inactivo');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const montoComprobanteRedondeado = Math.round((montoComprobante + Number.EPSILON) * 100) / 100;
+    const montoPagoRedondeado = Math.round((montoPago + Number.EPSILON) * 100) / 100;
+    const totalOtrosPagosCentimos = pagosResult.rows
+      .filter((pago) => Number(pago.id_pago) !== idPago && pago.estado !== 'ANULADO')
+      .reduce((total, pago) => total + Math.round(Number(pago.monto) * 100), 0);
+    const totalPagadoCentimos = totalOtrosPagosCentimos + Math.round(montoPagoRedondeado * 100);
+    const montoComprobanteCentimos = Math.round(montoComprobanteRedondeado * 100);
+
+    if (totalPagadoCentimos > montoComprobanteCentimos) {
+      const error = new Error('El total de pagos no puede superar el monto del comprobante');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const estadoPago = medioPago.es_efectivo ? 'VERIFICADO' : 'REGISTRADO';
+    const referenciaSolicitada = referenciaEnviada
+      ? (data.referencia_bancaria == null ? null : String(data.referencia_bancaria).trim() || null)
+      : pagoActual.referencia_bancaria;
+    const referenciaBancaria = medioPago.es_efectivo
+      ? null
+      : referenciaSolicitada;
+    const referenciaCambio = (pagoActual.referencia_bancaria || null) !== referenciaBancaria;
+    const observacionSolicitada = observacionEnviada
+      ? (data.observacion == null ? null : String(data.observacion).trim() || null)
+      : pagoActual.observacion;
+    const observacionPago = !medioPago.es_efectivo && referenciaCambio && !observacionEnviada
+      ? 'Referencia actualizada; requiere nueva conciliación'
+      : observacionSolicitada;
+    if (referenciaBancaria != null && referenciaBancaria.length > 100) {
+      const error = new Error('La referencia bancaria no puede superar los 100 caracteres');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (observacionPago != null && observacionPago.length > 500) {
+      const error = new Error('La observación no puede superar los 500 caracteres');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const comprobanteActualizado = await updateComprobanteMonto(
+      operacion.id_comprobante,
+      montoComprobanteRedondeado,
+      client
+    );
+    const pagoActualizado = await updatePago(
+      idPago,
+      {
+        id_medio_pago: idMedioPago,
+        monto: montoPagoRedondeado,
+        referencia_bancaria: referenciaBancaria,
+        observacion: observacionPago,
+        estado: estadoPago
+      },
+      client
+    );
+
+    const estadoOperacion = totalPagadoCentimos === montoComprobanteCentimos
+      ? 'PAGADA'
+      : 'PENDIENTE';
+    const operacionActualizada = await updateOperacionMonto(
+      id,
+      montoComprobanteRedondeado,
+      idUsuario,
+      client
+    );
+    await client.query(
+      `UPDATE operacion
+       SET estado = $1
+       WHERE id_operacion = $2`,
+      [estadoOperacion, id]
+    );
+    operacionActualizada.estado = estadoOperacion;
+
+    if (!medioPago.es_efectivo) {
+      const observacionVerificacion = referenciaCambio
+        ? 'Referencia bancaria actualizada; requiere nueva conciliación'
+        : 'Pago actualizado; requiere nueva conciliación';
+      const verificacionResult = await client.query(
+        `SELECT id_verificacion
+         FROM verificacion_pago
+         WHERE id_pago = $1
+         FOR UPDATE`,
+        [idPago]
+      );
+      if (verificacionResult.rows.length > 0) {
+        await client.query(
+          `UPDATE verificacion_pago
+           SET estado_verificacion = 'PENDIENTE',
+               observacion = $1
+           WHERE id_pago = $2`,
+          [observacionVerificacion, idPago]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO verificacion_pago
+            (id_pago, id_usuario, monto_comparado, fecha_comparada,
+             referencia_bancaria_comparada, estado_verificacion, observacion)
+           VALUES ($1, $2, $3, $4, $5, 'PENDIENTE',
+             $6)`,
+          [
+            idPago,
+            idUsuario,
+            montoPagoRedondeado,
+            operacion.fecha,
+            null,
+            observacionVerificacion
+          ]
+        );
+      }
+    }
+
+    return {
+      operacion: operacionActualizada,
+      comprobante: comprobanteActualizado,
+      pago: pagoActualizado,
+      total_pagado: totalPagadoCentimos / 100
+    };
+  });
+
+  emitirEvento('operacion_actualizada', { id: Number(idOperacion) });
+  emitirEvento('pago_actualizado', { id: resultado.pago.id_pago });
+  return resultado;
 };
 
 // --- FUNCIÓN TRANSACCIONAL (Para guardar todo de golpe) ---

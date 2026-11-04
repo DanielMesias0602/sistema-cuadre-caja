@@ -234,7 +234,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
       {/* VISOR DE EVIDENCIA EN SPLIT-SCREEN */}
       {isImageOpen && urlEvidencia && (
         <div
-          className="fixed inset-y-0 left-0 z-[60] flex flex-col items-center justify-center bg-slate-950/95 border-r border-slate-700 p-3 sm:p-6 backdrop-blur-md select-none w-full lg:right-[500px] lg:w-auto animate-in fade-in duration-200"
+          className="fixed inset-y-0 left-0 z-[60] flex w-full flex-col items-center justify-center border-r border-slate-700 bg-slate-950/95 p-3 backdrop-blur-md select-none animate-in fade-in duration-200 sm:p-6 xl:right-[500px] xl:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -267,7 +267,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
         aria-modal="true"
         className={`absolute inset-y-0 right-0 z-30 flex w-full max-w-[500px] flex-col bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl dark:shadow-none shadow-slate-900/20 transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        <header className="border-b border-slate-100 dark:border-slate-700 px-6 pb-6 pt-5 sm:px-8 shrink-0">
+        <header className="shrink-0 border-b border-slate-100 px-4 pb-4 pt-4 dark:border-slate-700 sm:px-8 sm:pb-6 sm:pt-5">
           <div className="flex items-center justify-between">
             <div>
               {esOperacionAnulada ? (
@@ -290,7 +290,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                 <button
                   type="button"
                   onClick={handleEditClick}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm dark:shadow-none transition-colors hover:bg-slate-50 dark:hover:bg-slate-600 hover:text-brand-orange"
+                  className="flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-brand-orange dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:shadow-none dark:hover:bg-slate-600"
                 >
                   <Pencil className="h-3.5 w-3.5" /><span>Editar</span>
                 </button>
@@ -299,7 +299,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
                 ref={closeRef}
                 type="button"
                 onClick={onClose}
-                className="flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2 text-slate-500 dark:text-slate-400 shadow-sm dark:shadow-none transition-colors hover:bg-slate-100 dark:hover:bg-slate-600 hover:text-rose-600"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-500 shadow-sm transition-colors hover:bg-slate-100 hover:text-rose-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400 dark:shadow-none dark:hover:bg-slate-600"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -333,7 +333,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50/60 dark:bg-slate-900/70 px-6 py-6 sm:px-8">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4 dark:bg-slate-900/70 sm:px-8 sm:py-6">
           {errorSave && (
             <div className="mb-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl p-4 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
@@ -411,7 +411,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
 
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400">Cliente</span>
-                  <span className={`max-w-[230px] truncate text-right text-xs font-semibold ${esOperacionAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`}>{pago.cliente}</span>
+                  <span className={`max-w-[230px] whitespace-normal break-words text-right text-xs font-semibold ${esOperacionAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`}>{pago.cliente}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -486,7 +486,7 @@ export function PagoDetailDrawer({ selectedPago, onClose, onUpdateSuccess }) {
           </div>
         </div>
 
-        <footer className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-4 sm:px-8 shrink-0">
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800 sm:px-8 sm:py-4">
           {isEditing ? (
             <div className="flex gap-3">
               <button

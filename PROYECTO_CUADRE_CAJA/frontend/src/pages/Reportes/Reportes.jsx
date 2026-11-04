@@ -919,7 +919,7 @@ export function Reportes() {
           type="button"
           onClick={exportarPDF}
           disabled={loading}
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64 dark:shadow-none"
+          className="group relative min-h-56 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 to-blue-700 p-4 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl dark:shadow-none sm:min-h-64 sm:p-6"
         >
           <img
             src={`${import.meta.env.BASE_URL}pdf-icon.png`}
@@ -943,7 +943,7 @@ export function Reportes() {
           type="button"
           onClick={exportarExcel}
           disabled={loading}
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64 dark:shadow-none"
+          className="group relative min-h-56 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl dark:shadow-none sm:min-h-64 sm:p-6"
         >
           <img
             src={`${import.meta.env.BASE_URL}excel-icon.png`}
@@ -967,7 +967,7 @@ export function Reportes() {
           type="button"
           onClick={exportarPDFVisual}
           disabled={loading}
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 to-violet-700 p-4 sm:p-6 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl h-56 sm:h-64 dark:shadow-none"
+          className="group relative min-h-56 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 to-violet-700 p-4 text-left shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl dark:shadow-none sm:min-h-64 sm:p-6"
         >
           <img
             src={`${import.meta.env.BASE_URL}aura-icon.png`}
@@ -996,7 +996,7 @@ export function Reportes() {
             </div>
             <div className="min-w-0">
               <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">Resumen del Periodo</p>
-              <p className="text-[10px] sm:text-xs text-slate-500 truncate dark:text-slate-400">
+              <p className="break-words text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                 {fechaDesde && fechaHasta
                   ? `Mostrando operaciones del ${formatearFecha(fechaDesde)} al ${formatearFecha(fechaHasta)}`
                   : fechaDesde

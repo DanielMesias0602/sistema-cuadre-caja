@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parsearEvidencia } from '../src/services/ocr/parser.js';
+import { parsearComprobante, parsearEvidencia } from '../src/services/ocr/parser.js';
 
 const salidaOcrConFechaHoraNoEstructurada = `DATOS EXTRAIDOS:
 {
@@ -56,4 +56,71 @@ test('normalizes numeric dates with two-digit years from OCR text and JSON', () 
 
   assert.equal(datosDesdeTexto.fecha_operacion, '27/10/2026');
   assert.equal(datosDesdeJson.fecha_operacion, '27/10/2026');
+});
+
+test('preserves Python customer and seller values instead of replacing them with raw OCR text', () => {
+  const salida = `=== DATOS DEL COMPROBANTE ===
+Tipo: BOLETA
+Serie: BE03
+Número: 00002937
+Vendedor: LIZFRANCESCA
+Cliente: LIZFRANCESCALOZAAYBAR
+
+DATOS EXTRAIDOS:
+{
+  "tipo_comprobante": "BOLETA",
+  "serie": "BE03",
+  "numero": "00002937",
+  "vendedor": "LIZ FRANCESCA",
+  "cliente": "LIZ FRANCESCA LOZA AYBAR",
+  "total": 2279,
+  "igv": 347.64,
+  "op_gravada": 1931.36,
+  "productos": []
+}
+
+[0.98] CLIENTE:LIZFRANCESCALOZAAYBAR
+[0.97] VENDEDOR(A):LIZFRANCESCA`;
+
+  const datos = parsearComprobante(salida);
+
+  assert.equal(datos.cliente, 'LIZ FRANCESCA LOZA AYBAR');
+  assert.equal(datos.vendedor, 'LIZ FRANCESCA');
+  assert.equal(datos.monto, 2279);
+});
+
+test('preserves Spanish Ñ from Python JSON through Node parsing and serialization', () => {
+  const salida = `DATOS EXTRAIDOS:
+{
+  "tipo_comprobante": "BOLETA",
+  "vendedor": "LORENA PEÑA",
+  "cliente": "ALEXANDRA PEÑA",
+  "total": 8,
+  "igv": 1.22,
+  "op_gravada": 6.78
+}
+[0.98] CLIENTE:ALEXANDRA PENA`;
+
+  const datos = parsearComprobante(salida);
+  const serializado = JSON.stringify(datos);
+
+  assert.equal(datos.cliente, 'ALEXANDRA PEÑA');
+  assert.equal(datos.vendedor, 'LORENA PEÑA');
+  assert.match(serializado, /ALEXANDRA PEÑA/);
+  assert.doesNotMatch(serializado, /ALEXANDRA PENA/);
+});
+
+test('does not replace explicit null name fields from Python with raw OCR guesses', () => {
+  const salida = `DATOS EXTRAIDOS:
+{
+  "cliente": null,
+  "vendedor": null
+}
+[0.98] CLIENTE:NOMBREOCRINCORRECTO
+[0.97] VENDEDOR(A):VENDEDORINCORRECTO`;
+
+  const datos = parsearComprobante(salida);
+
+  assert.equal(datos.cliente, null);
+  assert.equal(datos.vendedor, null);
 });

@@ -139,7 +139,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
   return (
     <div
       id="operacion-print-area"
-      className="bg-slate-50/50 dark:bg-slate-900/40 rounded-3xl border border-slate-200 dark:border-slate-600 p-2 sm:p-3 flex flex-col space-y-3 max-h-[85vh] overflow-y-auto shadow-sm dark:shadow-none [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full"
+      className="bg-slate-50/50 dark:bg-slate-900/40 rounded-3xl border border-slate-200 dark:border-slate-600 p-2 sm:p-3 flex flex-col space-y-3 max-h-[90vh] max-h-[90dvh] overflow-y-auto shadow-sm dark:shadow-none [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full"
     >
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-600 flex flex-col space-y-4">
 
@@ -171,7 +171,7 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
         </div>
 
         {/* DATOS GENERALES */}
-        <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-600 text-xs">
+        <div className="grid grid-cols-1 gap-3 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-600 text-xs sm:grid-cols-2">
           <div>
             <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1 mb-1 font-semibold text-[10px] uppercase tracking-wider">
               <Calendar className="w-3 h-3" /> Fecha y hora
@@ -185,19 +185,19 @@ export function OperacionDetailDrawer({ selectedOp, onClose }) {
             <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1 mb-1 font-semibold text-[10px] uppercase tracking-wider">
               <User className="w-3 h-3" /> Cliente
             </span>
-            <span className="text-slate-900 dark:text-slate-100 font-bold block truncate" title={dataComprobante.cliente || 'No registrado'}>
+            <span className="text-slate-900 dark:text-slate-100 font-bold block break-words" title={dataComprobante.cliente || 'No registrado'}>
               {dataComprobante.cliente || 'No registrado'}
             </span>
           </div>
           <div>
             <span className="text-slate-400 dark:text-slate-500 block mb-1 font-semibold text-[10px] uppercase tracking-wider">Usuario</span>
-            <span className="text-slate-900 dark:text-slate-100 font-bold block truncate">
+            <span className="text-slate-900 dark:text-slate-100 font-bold block break-words">
               {selectedOp.usuario || `${selectedOp.nombres || ''} ${selectedOp.apellidos || ''}`.trim() || 'Sistema'}
             </span>
           </div>
           <div>
             <span className="text-slate-400 dark:text-slate-500 block mb-1 font-semibold text-[10px] uppercase tracking-wider">Vendedor</span>
-            <span className="text-slate-900 dark:text-slate-100 font-bold block truncate">
+            <span className="text-slate-900 dark:text-slate-100 font-bold block break-words">
               {dataComprobante.vendedor || 'No registrado'}
             </span>
           </div>

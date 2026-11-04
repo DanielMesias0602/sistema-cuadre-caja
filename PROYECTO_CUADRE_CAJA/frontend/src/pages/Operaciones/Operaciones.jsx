@@ -51,10 +51,16 @@ export function Operaciones() {
 
   useEffect(() => {
     if (!socket) return undefined;
-    const actualizarOperaciones = () => {
-      void cargarOperaciones();
+    const actualizarOperaciones = async () => {
+      const lista = await cargarOperaciones();
+      setSelectedOp((actual) => {
+        if (!actual) return actual;
+        return lista.find(
+          (operacion) => Number(operacion.id_operacion) === Number(actual.id_operacion)
+        ) || actual;
+      });
     };
-    const eventos = ['operacion_creada', 'pago_actualizado', 'ajuste_creado'];
+    const eventos = ['operacion_creada', 'operacion_actualizada', 'pago_actualizado', 'ajuste_creado'];
     eventos.forEach((evento) => socket.on(evento, actualizarOperaciones));
 
     return () => {
@@ -198,7 +204,7 @@ export function Operaciones() {
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2 sm:gap-3">
             <Receipt className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-brand-orange dark:text-orange-400 flex-shrink-0" />
-            <span className="truncate">Historial de Operaciones</span>
+            <span className="break-words">Historial de Operaciones</span>
           </h1>
           <p className="hidden sm:block text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 font-medium">
             Consulta, filtra y exporta todas las ventas registradas en el sistema.
@@ -428,7 +434,7 @@ export function Operaciones() {
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <User className="w-5 h-5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
-                        <span className={`text-sm font-medium max-w-[200px] truncate ${esAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`} title={op.cliente || 'No registrado'}>
+                        <span className={`max-w-[240px] whitespace-normal break-words text-sm font-medium ${esAnulada ? 'text-slate-400' : 'text-slate-900 dark:text-slate-100'}`} title={op.cliente || 'No registrado'}>
                           {op.cliente || 'No registrado'}
                         </span>
                       </div>
@@ -466,7 +472,7 @@ export function Operaciones() {
                     <td className="p-4 text-center">
                       <button
                         onClick={() => { setSelectedOp(op); setDrawerAbierto(true); }}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
                       >
                         <Eye className="h-4 w-4" />
                         Ver Detalle
@@ -512,6 +518,15 @@ export function Operaciones() {
           if (opActualizada) {
             setSelectedOp(opActualizada);
           }
+        }}
+        onRegistroActualizado={async (idOperacion) => {
+          const lista = await recargarOperaciones();
+          const opActualizada = lista.find(
+            (o) => Number(o.id_operacion) === Number(idOperacion)
+          );
+          if (!opActualizada) return false;
+          setSelectedOp(opActualizada);
+          return true;
         }}
       />
     </div>

@@ -1,9 +1,20 @@
-import { readFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parsearComprobante, parsearEvidencia } from './ocr/parser.js';
 
-const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://ocr-service:8000/ocr';
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../');
+const RAPID_OCR_SCRIPT = path.join(PROJECT_ROOT, 'ocr-service', 'rapid_ocr_service.py');
+const PYTHON_EXECUTABLE = process.env.PYTHON_BIN
+  || (process.platform === 'win32' ? 'python' : 'python3');
 const OCR_TIMEOUT_MS = 180_000;
+let colaOcr = Promise.resolve();
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf'
+]);
 
 const isTransferencia = (tipoEvidencia) => {
   const tipo = String(tipoEvidencia || '').trim().toUpperCase();
@@ -20,55 +31,92 @@ const isTransferencia = (tipoEvidencia) => {
   );
 };
 
-const obtenerSalidaOcr = async ({ filePath, mimeType, tipoEvidencia }) => {
-  const archivo = await readFile(filePath);
-  const formulario = new FormData();
-  formulario.append(
-    'archivo',
-    new Blob([archivo], { type: mimeType }),
-    path.basename(filePath)
+const ejecutarOcrLocal = ({ filePath, tipoEvidencia }) => new Promise((resolve, reject) => {
+  const absoluteFilePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(PROJECT_ROOT, 'backend', filePath);
+
+  const proceso = spawn(
+    PYTHON_EXECUTABLE,
+    [RAPID_OCR_SCRIPT, absoluteFilePath, tipoEvidencia],
+    {
+      cwd: PROJECT_ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8'
+      }
+    }
   );
-  formulario.append('tipo', tipoEvidencia);
 
-  let response;
-  try {
-    response = await fetch(OCR_SERVICE_URL, {
-      method: 'POST',
-      body: formulario,
-      signal: AbortSignal.timeout(OCR_TIMEOUT_MS)
-    });
-  } catch (error) {
-    const ocrError = new Error(
-      error.name === 'TimeoutError'
-        ? 'El servicio OCR excedió el tiempo máximo de procesamiento'
-        : 'No se pudo conectar con el servicio OCR'
-    );
-    ocrError.statusCode = error.name === 'TimeoutError' ? 504 : 502;
-    throw ocrError;
-  }
+  let salida = '';
+  let errores = '';
+  let agotado = false;
+  let finalizado = false;
+  let killTimer;
 
-  let resultado;
-  try {
-    resultado = await response.json();
-  } catch {
-    const error = new Error('El servicio OCR devolvió una respuesta no válida');
-    error.statusCode = 502;
-    throw error;
-  }
+  const timeout = setTimeout(() => {
+    agotado = true;
+    proceso.kill('SIGTERM');
+    killTimer = setTimeout(() => proceso.kill('SIGKILL'), 5_000);
+    killTimer.unref();
+  }, OCR_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const error = new Error(resultado.error || 'Error procesando el archivo en OCR');
-    error.statusCode = response.status === 504 ? 504 : 502;
-    throw error;
-  }
+  const finalizar = (callback, valor) => {
+    if (finalizado) return;
+    finalizado = true;
+    clearTimeout(timeout);
+    clearTimeout(killTimer);
+    callback(valor);
+  };
 
-  if (typeof resultado.salida_ocr !== 'string') {
-    const error = new Error('El servicio OCR no devolvió el resultado esperado');
-    error.statusCode = 502;
-    throw error;
-  }
+  proceso.stdout.setEncoding('utf8');
+  proceso.stderr.setEncoding('utf8');
+  proceso.stdout.on('data', (fragmento) => {
+    salida += fragmento;
+  });
+  proceso.stderr.on('data', (fragmento) => {
+    errores += fragmento;
+  });
 
-  return resultado;
+  proceso.on('error', (error) => {
+    console.error('[OCR RapidOCR] No se pudo iniciar Python:', error);
+    const ocrError = new Error('No se pudo iniciar el motor OCR local');
+    ocrError.statusCode = 500;
+    finalizar(reject, ocrError);
+  });
+
+  proceso.on('close', (codigo) => {
+    if (agotado) {
+      const error = new Error('El procesamiento OCR excedió el tiempo máximo');
+      error.statusCode = 504;
+      finalizar(reject, error);
+      return;
+    }
+
+    if (codigo !== 0) {
+      console.error('[OCR RapidOCR] El proceso Python falló:', errores.trim());
+      const error = new Error('No se pudo procesar la imagen con el motor OCR');
+      error.statusCode = 500;
+      finalizar(reject, error);
+      return;
+    }
+
+    if (!salida.includes('DATOS EXTRAIDOS:')) {
+      const error = new Error('El motor OCR devolvió una respuesta no válida');
+      error.statusCode = 502;
+      finalizar(reject, error);
+      return;
+    }
+
+    finalizar(resolve, salida);
+  });
+});
+
+const ejecutarOcrEnCola = (parametros) => {
+  const ejecucion = colaOcr.then(() => ejecutarOcrLocal(parametros));
+  colaOcr = ejecucion.then(() => undefined, () => undefined);
+  return ejecucion;
 };
 
 export const extractEvidenceData = async ({ filePath, mimeType, tipoEvidencia }) => {
@@ -78,20 +126,26 @@ export const extractEvidenceData = async ({ filePath, mimeType, tipoEvidencia })
     throw error;
   }
 
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    const error = new Error('El tipo de archivo no es compatible con OCR');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const transferencia = isTransferencia(tipoEvidencia);
-  const resultado = await obtenerSalidaOcr({ filePath, mimeType, tipoEvidencia });
+  const salidaOcr = await ejecutarOcrEnCola({ filePath, tipoEvidencia });
   const datosExtraidos = transferencia
-    ? parsearEvidencia(resultado.salida_ocr)
-    : parsearComprobante(resultado.salida_ocr);
+    ? parsearEvidencia(salidaOcr)
+    : parsearComprobante(salidaOcr);
 
   return {
-    motor: 'PaddleOCR',
-    build: resultado.build,
+    motor: 'RapidOCR ONNX Runtime',
+    build: 'rapidocr-onnxruntime',
     estado: 'PROCESADO',
     confianza: null,
-    texto_completo: resultado.salida_ocr,
+    texto_completo: salidaOcr,
     datos_extraidos: datosExtraidos,
-    salida_ocr: resultado.salida_ocr,
+    salida_ocr: salidaOcr,
     requiere_revision: true,
     requiere_confirmacion: true
   };

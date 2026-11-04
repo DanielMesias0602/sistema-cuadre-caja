@@ -244,7 +244,7 @@ export function Paso3EvidenciaEmpresa({ datosIniciales = {}, pagos = [], onDataC
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">Verifica que coincidan con la captura.</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 md:grid-cols-3">
                   {camposOCR.map((campo, i) => (
                     <CampoOCRDinamico key={i} {...campo} />
                   ))}

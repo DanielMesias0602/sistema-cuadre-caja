@@ -213,6 +213,21 @@ export const modifyPago = async (idPago, data) => {
     estado
   } = data;
 
+  if (referencia_bancaria !== undefined &&
+      referencia_bancaria != null &&
+      String(referencia_bancaria).trim().length > 100) {
+    const error = new Error('La referencia bancaria no puede superar los 100 caracteres');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (observacion !== undefined &&
+      observacion != null &&
+      String(observacion).trim().length > 500) {
+    const error = new Error('La observación no puede superar los 500 caracteres');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const estadosPermitidos = ['REGISTRADO', 'VERIFICADO', 'ANULADO'];
   if (estado !== undefined && !estadosPermitidos.includes(estado)) {
     const error = new Error('Estado de pago no válido');
@@ -266,6 +281,29 @@ export const modifyPago = async (idPago, data) => {
 
     const pagoActual = pagoResult.rows[0];
 
+    const nuevoIdMedioPago = id_medio_pago !== undefined
+      ? Number(id_medio_pago)
+      : Number(pagoActual.id_medio_pago);
+    const medioPagoResult = await client.query(
+      `SELECT es_efectivo
+       FROM medio_pago
+       WHERE id_medio_pago = $1 AND estado = TRUE`,
+      [nuevoIdMedioPago]
+    );
+    if (medioPagoResult.rows.length === 0) {
+      const error = new Error('El medio de pago no existe o está inactivo');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const referenciaSolicitada = referencia_bancaria !== undefined
+      ? (referencia_bancaria == null ? null : String(referencia_bancaria).trim() || null)
+      : pagoActual.referencia_bancaria;
+    const nuevaReferencia = medioPagoResult.rows[0].es_efectivo
+      ? null
+      : referenciaSolicitada;
+    const referenciaCambio = (pagoActual.referencia_bancaria || null) !== nuevaReferencia;
+
     // 2. Lock the associated operation
     const operacionResult = await client.query(
       `SELECT id_operacion, monto, estado
@@ -299,10 +337,8 @@ export const modifyPago = async (idPago, data) => {
     const cierre = cierreResult.rows[0];
 
     if (String(cierre?.estado_cierre || '').toUpperCase() === 'CERRADO') {
-      const error = new Error(
-        'No se puede modificar un pago que pertenece a un cierre ya cerrado. Reabra el turno primero.'
-      );
-      error.statusCode = 409;
+      const error = new Error('No se puede editar una operación de un turno ya cerrado');
+      error.statusCode = 400;
       throw error;
     }
 
@@ -319,7 +355,11 @@ export const modifyPago = async (idPago, data) => {
       .reduce((acc, p) => acc + Number(p.monto), 0);
 
     const nuevoMontoPago = monto !== undefined ? Number(monto) : Number(pagoActual.monto);
-    const nuevoEstadoPago = estado !== undefined ? estado : pagoActual.estado;
+    const nuevoEstadoPago = estado !== undefined
+      ? estado
+      : referenciaCambio && !medioPagoResult.rows[0].es_efectivo
+        ? 'REGISTRADO'
+        : pagoActual.estado;
 
     const montoEfectivoPago = (nuevoEstadoPago !== 'ANULADO') ? nuevoMontoPago : 0;
     const nuevoTotalPagado = totalOtrosPagos + montoEfectivoPago;
@@ -335,14 +375,24 @@ export const modifyPago = async (idPago, data) => {
     const pagoActualizado = await updatePago(
       idPago,
       {
-        id_medio_pago,
+        id_medio_pago: nuevoIdMedioPago,
         monto: monto !== undefined ? nuevoMontoPago : undefined,
-        referencia_bancaria,
+        referencia_bancaria: nuevaReferencia,
         observacion,
         estado: nuevoEstadoPago
       },
       client
     );
+
+    if (referenciaCambio && !medioPagoResult.rows[0].es_efectivo) {
+      await client.query(
+        `UPDATE verificacion_pago
+         SET estado_verificacion = 'PENDIENTE',
+             observacion = 'Referencia bancaria actualizada; requiere nueva conciliación'
+         WHERE id_pago = $1`,
+        [idPago]
+      );
+    }
 
     // 5. Update operation status if needed
     let nuevoEstadoOperacion = operacion.estado;

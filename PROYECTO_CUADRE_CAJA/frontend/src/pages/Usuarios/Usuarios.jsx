@@ -406,15 +406,15 @@ export function Usuarios() {
 
       {/* MODAL CREAR USUARIO */}
       {modalCrearOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 dark:bg-black/70">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-fade-in-up max-h-[90vh] flex flex-col dark:bg-slate-800 dark:border dark:border-slate-700 dark:shadow-none">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-4">
+          <div className="my-auto flex max-h-[90vh] max-h-[90dvh] w-[95%] max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up dark:border dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
             <div className="bg-slate-900 p-6 sm:p-8 flex justify-between items-center relative overflow-hidden">
               <div className="absolute -right-10 -top-10 opacity-10"><Shield className="w-40 h-40 text-white" /></div>
               <div className="relative z-10">
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Crear Nuevo Usuario</h2>
                 <p className="text-slate-300 text-sm mt-1">Asigna credenciales y permisos al nuevo personal.</p>
               </div>
-              <button onClick={() => setModalCrearOpen(false)} className="relative z-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition"><X className="w-6 h-6" /></button>
+              <button type="button" onClick={() => setModalCrearOpen(false)} aria-label="Cerrar modal" className="relative z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 sm:p-8 overflow-y-auto dark:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
               <form id="createUserForm" onSubmit={handleCrearUsuario} className="space-y-5" autoComplete="off">
@@ -477,8 +477,8 @@ export function Usuarios() {
               </form>
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 dark:border-slate-600 dark:bg-slate-800">
-              <button onClick={() => setModalCrearOpen(false)} className="px-6 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition text-sm dark:text-slate-200 dark:hover:bg-slate-700">Cancelar</button>
-              <button type="submit" form="createUserForm" className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-2.5 rounded-xl font-bold shadow-md transition text-sm active:scale-95 dark:bg-slate-700 dark:hover:bg-slate-600 dark:shadow-none">Guardar Usuario</button>
+              <button onClick={() => setModalCrearOpen(false)} className="min-h-11 px-6 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition text-sm dark:text-slate-200 dark:hover:bg-slate-700">Cancelar</button>
+              <button type="submit" form="createUserForm" className="min-h-11 bg-slate-900 hover:bg-slate-800 text-white px-8 py-2.5 rounded-xl font-bold shadow-md transition text-sm active:scale-95 dark:bg-slate-700 dark:hover:bg-slate-600 dark:shadow-none">Guardar Usuario</button>
             </div>
           </div>
         </div>
@@ -486,15 +486,15 @@ export function Usuarios() {
 
       {/* MODAL EDITAR USUARIO */}
       {modalEditarOpen && usuarioEditando && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 dark:bg-black/70">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in-up max-h-[90vh] flex flex-col dark:bg-slate-800 dark:border dark:border-slate-700 dark:shadow-none">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-4">
+          <div className="my-auto flex max-h-[90vh] max-h-[90dvh] w-[95%] max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up dark:border dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
             <div className="bg-blue-600 p-6 sm:p-8 flex justify-between items-center relative overflow-hidden">
               <div className="absolute -right-10 -top-10 opacity-10"><Pencil className="w-40 h-40 text-white" /></div>
               <div className="relative z-10">
                 <h2 className="text-2xl font-extrabold text-white">Editar Datos</h2>
                 <p className="text-blue-100 text-sm mt-1">Actualizando a @{usuarioEditando.usuario}</p>
               </div>
-              <button onClick={() => setModalEditarOpen(false)} className="relative z-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition"><X className="w-6 h-6" /></button>
+              <button type="button" onClick={() => setModalEditarOpen(false)} aria-label="Cerrar modal" className="relative z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 sm:p-8 overflow-y-auto dark:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
               <form id="editUserForm" onSubmit={handleEditarUsuario} className="space-y-5" autoComplete="off">
@@ -538,15 +538,15 @@ export function Usuarios() {
 
       {/* MODAL CAMBIAR CONTRASEÑA */}
       {modalPasswordOpen && usuarioPassword && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 dark:bg-black/70">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in-up max-h-[90vh] flex flex-col dark:bg-slate-800 dark:border dark:border-slate-700 dark:shadow-none">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-4">
+          <div className="my-auto flex max-h-[90vh] max-h-[90dvh] w-[95%] max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up dark:border dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
             <div className="bg-orange-500 p-6 flex justify-between items-center relative overflow-hidden">
               <div className="absolute -right-10 -top-10 opacity-10"><Lock className="w-40 h-40 text-white" /></div>
               <div className="relative z-10">
                 <h2 className="text-2xl font-extrabold text-white">Cambiar Contraseña</h2>
                 <p className="text-orange-100 text-sm mt-1">Asignando nueva contraseña a @{usuarioPassword.usuario}</p>
               </div>
-              <button onClick={() => setModalPasswordOpen(false)} className="relative z-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition"><X className="w-6 h-6" /></button>
+              <button type="button" onClick={() => setModalPasswordOpen(false)} aria-label="Cerrar modal" className="relative z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 sm:p-8 dark:bg-slate-800">
               <form id="passwordForm" onSubmit={handleGuardarPassword} className="space-y-5" autoComplete="off">
@@ -574,9 +574,9 @@ export function Usuarios() {
                 </div>
               </form>
             </div>
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 dark:border-slate-600 dark:bg-slate-800">
-              <button onClick={() => setModalPasswordOpen(false)} className="px-6 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition text-sm dark:text-slate-200 dark:hover:bg-slate-700">Cancelar</button>
-              <button type="submit" form="passwordForm" className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-md transition text-sm active:scale-95 dark:shadow-none">Actualizar Contraseña</button>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-800 sm:flex-row sm:justify-end sm:gap-3 sm:p-6">
+              <button onClick={() => setModalPasswordOpen(false)} className="min-h-11 px-6 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition text-sm dark:text-slate-200 dark:hover:bg-slate-700">Cancelar</button>
+              <button type="submit" form="passwordForm" className="min-h-11 bg-orange-500 hover:bg-orange-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-md transition text-sm active:scale-95 dark:shadow-none">Actualizar Contraseña</button>
             </div>
           </div>
         </div>
@@ -584,8 +584,8 @@ export function Usuarios() {
 
       {/* MODAL CONFIRMAR ELIMINACIÓN */}
       {userToDelete && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 dark:bg-black/70">
-          <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl text-center dark:bg-slate-800 dark:border dark:border-slate-700 dark:shadow-none">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-4">
+          <div className="my-auto max-h-[90vh] max-h-[90dvh] w-[95%] max-w-md overflow-y-auto rounded-3xl bg-white p-5 text-center shadow-2xl dark:border dark:border-slate-700 dark:bg-slate-800 dark:shadow-none sm:p-8">
             <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6 dark:bg-rose-950/40 dark:text-rose-400">
               <AlertTriangle className="w-10 h-10" />
             </div>
@@ -593,9 +593,9 @@ export function Usuarios() {
             <p className="text-base text-slate-500 mb-8 leading-relaxed dark:text-slate-400">
               Estás a punto de eliminar a <strong className="text-slate-800 dark:text-slate-200">{userToDelete.nombres} {userToDelete.apellidos}</strong>. Esta acción no se puede deshacer.
             </p>
-            <div className="flex gap-3">
-              <button onClick={() => setUserToDelete(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-sm dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200">Cancelar</button>
-              <button onClick={handleEliminarUsuario} disabled={isDeleting} className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-50 text-sm shadow-md shadow-red-500/30 dark:shadow-none">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+              <button onClick={() => setUserToDelete(null)} className="min-h-11 flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-sm dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200">Cancelar</button>
+              <button onClick={handleEliminarUsuario} disabled={isDeleting} className="min-h-11 flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition disabled:opacity-50 text-sm shadow-md shadow-red-500/30 dark:shadow-none">
                 {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
               </button>
             </div>
