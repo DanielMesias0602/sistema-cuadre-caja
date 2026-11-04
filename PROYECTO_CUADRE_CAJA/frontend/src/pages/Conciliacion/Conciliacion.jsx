@@ -39,6 +39,10 @@ export function Conciliacion() {
   const [conciliaciones, setConciliaciones] = useState([]);
   const [poniendoEnRevisionId, setPoniendoEnRevisionId] = useState(null);
   const [estadoRevision, setEstadoRevision] = useState(null);
+  const [modalRevisionAbierto, setModalRevisionAbierto] = useState(false);
+  const [motivoRevision, setMotivoRevision] = useState('');
+  const [conciliacionARevisar, setConciliacionARevisar] = useState(null);
+  const [errorMotivoRevision, setErrorMotivoRevision] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaFiltro, setFechaFiltro] = useState('');
@@ -123,32 +127,48 @@ export function Conciliacion() {
     }
   };
 
-  const handlePonerEnRevision = async (conciliacion) => {
-    const motivo = window.prompt('Indica el motivo para poner esta conciliación en revisión:');
-    if (motivo === null) return;
-    if (!motivo.trim()) {
-      setEstadoRevision({ tipo: 'error', mensaje: 'Debes indicar el motivo para ponerla en revisión.' });
+  const abrirModalRevision = (conciliacion) => {
+    setConciliacionARevisar(conciliacion);
+    setMotivoRevision('');
+    setErrorMotivoRevision(null);
+    setEstadoRevision(null);
+    setModalRevisionAbierto(true);
+  };
+
+  const cerrarModalRevision = () => {
+    if (poniendoEnRevisionId !== null) return;
+    setModalRevisionAbierto(false);
+    setConciliacionARevisar(null);
+    setMotivoRevision('');
+    setErrorMotivoRevision(null);
+  };
+
+  const handlePonerEnRevision = async (e) => {
+    e.preventDefault();
+    if (!conciliacionARevisar || poniendoEnRevisionId !== null) return;
+
+    const motivo = motivoRevision.trim();
+    if (!motivo) {
+      setErrorMotivoRevision('Debes indicar el motivo para ponerla en revisión.');
       return;
     }
 
-    const confirmar = window.confirm(
-      `¿Confirmas poner en revisión la conciliación del ${formatearFecha(conciliacion.fecha)}?`
-    );
-    if (!confirmar) return;
-
-    setPoniendoEnRevisionId(conciliacion.id_conciliacion);
+    setPoniendoEnRevisionId(conciliacionARevisar.id_conciliacion);
     setEstadoRevision(null);
+    setErrorMotivoRevision(null);
     try {
-      await api.put(`/conciliaciones/${conciliacion.id_conciliacion}/revisar`, {
-        motivo: motivo.trim()
+      await api.put(`/conciliaciones/${conciliacionARevisar.id_conciliacion}/revertir`, {
+        motivo
       });
       setEstadoRevision({ tipo: 'success', mensaje: 'Conciliación puesta en revisión.' });
+      setModalRevisionAbierto(false);
+      setConciliacionARevisar(null);
+      setMotivoRevision('');
       await recargarDatos();
     } catch (err) {
-      setEstadoRevision({
-        tipo: 'error',
-        mensaje: err.response?.data?.message || err.message || 'No se pudo poner la conciliación en revisión.'
-      });
+      setErrorMotivoRevision(
+        err.response?.data?.message || err.message || 'No se pudo poner la conciliación en revisión.'
+      );
     } finally {
       setPoniendoEnRevisionId(null);
     }
@@ -374,7 +394,7 @@ export function Conciliacion() {
                 {esAdmin && String(c.resultado || '').toUpperCase() === 'CONCILIADO' && (
                   <button
                     type="button"
-                    onClick={() => handlePonerEnRevision(c)}
+                    onClick={() => abrirModalRevision(c)}
                     disabled={poniendoEnRevisionId === c.id_conciliacion}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800/60 dark:bg-slate-700 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:shadow-none"
                   >
@@ -592,6 +612,91 @@ export function Conciliacion() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {modalRevisionAbierto && conciliacionARevisar && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-revision-titulo"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) cerrarModalRevision();
+          }}
+        >
+          <form
+            onSubmit={handlePonerEnRevision}
+            className="my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-800 sm:p-6"
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 id="modal-revision-titulo" className="text-lg font-bold text-slate-900 dark:text-slate-100">Poner en Revisión</h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Indica por qué se pone en revisión la conciliación del {formatearFecha(conciliacionARevisar.fecha)}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarModalRevision}
+                disabled={poniendoEnRevisionId !== null}
+                aria-label="Cerrar modal"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <label htmlFor="motivo-revision" className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Motivo <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              id="motivo-revision"
+              rows={4}
+              value={motivoRevision}
+              onChange={(e) => {
+                setMotivoRevision(e.target.value);
+                if (e.target.value.trim()) setErrorMotivoRevision(null);
+              }}
+              placeholder="Escribe el motivo por el cual se reabre esta conciliación..."
+              aria-invalid={Boolean(errorMotivoRevision)}
+              aria-describedby={errorMotivoRevision ? 'motivo-revision-error' : undefined}
+              disabled={poniendoEnRevisionId !== null}
+              className={`w-full resize-y rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-2 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+                errorMotivoRevision
+                  ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 dark:border-rose-500'
+                  : 'border-slate-300 focus:border-brand-orange focus:ring-brand-orange/20 dark:border-slate-600'
+              }`}
+            />
+            {errorMotivoRevision && (
+              <p id="motivo-revision-error" role="alert" className="mt-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
+                {errorMotivoRevision}
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={cerrarModalRevision}
+                disabled={poniendoEnRevisionId !== null}
+                className="h-10 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={poniendoEnRevisionId !== null}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {poniendoEnRevisionId !== null
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</>
+                  : 'Confirmar Revisión'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

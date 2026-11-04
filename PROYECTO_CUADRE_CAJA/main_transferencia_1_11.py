@@ -358,6 +358,18 @@ def extract_reference(lines):
         'seguro', 'mensaje', 'responder', 'compartir', 'descargar', 'salir',
         'oncorespaldo', 'tarjetas', 'inmediata', 'transferencia', 'yape'
     }
+    tiempo_relativo = re.compile(
+        r'hace\s*(?:(?:\d+|un|una|unos|unas)\s*)?'
+        r'(?:minutos?|mins?|horas?|hrs?|d[ií]as?|dias?|'
+        r'momentos?|segundos?|segs?)\b',
+        re.IGNORECASE
+    )
+    numero_operacion = re.compile(
+        r'\b(?:n[uú]mero|nro\.?|n[°º])\s*(?:de\s*)?operaci[oó6]n\b|'
+        r'\boperaci[oó6]n\b',
+        re.IGNORECASE
+    )
+    numero_referencia = re.compile(r'(?<!\d)(\d{6,16})(?!\d)')
     etiqueta = re.compile(
         r'(?:n[uú]mero|numero|nro\.?|n[°º])\s*(?:de\s*)?'
         r'(?:operaci[oó6]n|movimiento|transferencia)|'
@@ -379,6 +391,8 @@ def extract_reference(lines):
         value = value.strip().strip('.,:;')
         compactado = re.sub(r'[^A-Z0-9]', '', value.upper())
         valor_normalizado = value.lower().replace('0ctubre', 'octubre')
+        if tiempo_relativo.search(value):
+            return None
         if len(compactado) < longitud_minima or len(compactado) > 30:
             return None
         if compactado.lower() in basura or not re.search(r'\d', compactado):
@@ -388,6 +402,17 @@ def extract_reference(lines):
         return value
 
     lineas = [str(line) for line in lines]
+
+    for indice, linea in enumerate(lineas):
+        for match_operacion in numero_operacion.finditer(linea):
+            candidatos = [linea[match_operacion.end():]]
+            candidatos.extend(lineas[indice + 1:indice + 3])
+            candidatos.append(linea[:match_operacion.start()])
+            for valor in candidatos:
+                match_numero = numero_referencia.search(valor)
+                if match_numero:
+                    return match_numero.group(1)
+
     for tipo_etiqueta in ('transferencia', 'movimiento', 'operacion', 'referencia', 'codigo'):
         for indice, linea in enumerate(lineas):
             match_etiqueta = etiqueta.search(linea)

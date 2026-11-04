@@ -17,6 +17,7 @@ router.post('/', createConciliacion);
 router.get('/', getConciliaciones);
 router.get('/pre-calculo', getPreCalculo);
 router.put('/:id/revisar', revisarConciliacion);
+router.put('/:id/revertir', revisarConciliacion);
 router.get('/:id', getConciliacion);
 
 export default router;

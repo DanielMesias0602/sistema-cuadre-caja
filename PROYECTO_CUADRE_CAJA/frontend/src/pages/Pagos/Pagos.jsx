@@ -22,6 +22,7 @@ import {
 
 export function Pagos() {
   const [operaciones, setOperaciones] = useState([]);
+  const [mediosPago, setMediosPago] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -34,10 +35,19 @@ export function Pagos() {
   const [drawerAbierto, setDrawerAbierto] = useState(false);
   const cargarDatos = useCallback(async () => {
     try {
-      const res = await api.get('/operaciones');
-      const data = res.data?.data || res.data;
+      const [resOperaciones, resMediosPago] = await Promise.all([
+        api.get('/operaciones'),
+        api.get('/medios-pago'),
+      ]);
+      const data = resOperaciones.data?.data || resOperaciones.data;
+      const catalogoMediosPago = resMediosPago.data?.data || resMediosPago.data;
       const listaOperaciones = Array.isArray(data) ? data : [];
+      if (!Array.isArray(catalogoMediosPago)) {
+        throw new Error('La respuesta del catálogo de medios de pago no es válida.');
+      }
+
       setOperaciones(listaOperaciones);
+      setMediosPago(catalogoMediosPago);
       setSelectedPago((actual) => {
         if (!actual) return actual;
 
@@ -153,12 +163,16 @@ export function Pagos() {
     return list;
   }, [operaciones]);
   const mediosDisponibles = useMemo(() => {
-    const set = new Set();
+    const set = new Set(
+      mediosPago
+        .map((medio) => String(medio.nombre || '').trim())
+        .filter(Boolean)
+    );
     todosLosPagos.forEach((p) => {
-      if (p.medio_pago) set.add(p.medio_pago);
+      if (p.medio_pago) set.add(p.medio_pago.trim());
     });
-    return Array.from(set).sort();
-  }, [todosLosPagos]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [mediosPago, todosLosPagos]);
 
   const pagosFiltrados = useMemo(() => {
     return todosLosPagos.filter((p) => {
