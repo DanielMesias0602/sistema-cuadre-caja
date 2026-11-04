@@ -19,7 +19,7 @@ const evaluarOperacion = (opPago, opEmpresa) => {
       icono: 'check'
     };
   }
-  if (estado === 'DIFERENTE (BANCO)') {
+  if (estado === 'NO COINCIDEN (REQUIERE VALIDACIÓN)') {
     return {
       estado,
       color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60',

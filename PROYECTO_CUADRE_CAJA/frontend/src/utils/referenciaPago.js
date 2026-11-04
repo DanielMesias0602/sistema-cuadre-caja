@@ -13,5 +13,7 @@ export const compararReferencias = (referenciaPago, referenciaEmpresa) => {
   const empresaNormalizada = normalizarReferencia(referenciaEmpresa);
 
   if (!pagoNormalizado || !empresaNormalizada) return 'INCOMPLETO';
-  return pagoNormalizado === empresaNormalizada ? 'COINCIDE' : 'DIFERENTE (BANCO)';
+  return pagoNormalizado === empresaNormalizada
+    ? 'COINCIDE'
+    : 'NO COINCIDEN (REQUIERE VALIDACIÓN)';
 };

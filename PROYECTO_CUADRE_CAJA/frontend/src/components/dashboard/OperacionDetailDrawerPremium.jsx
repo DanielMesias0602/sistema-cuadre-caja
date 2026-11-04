@@ -122,6 +122,7 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
   if (montoCoincide && !refCoincide) {
     return {
       estado: 'REVISION_MANUAL',
+      etiqueta: 'NO COINCIDEN (REQUIERE VALIDACIÓN)',
       color: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
       icono: 'alert',
       mensaje: 'Monto coincide, pero las referencias son distintas. Requiere validación manual.',
@@ -145,7 +146,7 @@ const BadgeEstado = ({ evaluacion }) => {
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold ${evaluacion.color}`}>
       <Icon className="h-3 w-3" />
-      {evaluacion.estado.replace('_', ' ')}
+      {evaluacion.etiqueta || evaluacion.estado.replace('_', ' ')}
     </span>
   );
 };
