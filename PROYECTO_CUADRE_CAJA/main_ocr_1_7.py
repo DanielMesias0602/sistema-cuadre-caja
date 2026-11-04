@@ -703,6 +703,65 @@ def extraer_total_explicito(texto):
     return None
 
 
+def extraer_totales_desordenados(texto):
+    lineas = _texto_comprobante_sin_json(texto).splitlines()
+    patron_etiqueta = re.compile(
+        r"\bOP\.?\s*GRAVADA(?=\s|S|:|$)|"
+        r"\bI\.?\s*G\.?\s*V\.?(?=\s|S|:|$)|"
+        r"\bTOTAL(?=\s|S|:|$)",
+        re.IGNORECASE
+    )
+    indices_etiquetas = [
+        indice
+        for indice, linea in enumerate(lineas)
+        if patron_etiqueta.search(linea)
+    ]
+    if not indices_etiquetas:
+        return None
+
+    texto_etiquetas = "\n".join(lineas)
+    if not re.search(
+        r"\bOP\.?\s*GRAVADA(?=\s|S|:|$)",
+        texto_etiquetas,
+        re.IGNORECASE
+    ):
+        return None
+    if not re.search(
+        r"\bI\.?\s*G\.?\s*V\.?(?=\s|S|:|$)",
+        texto_etiquetas,
+        re.IGNORECASE
+    ):
+        return None
+    if not re.search(r"\bTOTAL(?=\s|S|:|$)", texto_etiquetas, re.IGNORECASE):
+        return None
+
+    inicio = min(indices_etiquetas)
+    fin = min(len(lineas), max(indices_etiquetas) + 6)
+    patron_monto = re.compile(
+        r"(?<![\d/])\d{1,3}(?:[.,]\d{3})*[.,]\d{2}(?!\d)"
+    )
+    montos = [
+        normalizar_monto(coincidencia.group(0))
+        for linea in lineas[inicio:fin]
+        for coincidencia in patron_monto.finditer(linea)
+    ]
+    if len(montos) != 3 or any(monto is None for monto in montos):
+        return None
+
+    op_gravada_candidata, igv_candidato, total_candidato = sorted(montos)
+    if abs((op_gravada_candidata + igv_candidato) - total_candidato) > 0.10:
+        return None
+
+    igv_calculado = round(op_gravada_candidata * 0.18, 2)
+    if abs(igv_candidato - igv_calculado) > 0.10:
+        op_gravada_candidata, igv_candidato = igv_candidato, op_gravada_candidata
+        igv_calculado = round(op_gravada_candidata * 0.18, 2)
+        if abs(igv_candidato - igv_calculado) > 0.10:
+            return None
+
+    return op_gravada_candidata, igv_candidato, total_candidato
+
+
 def validar_totales_comprobante(resultado):
     op_gravada = resultado.get("op_gravada")
     igv = resultado.get("igv")
@@ -1211,6 +1270,14 @@ def extraer_datos_comprobante(textos):
 
     if efectivo is not None:
         resultado["efectivo"] = efectivo
+
+    totales_desordenados = extraer_totales_desordenados(texto_completo)
+    if totales_desordenados is not None:
+        (
+            resultado["op_gravada"],
+            resultado["igv"],
+            resultado["total"],
+        ) = totales_desordenados
 
     # ========================================================
     # VALIDACION MATEMATICA DE TOTALES

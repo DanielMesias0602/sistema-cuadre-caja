@@ -183,12 +183,12 @@ function AppLayout() {
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-row items-center gap-2 sm:gap-3">
-            <div className="hidden min-w-0 max-w-48 flex-col items-end text-right md:flex">
-              <span className="block max-w-full truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+          <div className="flex min-w-0 flex-row items-center gap-2 sm:gap-3">
+            <div className="hidden w-[min(45vw,22rem)] min-w-0 flex-col items-end text-right md:flex">
+              <span className="block max-w-full break-words text-sm font-bold text-slate-800 dark:text-slate-100">
                 {user?.nombres ? `${user.nombres} ${user.apellidos}` : (user?.usuario || 'Usuario')}
               </span>
-              <small className="block max-w-full truncate text-xs text-slate-500 dark:text-slate-400">
+              <small className="block max-w-full break-words text-xs text-slate-500 dark:text-slate-400">
                 {user?.condicion_personal ? `${user.condicion_personal} | ${user.rol}` : (user?.rol || 'Sesión activa')}
               </small>
             </div>
@@ -204,7 +204,7 @@ function AppLayout() {
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-600 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-brand-orange dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-900/50"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-600 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-brand-orange dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-900/50"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden lg:inline">Cerrar sesión</span>
