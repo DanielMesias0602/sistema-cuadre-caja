@@ -293,6 +293,23 @@ def extract_client_datetime(lines):
         r'(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?',
         re.IGNORECASE
     )
+    etiqueta_fecha_operacion = re.compile(
+        r'fecha\s+(?:de\s+)?operaci[o0]n\s*:?',
+        re.IGNORECASE
+    )
+    meses_completos_regex = '|'.join(
+        re.escape(mes)
+        for mes in sorted(
+            ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+             'julio', 'agosto', 'septiembre', 'setiembre', 'octubre',
+             'noviembre', 'diciembre'),
+            key=len,
+            reverse=True
+        )
+    )
+    patron_fecha_fragmentada = re.compile(
+        rf'^(\d{{1,2}})(?:de)?({meses_completos_regex})(?:de)?(\d{{4}})?'
+    )
 
     def extraer_hora(segmento):
         match_hora = patron_hora.search(segmento)
@@ -315,6 +332,43 @@ def extract_client_datetime(lines):
         if segundos is not None:
             formato_hora += f':{int(segundos):02d}'
         return formato_hora
+
+    for indice, linea in enumerate(lines):
+        linea_normalizada = unicodedata.normalize('NFD', str(linea))
+        linea_normalizada = ''.join(
+            caracter for caracter in linea_normalizada
+            if unicodedata.category(caracter) != 'Mn'
+        ).lower()
+        etiqueta = etiqueta_fecha_operacion.search(linea_normalizada)
+        if not etiqueta:
+            continue
+
+        fragmentos = [linea_normalizada[etiqueta.end():]]
+        for siguiente in lines[indice + 1:indice + 4]:
+            fragmento = unicodedata.normalize('NFD', str(siguiente))
+            fragmento = ''.join(
+                caracter for caracter in fragmento
+                if unicodedata.category(caracter) != 'Mn'
+            ).lower()
+            if not re.fullmatch(r'[\d\s./-]+|[a-z\s.]+', fragmento):
+                break
+            if not fragmento.strip():
+                continue
+            fragmentos.append(fragmento)
+
+        fecha_compacta = re.sub(r'[^a-z0-9]', '', ''.join(fragmentos))
+        match_fecha = patron_fecha_fragmentada.match(fecha_compacta)
+        if not match_fecha:
+            continue
+
+        dia = int(match_fecha.group(1))
+        mes = int(months[match_fecha.group(2)])
+        anio = int(match_fecha.group(3) or datetime_date.today().year)
+        try:
+            fecha = datetime_date(anio, mes, dia)
+        except ValueError:
+            continue
+        return fecha.strftime('%d/%m/%Y'), extraer_hora(' '.join(fragmentos))
 
     fechas = []
     for patron, es_textual in (
@@ -411,7 +465,29 @@ def extract_reference(lines):
 
     for indice, linea in enumerate(lineas):
         for match_operacion in numero_operacion.finditer(linea):
-            candidatos = [linea[match_operacion.end():]]
+            fragmentos = []
+            texto_despues_etiqueta = linea[match_operacion.end():]
+            coincidencia_inline = re.match(
+                r'^\s*[:.-]?\s*((?:\d[\s.-]*){6,16})',
+                texto_despues_etiqueta
+            )
+            if coincidencia_inline:
+                fragmentos.append(coincidencia_inline.group(1))
+
+            for siguiente in lineas[indice + 1:indice + 5]:
+                valor = siguiente.strip()
+                if not re.fullmatch(r'[\d\s.-]+', valor) or not re.search(r'\d', valor):
+                    break
+                fragmentos.append(valor)
+
+            digitos_fragmentados = ''.join(
+                ''.join(re.findall(r'\d', fragmento))
+                for fragmento in fragmentos
+            )
+            if 8 <= len(digitos_fragmentados) <= 16:
+                return normalizar_numero_operacion(digitos_fragmentados)
+
+            candidatos = [texto_despues_etiqueta]
             candidatos.extend(lineas[indice + 1:indice + 3])
             candidatos.append(linea[:match_operacion.start()])
             for valor in candidatos:
@@ -657,6 +733,67 @@ def extract_recipient(lines):
         if re.search(r'\d{2,}', t): return False
         if _es_etiqueta(t): return False
         return True
+
+    etiqueta_cuenta_destino = re.compile(
+        r'\bcuenta\s+(?:de\s+)?destino\b\s*:?',
+        re.IGNORECASE
+    )
+    etiquetas_fin_destinatario = re.compile(
+        r'\b(?:motivo|tipo\s+de\s+operaci[oó0]n|transferencia|'
+        r'n[uú]mero\s+de\s+operaci[oó0]n|nro\.?\s*(?:de\s*)?operaci[oó0]n|'
+        r'fecha(?:\s+de\s+operaci[oó0]n)?|comisi[oó]n|itf|bbva)\b|'
+        r'(?:^|\s)-',
+        re.IGNORECASE
+    )
+
+    for indice, linea in enumerate(lines):
+        etiqueta = etiqueta_cuenta_destino.search(str(linea))
+        if not etiqueta:
+            continue
+
+        fragmentos = []
+        linea_inicial = str(linea)[etiqueta.end():].strip()
+        siguientes = ([linea_inicial] if linea_inicial else []) + [
+            str(siguiente) for siguiente in lines[indice + 1:indice + 12]
+        ]
+        for fragmento in siguientes:
+            fragmento = normalize_text(fragmento)
+            if not fragmento:
+                continue
+
+            fin = etiquetas_fin_destinatario.search(fragmento)
+            if fin:
+                fragmento = fragmento[:fin.start()].strip(' \t:;,.|-')
+                if fragmento:
+                    fragmentos.append(fragmento)
+                break
+            if re.fullmatch(r'[-\s]*\d[\d\s.-]*', fragmento):
+                break
+            fragmentos.append(fragmento)
+
+        tokens_nombre = []
+        for fragmento in fragmentos:
+            tokens = fragmento.split()
+            for posicion, token_nombre in enumerate(tokens):
+                if (
+                    posicion == 0
+                    and tokens_nombre
+                    and token_nombre[:1].islower()
+                ):
+                    tokens_nombre[-1] += token_nombre
+                else:
+                    tokens_nombre.append(token_nombre)
+
+        candidato = ' '.join(tokens_nombre)
+        candidato = re.sub(
+            r'(?<=[a-záéíóúñ])(?=[A-ZÁÉÍÓÚÑ])',
+            ' ',
+            candidato
+        )
+        candidato = re.sub(r'\bSAC\b', 'S.A.C.', candidato, flags=re.IGNORECASE)
+        candidato = limpiar_destinatario(candidato)
+        if candidato:
+            return candidato
 
     for line in lines:
         candidato = limpiar_destinatario(line)

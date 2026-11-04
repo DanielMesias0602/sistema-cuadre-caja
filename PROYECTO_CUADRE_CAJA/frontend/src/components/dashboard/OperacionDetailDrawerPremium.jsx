@@ -356,6 +356,7 @@ export function OperacionDetailDrawerPremium({
   const [freshOperation, setFreshOperation] = useState(null);
   const [operationLoadError, setOperationLoadError] = useState(null);
   const [operationRefreshKey, setOperationRefreshKey] = useState(0);
+  const operationLoadRequestRef = useRef(0);
 
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
@@ -387,19 +388,25 @@ export function OperacionDetailDrawerPremium({
     initialOpData?.operacion?.id_operacion
   );
   const cargarOperacionActualizada = useCallback(async () => {
-    const [operationResponse, paymentsResponse] = await Promise.all([
+    const [operationResponse, paymentsResponse, evidenceResponse] = await Promise.all([
       api.get(`/operaciones/${idOperacion}`),
       api.get(`/pagos/operacion/${idOperacion}`),
+      api.get(`/evidencias/operacion/${idOperacion}`),
     ]);
     const operationData = operationResponse.data?.data || operationResponse.data;
     const paymentsData = paymentsResponse.data?.data || paymentsResponse.data;
+    const evidenceData = evidenceResponse.data?.data || evidenceResponse.data;
     if (!Array.isArray(paymentsData)) {
       throw new Error('La respuesta de pagos no tiene el formato esperado.');
+    }
+    if (!Array.isArray(evidenceData)) {
+      throw new Error('La respuesta de evidencias no tiene el formato esperado.');
     }
 
     return {
       ...(op || lastOperation || {}),
       ...operationData,
+      evidencias: evidenceData,
       pagos: paymentsData.map((payment) => ({
         ...payment,
         referencia: payment.referencia ?? payment.referencia_bancaria,
@@ -436,16 +443,17 @@ export function OperacionDetailDrawerPremium({
     if (!open || !Number.isFinite(idOperacion)) return undefined;
 
     let active = true;
+    const requestId = ++operationLoadRequestRef.current;
     const refrescarOperacion = async () => {
       setOperationLoadError(null);
       try {
         const data = await cargarOperacionActualizada();
-        if (active) {
+        if (active && requestId === operationLoadRequestRef.current) {
           setFreshOperation({ id: idOperacion, data });
         }
       } catch (error) {
         console.error('Error al actualizar los pagos de la operación:', error);
-        if (active) {
+        if (active && requestId === operationLoadRequestRef.current) {
           setOperationLoadError('No se pudieron actualizar los pagos de esta operación.');
         }
       }
@@ -745,7 +753,20 @@ export function OperacionDetailDrawerPremium({
       });
     }
 
-    setOperationRefreshKey((actual) => actual + 1);
+    setOperationLoadError(null);
+    const requestId = ++operationLoadRequestRef.current;
+    try {
+      const operacionActualizada = await cargarOperacionActualizada();
+      if (requestId === operationLoadRequestRef.current) {
+        setFreshOperation({ id: idOperacion, data: operacionActualizada });
+      }
+    } catch (error) {
+      console.error('Error al actualizar los datos después de subir evidencia:', error);
+      if (requestId === operationLoadRequestRef.current) {
+        setOperationLoadError('La evidencia se guardó, pero no se pudieron actualizar los datos. Intenta recargar la operación.');
+      }
+    }
+
     setMensajeEvidencia(`Evidencia ${tipoEvidencia === 'CLIENTE' ? 'del cliente' : 'de la empresa'} registrada y asociada al pago.`);
 
     if (typeof onEvidenciaSubida === 'function') {
