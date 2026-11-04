@@ -602,7 +602,7 @@ export function CierresCaja() {
           </div>
 
           {/* DESKTOP: tabla */}
-          <div className="hidden w-full overflow-x-auto [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+          <div className="hidden md:block w-full overflow-x-auto [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
