@@ -76,11 +76,9 @@ export const registrarConciliacion = async ({
 
     const existe = await findConciliacionByFecha(fecha, client);
     if (existe) {
-      const error = new Error(
-        `Ya existe una conciliación registrada para la fecha ${fecha}`
+      throw validationError(
+        'Ya existe una conciliación para esta fecha. Use el botón de actualizar.'
       );
-      error.statusCode = 409;
-      throw error;
     }
 
     return createConciliacion({
