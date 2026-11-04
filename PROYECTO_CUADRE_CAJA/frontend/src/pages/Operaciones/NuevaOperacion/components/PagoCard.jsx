@@ -42,6 +42,7 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
     value: monto == null ? '' : String(monto),
     color: 'emerald',
     editable: true,
+    isMoney: true,
     field: 'monto'
   });
   campos.push({
@@ -88,7 +89,7 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
   return campos;
 };
 
-function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, onValueChange, disabled = false }) {
+function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, isMoney = false, onValueChange, disabled = false }) {
   const Icon = ICONOS[icon] || Info;
   const colorClass = COLORES[color] || 'text-slate-500 dark:text-slate-500';
 
@@ -105,16 +106,16 @@ function CampoOCR({ icon, label, value, color, variant = 'default', editable = f
       </div>
       {editable ? (
         <div className="flex items-center gap-1">
-          <span className="font-bold text-slate-700 dark:text-slate-300">S/</span>
+          {isMoney && <span className="font-bold text-slate-700 dark:text-slate-300">S/</span>}
           <input
-            type="number"
-            min="0"
-            step="0.01"
+            type={isMoney ? 'number' : 'text'}
+            min={isMoney ? '0' : undefined}
+            step={isMoney ? '0.01' : undefined}
             value={value}
             onChange={(event) => onValueChange?.(event.target.value)}
-            placeholder="0.00"
+            placeholder={isMoney ? '0.00' : ''}
             disabled={disabled}
-            aria-label="Monto del pago"
+            aria-label={label}
             className="w-full min-w-0 bg-transparent font-bold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
         </div>
