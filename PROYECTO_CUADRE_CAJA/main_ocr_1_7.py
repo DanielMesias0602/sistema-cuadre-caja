@@ -1214,7 +1214,7 @@ def extraer_datos_comprobante(textos):
 
     fecha = buscar_patron(
         texto_completo,
-        r"FECHA\s*DE\s*EMISI[ÓO]N[\s\S]{0,60}?(\d{2}/\d{2}/\d{4})"
+        r"FECHA\s*DE\s*EMISI[ÓO]N[\s\S]{0,80}?(\d{2}/\d{2}/\d{4})"
     )
 
     if fecha:
@@ -1345,9 +1345,12 @@ def extraer_datos_comprobante(textos):
     texto_fallback = " ".join(lineas)
 
     if not resultado["fecha"]:
+        texto_encabezado_fecha = " ".join(
+            str(linea) for linea in textos[:15] if linea
+        )
         coincidencia_fecha = re.search(
             r"(\d{2}[/-]\d{2}[/-]\d{4})",
-            texto_fallback,
+            texto_encabezado_fecha,
         )
         if coincidencia_fecha:
             resultado["fecha"] = coincidencia_fecha.group(1).strip()
@@ -1355,7 +1358,7 @@ def extraer_datos_comprobante(textos):
         else:
             coincidencia_fecha = re.search(
                 r"(\d{2})[/-](\d{2})[/-](\d{2,4})",
-                texto_fallback,
+                texto_encabezado_fecha,
             )
             if coincidencia_fecha:
                 dia, mes, anio = coincidencia_fecha.groups()
