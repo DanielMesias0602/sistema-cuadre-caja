@@ -62,8 +62,22 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
   const convertirFecha = (fecha) => {
     if (!fecha) return '';
-    const [dia, mes, anio] = fecha.split('/');
-    if (dia && mes && anio) return `${anio}-${mes}-${dia}`;
+    if (fecha instanceof Date && !Number.isNaN(fecha.getTime())) {
+      const anio = fecha.getFullYear();
+      const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+      const dia = String(fecha.getDate()).padStart(2, '0');
+      return `${anio}-${mes}-${dia}`;
+    }
+
+    const texto = String(fecha).trim();
+    const fechaISO = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+    if (fechaISO) return `${fechaISO[1]}-${fechaISO[2]}-${fechaISO[3]}`;
+
+    const fechaLatina = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (fechaLatina) {
+      return `${fechaLatina[3]}-${fechaLatina[2]}-${fechaLatina[1]}`;
+    }
+
     return '';
   };
 
