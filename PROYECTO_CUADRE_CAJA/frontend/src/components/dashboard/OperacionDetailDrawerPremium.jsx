@@ -947,7 +947,7 @@ export function OperacionDetailDrawerPremium({
         opData.fecha ||
         ''
       ).slice(0, 10),
-      hora: String(dataComprobante.hora || opData.hora || '').slice(0, 5),
+      hora: String(dataComprobante.hora || opData.hora || ''),
       cliente: String(dataComprobante.cliente ?? opData.cliente ?? ''),
       vendedor: String(dataComprobante.vendedor ?? opData.vendedor ?? ''),
     });
@@ -1871,6 +1871,8 @@ export function OperacionDetailDrawerPremium({
                 </span>
                 <input
                   type="time"
+                  step="1"
+                  lang="es-ES"
                   value={formularioComprobante.hora}
                   onChange={(event) => setFormularioComprobante((actual) => ({
                     ...actual,
