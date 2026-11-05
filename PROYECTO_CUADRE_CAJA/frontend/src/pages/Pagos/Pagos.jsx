@@ -15,10 +15,14 @@ import {
   Clock,
   Receipt,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   XCircle,
   Image as ImageIcon
 } from 'lucide-react';
+
+const REGISTROS_POR_PAGINA = 30;
 
 export function Pagos() {
   const [operaciones, setOperaciones] = useState([]);
@@ -30,6 +34,7 @@ export function Pagos() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [medioFiltro, setMedioFiltro] = useState('');
+  const [pagina, setPagina] = useState(1);
 
   const [selectedPago, setSelectedPago] = useState(null);
   const [drawerAbierto, setDrawerAbierto] = useState(false);
@@ -193,6 +198,37 @@ export function Pagos() {
     });
   }, [todosLosPagos, busqueda, fechaDesde, fechaHasta, medioFiltro]);
 
+  const paginasPagos = useMemo(() => {
+    const gruposPorOperacion = new Map();
+    pagosFiltrados.forEach((pago) => {
+      const clave = pago.id_operacion ?? pago.id_pago_unico;
+      if (!gruposPorOperacion.has(clave)) gruposPorOperacion.set(clave, []);
+      gruposPorOperacion.get(clave).push(pago);
+    });
+
+    const paginas = [];
+    let paginaActual = [];
+    let registrosEnPagina = 0;
+
+    gruposPorOperacion.forEach((grupo) => {
+      if (registrosEnPagina > 0 && registrosEnPagina + grupo.length > REGISTROS_POR_PAGINA) {
+        paginas.push(paginaActual);
+        paginaActual = [];
+        registrosEnPagina = 0;
+      }
+
+      paginaActual.push(...grupo);
+      registrosEnPagina += grupo.length;
+    });
+
+    if (paginaActual.length > 0) paginas.push(paginaActual);
+    return paginas;
+  }, [pagosFiltrados]);
+
+  const totalPaginas = Math.max(1, paginasPagos.length);
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const pagosPaginados = paginasPagos[paginaActual - 1] || [];
+
   const { totalRecaudado, totalEfectivo, totalVirtual, cantEfectivo, cantVirtual } = useMemo(() => {
     let recaudado = 0;
     let efectivo = 0;
@@ -234,6 +270,7 @@ export function Pagos() {
   };
 
   const limpiarFiltros = () => {
+    setPagina(1);
     setBusqueda('');
     setFechaDesde('');
     setFechaHasta('');
@@ -355,7 +392,7 @@ export function Pagos() {
               type="text"
               placeholder="Buscar cliente, referencia..."
               value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
+              onChange={(e) => { setPagina(1); setBusqueda(e.target.value); }}
               className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
@@ -365,6 +402,7 @@ export function Pagos() {
               fechaDesde={fechaDesde}
               fechaHasta={fechaHasta}
               onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                setPagina(1);
                 setFechaDesde(newDesde);
                 setFechaHasta(newHasta);
               }}
@@ -375,7 +413,7 @@ export function Pagos() {
             <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
             <select
               value={medioFiltro}
-              onChange={(e) => setMedioFiltro(e.target.value)}
+              onChange={(e) => { setPagina(1); setMedioFiltro(e.target.value); }}
               className="w-full h-[42px] pl-10 pr-9 rounded-xl border border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-100 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los medios</option>
@@ -445,7 +483,7 @@ export function Pagos() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-600">
-              {pagosFiltrados.map((pago) => {
+              {pagosPaginados.map((pago) => {
                 const urlFinal = pago.evidencia_url || null;
 
                 const isVerificado =
@@ -603,8 +641,8 @@ export function Pagos() {
                 </tr>
               </thead>
               <tbody className="text-xs">
-                {pagosFiltrados.map((pago, index) => {
-                  const esMismaOperacion = index > 0 && pagosFiltrados[index - 1].id_operacion === pago.id_operacion;
+                {pagosPaginados.map((pago, index) => {
+                  const esMismaOperacion = index > 0 && pagosPaginados[index - 1].id_operacion === pago.id_operacion;
 
                   const urlFinal = pago.evidencia_url || null;
 
@@ -747,10 +785,36 @@ export function Pagos() {
           )}
         </div>
 
+        {!loading && !error && pagosFiltrados.length > 0 && (
+          <div className="flex items-center justify-center gap-3 border-t border-slate-300 bg-white px-3 py-3 dark:border-slate-600 dark:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setPagina((actual) => Math.max(1, actual - 1))}
+              disabled={paginaActual === 1}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </button>
+            <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300">
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPagina((actual) => Math.min(totalPaginas, actual + 1))}
+              disabled={paginaActual === totalPaginas}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {!loading && pagosFiltrados.length > 0 && (
           <div className="flex flex-col gap-2 border-t border-slate-300 dark:border-slate-600 bg-slate-50/60 dark:bg-slate-900/70 px-3 sm:px-6 py-3 sm:py-4 sm:flex-row sm:items-center sm:justify-between text-[11px] sm:text-xs">
             <span className="text-slate-500 dark:text-slate-400">
-              Mostrando <strong className="text-slate-800 dark:text-slate-200">{pagosFiltrados.length}</strong> de{' '}
+              Mostrando <strong className="text-slate-800 dark:text-slate-200">{pagosPaginados.length}</strong> de{' '}
               <strong className="text-slate-800 dark:text-slate-200">{todosLosPagos.length}</strong> pagos
             </span>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">

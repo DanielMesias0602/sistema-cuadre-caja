@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useSocket } from '../../hooks/useSocket';
-import { Search, ChevronDown, Loader2, ImageOff, X, CheckCircle, Clock, CreditCard, Banknote, Wallet, ZoomIn, ZoomOut, User, Calendar, ShieldCheck } from 'lucide-react';
+import { Search, ChevronDown, ChevronLeft, ChevronRight, Loader2, ImageOff, X, CheckCircle, Clock, CreditCard, Banknote, Wallet, ZoomIn, ZoomOut, User, Calendar, ShieldCheck } from 'lucide-react';
 import { EvidenceCard } from './EvidenceCard';
+
+const REGISTROS_POR_PAGINA = 30;
 
 export function Evidencias() {
   const { user } = useAuth();
@@ -12,6 +14,7 @@ export function Evidencias() {
 
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pagina, setPagina] = useState(1);
   const [query, setQuery] = useState('');
   const [docType, setDocType] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState(''); // NUEVO: Filtro de estado
@@ -81,6 +84,13 @@ export function Evidencias() {
       return matchQuery && matchType && matchEstado;
     });
   }, [operaciones, query, docType, estadoFiltro]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtered.length / REGISTROS_POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const evidenciasPaginadas = filtered.slice(
+    (paginaActual - 1) * REGISTROS_POR_PAGINA,
+    paginaActual * REGISTROS_POR_PAGINA
+  );
 
   const abrirModal = (op) => {
     setSelectedOp(op);
@@ -220,7 +230,7 @@ export function Evidencias() {
           <input
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setPagina(1); setQuery(e.target.value); }}
             placeholder="Buscar por comprobante o cliente..."
             className="h-10 w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition focus:border-brand-orange focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-brand-orange"
           />
@@ -228,7 +238,7 @@ export function Evidencias() {
         <div className="relative sm:w-56">
           <select
             value={docType}
-            onChange={(e) => setDocType(e.target.value)}
+            onChange={(e) => { setPagina(1); setDocType(e.target.value); }}
             className="h-10 w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 pl-3 pr-9 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand-orange focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-brand-orange"
           >
             <option value="">Todos los comprobantes</option>
@@ -241,7 +251,7 @@ export function Evidencias() {
         <div className="relative sm:w-56">
           <select
             value={estadoFiltro}
-            onChange={(e) => setEstadoFiltro(e.target.value)}
+            onChange={(e) => { setPagina(1); setEstadoFiltro(e.target.value); }}
             className="h-10 w-full appearance-none rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 pl-3 pr-9 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand-orange focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-brand-orange"
           >
             <option value="">Todos los estados</option>
@@ -253,8 +263,9 @@ export function Evidencias() {
       </div>
 
       {filtered.length > 0 ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {filtered.map((op) => {
+        <div className="space-y-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {evidenciasPaginadas.map((op) => {
             // Filtrar las evidencias activas para que la tarjeta no muestre las viejas
             const verificaciones = op.verificaciones || [];
             const idsActivos = new Set();
@@ -278,6 +289,30 @@ export function Evidencias() {
               />
             );
           })}
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setPagina((actual) => Math.max(1, actual - 1))}
+              disabled={paginaActual === 1}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </button>
+            <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300">
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPagina((actual) => Math.min(totalPaginas, actual + 1))}
+              disabled={paginaActual === totalPaginas}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/60 py-20">

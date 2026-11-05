@@ -7,14 +7,18 @@ import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
-  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon, XCircle, X
+  User, CreditCard, Eye, Filter, ChevronDown, Sun, Moon, XCircle, X,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
+
+const REGISTROS_POR_PAGINA = 30;
 
 export function Operaciones() {
   const navigate = useNavigate();
 
   const [operaciones, setOperaciones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pagina, setPagina] = useState(1);
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
@@ -59,6 +63,7 @@ export function Operaciones() {
   });
 
   const limpiarFiltros = () => {
+    setPagina(1);
     setBusqueda('');
     setFechaDesde('');
     setFechaHasta('');
@@ -184,6 +189,13 @@ export function Operaciones() {
     return true;
   });
 
+  const totalPaginas = Math.max(1, Math.ceil(operacionesFiltradas.length / REGISTROS_POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const operacionesPaginadas = operacionesFiltradas.slice(
+    (paginaActual - 1) * REGISTROS_POR_PAGINA,
+    paginaActual * REGISTROS_POR_PAGINA
+  );
+
   const hayFiltrosActivos = busqueda || fechaDesde || fechaHasta || estadoFiltro;
   const hayAnuladas = operacionesFiltradas.some(op => (op.estado || '').toUpperCase() === 'ANULADA');
 
@@ -218,7 +230,7 @@ export function Operaciones() {
               type="text"
               placeholder="Buscar por comprobante o cliente..."
               value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
+              onChange={e => { setPagina(1); setBusqueda(e.target.value); }}
               className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none"
             />
           </div>
@@ -228,6 +240,7 @@ export function Operaciones() {
               fechaDesde={fechaDesde}
               fechaHasta={fechaHasta}
               onChange={({ fechaDesde: newDesde, fechaHasta: newHasta }) => {
+                setPagina(1);
                 setFechaDesde(newDesde);
                 setFechaHasta(newHasta);
               }}
@@ -238,7 +251,7 @@ export function Operaciones() {
             <Filter className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
             <select
               value={estadoFiltro}
-              onChange={e => setEstadoFiltro(e.target.value)}
+              onChange={e => { setPagina(1); setEstadoFiltro(e.target.value); }}
               className="w-full h-[42px] pl-10 pr-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-300 transition focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 outline-none appearance-none cursor-pointer"
             >
               <option value="">Todos los estados</option>
@@ -274,7 +287,7 @@ export function Operaciones() {
               <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600" />
               No se encontraron operaciones con los filtros seleccionados.
             </div>
-          ) : operacionesFiltradas.map((op) => {
+          ) : operacionesPaginadas.map((op) => {
             const esAnulada = (op.estado || '').toUpperCase() === 'ANULADA';
             const hayPagoNoEfectivo = Array.isArray(op.pagos) && op.pagos.some((p) => {
               const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();
@@ -374,7 +387,7 @@ export function Operaciones() {
                     </div>
                   </td>
                 </tr>
-              ) : operacionesFiltradas.map((op) => {
+              ) : operacionesPaginadas.map((op) => {
                 const esAnulada = (op.estado || '').toUpperCase() === 'ANULADA';
                 const hayPagoNoEfectivo = Array.isArray(op.pagos) && op.pagos.some((p) => {
                   const medio = String(p.medio_pago || p.nombre_medio || '').toLowerCase();
@@ -474,6 +487,32 @@ export function Operaciones() {
             </tbody>
           </table>
         </div>
+
+        {!loading && operacionesFiltradas.length > 0 && (
+          <div className="flex items-center justify-center gap-3 border-t border-slate-200 bg-white px-3 py-3 dark:border-slate-700 dark:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setPagina((actual) => Math.max(1, actual - 1))}
+              disabled={paginaActual === 1}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </button>
+            <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300">
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPagina((actual) => Math.min(totalPaginas, actual + 1))}
+              disabled={paginaActual === totalPaginas}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {operacionesFiltradas.length > 0 && (
           <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-end items-start sm:items-center gap-2 sm:gap-4">

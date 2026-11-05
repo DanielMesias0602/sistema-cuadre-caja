@@ -354,7 +354,7 @@ export function Conciliacion() {
           <p className="text-xs sm:text-sm text-slate-500 mt-1 dark:text-slate-400">Las conciliaciones que registres aparecerán aquí.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4 sm:gap-5 items-start">
+        <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-4 sm:gap-5">
           {conciliacionesFiltradas.map((c) => (
             <div key={c.id_conciliacion} className="w-full max-w-full sm:max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md dark:bg-slate-800/60 dark:border-slate-600 dark:shadow-none dark:hover:shadow-none">
 
