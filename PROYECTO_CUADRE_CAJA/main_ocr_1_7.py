@@ -1379,6 +1379,16 @@ def extraer_datos_comprobante(textos):
                     resultado["fecha"] = coincidencia_fecha.group(0)
                     break
 
+    if resultado["hora"] is None:
+        for linea_hora in textos:
+            coincidencia_hora = re.search(
+                r"\b([01]\d|2[0-3]):([0-5]\d):[0-5]\d\b",
+                str(linea_hora),
+            )
+            if coincidencia_hora:
+                resultado["hora"] = coincidencia_hora.group(0)
+                break
+
     if not resultado["hora"]:
         coincidencia_hora = re.search(
             r"(\d{2}:\d{2}(?::\d{2})?)",
