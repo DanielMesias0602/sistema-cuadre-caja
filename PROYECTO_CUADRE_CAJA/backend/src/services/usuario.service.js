@@ -116,7 +116,7 @@ export const cambiarEstadoUsuario = async (idUsuario, estado) => {
   return updateEstado(idUsuario, estado);
 };
 
-export const resetearPassword = async (idUsuario, nuevaPassword) => {
+export const resetearPassword = async (idUsuario, nuevaPassword, usuarioSolicitante = null) => {
   if (!nuevaPassword || nuevaPassword.length < PASSWORD_MIN_LENGTH) {
     const err = new Error(`La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`);
     err.statusCode = 400;
@@ -127,6 +127,15 @@ export const resetearPassword = async (idUsuario, nuevaPassword) => {
   if (!user) {
     const err = new Error('Usuario no encontrado');
     err.statusCode = 404;
+    throw err;
+  }
+
+  if (
+    Number(usuarioSolicitante?.id_rol) === 1 &&
+    ![3, 4].includes(Number(user.id_rol))
+  ) {
+    const err = new Error('No tienes permisos para cambiar la contraseña de otro administrador');
+    err.statusCode = 403;
     throw err;
   }
 

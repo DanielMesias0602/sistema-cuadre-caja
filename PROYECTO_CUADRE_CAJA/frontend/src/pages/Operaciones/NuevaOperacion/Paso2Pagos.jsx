@@ -36,6 +36,31 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
     setPagos(prev => prev.map((p, i) => i === index ? updatedPago : p));
   };
 
+  const handleDepositosDetectados = ({ index, depositos, datosOCR, evidencia }) => {
+    setPagos((prev) => {
+      const pagoBase = prev[index];
+      if (!pagoBase) return prev;
+
+      const nuevosPagos = depositos.map((deposito, depositoIndex) => ({
+        ...pagoBase,
+        id: depositoIndex === 0 ? pagoBase.id : Date.now() + Math.random(),
+        monto: Number(deposito.monto).toFixed(2),
+        referencia: deposito.operacion || pagoBase.referencia || '',
+        cantidad_depositos: depositos.length,
+        evidencia: {
+          ...evidencia,
+          datosOCR: datosOCR || {},
+        },
+      }));
+
+      return [
+        ...prev.slice(0, index),
+        ...nuevosPagos,
+        ...prev.slice(index + 1),
+      ];
+    });
+  };
+
   const handleAgregarPago = () => {
     setPagos(prev => [...prev, inicialPagoVacio()]);
   };
@@ -58,7 +83,8 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
     const montoEfectivo = Number(p.monto_efectivo);
     const montoVirtual = Number(p.monto_virtual);
     return Number.isFinite(montoEfectivo) && montoEfectivo > 0 &&
-      Number.isFinite(montoVirtual) && montoVirtual > 0;
+      Number.isFinite(montoVirtual) && montoVirtual > 0 &&
+      Number(p.id_medio_virtual) > 0;
   });
 
   // FIX: detectar los 3 tipos de error por separado
@@ -195,13 +221,15 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
               pagos={pagos}
               comprobante={comprobante}
               onPagoChange={(updated) => handlePagoChange(index, updated)}
+              onDepositosDetectados={handleDepositosDetectados}
               onEliminar={() => handleEliminarPago(index)}
               puedeEliminar={pagos.length > 1}
               mostrarError={intentoAvanzar && (
                 !pago.id_medio_pago ||
                 !Number(pago.monto) ||
                 (String(pago.nombre_medio || '').trim().toLowerCase() === 'vale' &&
-                  (!Number(pago.monto_efectivo) || !Number(pago.monto_virtual)))
+                  (!Number(pago.monto_efectivo) || !Number(pago.monto_virtual) ||
+                    !Number(pago.id_medio_virtual)))
               )}
             />
           ))}
@@ -290,6 +318,8 @@ function inicialPagoVacio() {
     monto: '',
     monto_efectivo: '',
     monto_virtual: '',
+    id_medio_virtual: null,
+    cantidad_depositos: 1,
     referencia: '',
     observacion: '',
     evidencia: null,

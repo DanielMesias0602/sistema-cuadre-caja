@@ -25,6 +25,7 @@ export const registerPago = async (data) => {
     monto,
     monto_efectivo,
     monto_virtual,
+    id_medio_virtual,
     referencia_bancaria = null,
     observacion = null
   } = data;
@@ -220,6 +221,27 @@ export const registerPago = async (data) => {
         throw error;
       }
 
+      let idMedioVirtual = idMedioVale;
+      if (id_medio_virtual !== undefined && id_medio_virtual !== null) {
+        const medioVirtualResult = await client.query(
+          `SELECT id_medio_pago, nombre, es_efectivo
+           FROM medio_pago
+           WHERE id_medio_pago = $1 AND estado = TRUE`,
+          [id_medio_virtual]
+        );
+        const medioVirtual = medioVirtualResult.rows[0];
+        if (
+          !medioVirtual ||
+          medioVirtual.es_efectivo ||
+          String(medioVirtual.nombre || '').trim().toLowerCase() === 'vale'
+        ) {
+          const error = new Error('El medio virtual seleccionado no es válido');
+          error.statusCode = 400;
+          throw error;
+        }
+        idMedioVirtual = medioVirtual.id_medio_pago;
+      }
+
       const pagoEfectivo = await createPago({
         id_operacion,
         id_medio_pago: idMedioEfectivo,
@@ -230,7 +252,7 @@ export const registerPago = async (data) => {
       }, client);
       const pagoVale = await createPago({
         id_operacion,
-        id_medio_pago: idMedioVale,
+        id_medio_pago: idMedioVirtual,
         monto: montoVirtual,
         referencia_bancaria,
         observacion,

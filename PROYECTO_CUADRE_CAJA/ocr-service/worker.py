@@ -63,7 +63,7 @@ async def lifespan(_app):
 app = FastAPI(title="RapidOCR Worker", lifespan=lifespan)
 
 
-def _process_file(image_path, tipo_evidencia):
+def _process_file(image_path, tipo_evidencia, cantidad_depositos=1):
     if _engine is None or _receipt_extractor is None or _transfer_extractor is None:
         raise RuntimeError("El worker OCR no terminó de inicializarse")
 
@@ -76,7 +76,10 @@ def _process_file(image_path, tipo_evidencia):
             for texto in textos
             if _transfer_extractor["normalize_text"](texto)
         ]
-        datos = _transfer_extractor["extract_transfer_data"](lineas)
+        datos = _transfer_extractor["extract_transfer_data"](
+            lineas,
+            cantidad_depositos=cantidad_depositos,
+        )
     else:
         datos = _receipt_extractor["extraer_datos_comprobante"](textos)
 
@@ -96,6 +99,7 @@ def _process_file(image_path, tipo_evidencia):
 async def procesar_ocr(
     archivo: UploadFile = File(...),
     tipo_evidencia: str = Form("COMPROBANTE"),
+    cantidad_depositos: int = Form(1, ge=1),
 ):
     mime_type = archivo.content_type
     extension = _extension_by_mime.get(mime_type)
@@ -122,6 +126,7 @@ async def procesar_ocr(
                 _process_file,
                 str(temp_path),
                 tipo_normalizado,
+                cantidad_depositos,
             )
     except HTTPException:
         raise

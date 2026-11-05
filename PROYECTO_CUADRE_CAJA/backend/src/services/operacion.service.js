@@ -642,6 +642,27 @@ export const registerOperacionUnificada = async (data) => {
           throw error;
         }
 
+        let idMedioVirtual = idMedioVale;
+        if (pago.id_medio_virtual !== undefined && pago.id_medio_virtual !== null) {
+          const medioVirtualResult = await client.query(
+            `SELECT id_medio_pago, nombre, es_efectivo
+             FROM medio_pago
+             WHERE id_medio_pago = $1 AND estado = TRUE`,
+            [pago.id_medio_virtual]
+          );
+          const medioVirtual = medioVirtualResult.rows[0];
+          if (
+            !medioVirtual ||
+            medioVirtual.es_efectivo ||
+            String(medioVirtual.nombre || '').trim().toLowerCase() === 'vale'
+          ) {
+            const error = new Error('El medio virtual seleccionado no es válido');
+            error.statusCode = 400;
+            throw error;
+          }
+          idMedioVirtual = medioVirtual.id_medio_pago;
+        }
+
         const totalValeCentimos = Math.round(montoEfectivo * 100) + Math.round(montoVirtual * 100);
         const montoEnviadoCentimos = Math.round(Number(pago.monto) * 100);
         if (!Number.isFinite(montoEnviadoCentimos) || montoEnviadoCentimos !== totalValeCentimos) {
@@ -659,7 +680,7 @@ export const registerOperacionUnificada = async (data) => {
             es_efectivo: true
           },
           {
-            id_medio_pago: idMedioVale,
+            id_medio_pago: idMedioVirtual,
             monto: montoVirtual,
             referencia_bancaria: pago.referencia_bancaria ?? null,
             es_efectivo: false

@@ -56,7 +56,7 @@ export const cambiarEstado = async (req, res, next) => {
 export const resetPassword = async (req, res, next) => {
   try {
     const { password } = req.body;
-    await resetearPassword(Number(req.params.id), password);
+    await resetearPassword(Number(req.params.id), password, req.user);
     res.json({ status: 'ok', message: 'Contraseña actualizada' });
   } catch (error) {
     next(error);

@@ -28,6 +28,7 @@ export const procesarComprobante = async (req, res, next) => {
       filePath,
       mimeType,
       tipoEvidencia,
+      cantidadDepositos: req.body.cantidad_depositos,
     });
 
     // ==========================================

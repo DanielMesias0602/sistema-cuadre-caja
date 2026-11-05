@@ -1252,7 +1252,126 @@ def extract_culqi_data(lines):
     if hora: data['hora_operacion'] = hora
     return data
 
-def extract_transfer_data(lines):
+def extract_deposit_amounts(lines, cantidad_depositos=1):
+    try:
+        cantidad = int(cantidad_depositos)
+    except (TypeError, ValueError):
+        cantidad = 1
+    if cantidad < 1:
+        cantidad = 1
+
+    lineas_limpias = [
+        re.sub(r'(?<=\d)[Oo](?=\d|[.,]\d|\b)', '0', str(line))
+        for line in lines
+    ]
+    normalizar_linea = lambda texto: ''.join(
+        caracter
+        for caracter in unicodedata.normalize('NFD', texto.lower())
+        if unicodedata.category(caracter) != 'Mn'
+    )
+    lineas_normalizadas = [normalizar_linea(linea) for linea in lineas_limpias]
+    texto_normalizado = ' '.join(lineas_normalizadas)
+    if not any(
+        etiqueta in texto_normalizado
+        for etiqueta in ('agente bcp', 'deposito', 'monto recibido')
+    ):
+        return []
+
+    patron_monto = re.compile(
+        r'(?<![\d/.,])'
+        r'(?P<monto>\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|'
+        r'\d+[.,]\d{2}|\d+)'
+        r'(?![\d/.,])'
+    )
+    patron_moneda = re.compile(
+        r'(?<![A-Z])(?:PEN|S\s*/?)\s*'
+        r'(?P<monto>\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|'
+        r'\d+[.,]\d{2}|\d+)'
+        r'(?![\d/.,])',
+        re.IGNORECASE
+    )
+    encontrados = []
+    posiciones = set()
+
+    def agregar_monto(indice, texto, requiere_moneda=False, desplazamiento=0):
+        patron = patron_moneda if requiere_moneda else patron_monto
+        agregados = 0
+        for match in patron.finditer(texto):
+            monto = parse_money(match.group('monto'))
+            if monto is None or monto <= 0:
+                continue
+            posicion = (indice, match.start() + desplazamiento)
+            if posicion in posiciones:
+                continue
+            posiciones.add(posicion)
+            encontrados.append({
+                'monto': monto,
+                'indice_linea': indice,
+            })
+            agregados += 1
+        return agregados > 0
+
+    indices_monto_recibido = [
+        indice
+        for indice, linea in enumerate(lineas_normalizadas)
+        if re.search(r'\bmonto\s+recibido\b', linea)
+    ]
+    for indice in indices_monto_recibido:
+        etiqueta = re.search(r'\bmonto\s+recibido\b', lineas_normalizadas[indice])
+        texto_despues = lineas_limpias[indice][etiqueta.end():]
+        if agregar_monto(
+            indice,
+            texto_despues,
+            requiere_moneda=True,
+            desplazamiento=etiqueta.end(),
+        ):
+            continue
+        if agregar_monto(
+            indice,
+            texto_despues,
+            desplazamiento=etiqueta.end(),
+        ):
+            continue
+        for indice_siguiente in range(indice + 1, min(indice + 3, len(lineas_limpias))):
+            if agregar_monto(indice_siguiente, lineas_limpias[indice_siguiente], requiere_moneda=True):
+                break
+            if (
+                re.search(r'(?:\bPEN\b|S\s*/?)\s*$', lineas_limpias[indice_siguiente], re.IGNORECASE)
+                and indice_siguiente + 1 < len(lineas_limpias)
+                and agregar_monto(
+                    indice_siguiente + 1,
+                    lineas_limpias[indice_siguiente + 1],
+                )
+            ):
+                break
+
+    if len(encontrados) < cantidad:
+        for indice, linea in enumerate(lineas_limpias):
+            agregar_monto(indice, linea, requiere_moneda=True)
+            if (
+                len(encontrados) < cantidad
+                and re.search(r'(?:\bPEN\b|S\s*/?)\s*$', linea, re.IGNORECASE)
+                and indice + 1 < len(lineas_limpias)
+            ):
+                agregar_monto(indice + 1, lineas_limpias[indice + 1])
+            if len(encontrados) >= cantidad:
+                break
+
+    depositos = []
+    for encontrado in encontrados[:cantidad]:
+        indice = encontrado['indice_linea']
+        inicio = max(0, indice - 4)
+        fin = min(len(lines), indice + 5)
+        operacion = extract_reference(lines[inicio:fin])
+        depositos.append({
+            'monto': encontrado['monto'],
+            'operacion': operacion,
+        })
+
+    return depositos
+
+
+def extract_transfer_data(lines, cantidad_depositos=1):
     if es_voucher_culqi(lines):
         return extract_culqi_data(lines)
 
@@ -1275,6 +1394,22 @@ def extract_transfer_data(lines):
     monto, moneda = extract_amount(lines)
     if monto is not None: data['monto'] = monto
     if moneda is not None: data['moneda'] = moneda
+
+    texto_normalizado = ' '.join(
+        ''.join(
+            caracter
+            for caracter in unicodedata.normalize('NFD', str(line).lower())
+            if unicodedata.category(caracter) != 'Mn'
+        )
+        for line in lines
+    )
+    es_voucher_deposito = any(
+        etiqueta in texto_normalizado
+        for etiqueta in ('agente bcp', 'deposito', 'monto recibido')
+    )
+    depositos_detectados = extract_deposit_amounts(lines, cantidad_depositos)
+    if es_voucher_deposito:
+        data['depositos_detectados'] = depositos_detectados
 
     fecha_cliente, hora_cliente = extract_client_datetime(lines)
     if fecha_cliente: data['fecha_operacion'] = fecha_cliente

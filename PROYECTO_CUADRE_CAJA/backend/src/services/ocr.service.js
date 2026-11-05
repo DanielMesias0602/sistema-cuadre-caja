@@ -29,7 +29,12 @@ const isTransferencia = (tipoEvidencia) => {
   );
 };
 
-const ejecutarOcrHttp = async ({ filePath, mimeType, tipoEvidencia }) => {
+const ejecutarOcrHttp = async ({
+  filePath,
+  mimeType,
+  tipoEvidencia,
+  cantidadDepositos = 1,
+}) => {
   const absoluteFilePath = path.isAbsolute(filePath)
     ? filePath
     : path.resolve(PROJECT_ROOT, 'backend', filePath);
@@ -37,6 +42,7 @@ const ejecutarOcrHttp = async ({ filePath, mimeType, tipoEvidencia }) => {
   const archivo = await openAsBlob(absoluteFilePath, { type: mimeType });
   formData.append('archivo', archivo, path.basename(absoluteFilePath));
   formData.append('tipo_evidencia', tipoEvidencia);
+  formData.append('cantidad_depositos', String(cantidadDepositos));
 
   let response;
   try {
@@ -96,7 +102,12 @@ const ejecutarOcrEnCola = (parametros) => {
   return ejecucion;
 };
 
-export const extractEvidenceData = async ({ filePath, mimeType, tipoEvidencia }) => {
+export const extractEvidenceData = async ({
+  filePath,
+  mimeType,
+  tipoEvidencia,
+  cantidadDepositos = 1,
+}) => {
   if (!filePath || !mimeType || !tipoEvidencia) {
     const error = new Error('filePath, mimeType y tipoEvidencia son obligatorios');
     error.statusCode = 400;
@@ -109,8 +120,20 @@ export const extractEvidenceData = async ({ filePath, mimeType, tipoEvidencia })
     throw error;
   }
 
+  const cantidadNormalizada = Number(cantidadDepositos);
+  if (!Number.isInteger(cantidadNormalizada) || cantidadNormalizada < 1) {
+    const error = new Error('cantidad_depositos debe ser un entero mayor que cero');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const transferencia = isTransferencia(tipoEvidencia);
-  const salidaOcr = await ejecutarOcrEnCola({ filePath, mimeType, tipoEvidencia });
+  const salidaOcr = await ejecutarOcrEnCola({
+    filePath,
+    mimeType,
+    tipoEvidencia,
+    cantidadDepositos: cantidadNormalizada,
+  });
   const datosExtraidos = transferencia
     ? parsearEvidencia(salidaOcr)
     : parsearComprobante(salidaOcr);

@@ -13,6 +13,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  LabelList,
   ResponsiveContainer
 } from 'recharts';
 import {
@@ -189,6 +190,36 @@ export function Reportes() {
   };
 
   const obtenerMontoOperacion = (op) => Number(op.monto ?? op.monto_operacion ?? 0);
+
+  const calcularResumenPagos = (listaOperaciones) => {
+    const totalIngresos = listaOperaciones.reduce(
+      (total, operacion) => total + obtenerMontoOperacion(operacion),
+      0
+    );
+    const resumen = listaOperaciones.reduce((totales, operacion) => {
+      const pagos = Array.isArray(operacion.pagos) ? operacion.pagos : [];
+      pagos.forEach((pago) => {
+        if (String(pago.estado || '').trim().toUpperCase() === 'ANULADO') return;
+
+        const monto = Number(pago.monto || 0);
+        const medio = String(pago.medio_pago || pago.nombre_medio || '')
+          .trim()
+          .toLowerCase();
+        if (medio.includes('efectivo')) {
+          totales.totalEfectivo += monto;
+        } else {
+          totales.totalNoEfectivo += monto;
+        }
+      });
+      return totales;
+    }, { totalEfectivo: 0, totalNoEfectivo: 0 });
+
+    return {
+      totalIngresos,
+      ...resumen,
+      totalGeneral: resumen.totalEfectivo + resumen.totalNoEfectivo,
+    };
+  };
 
   const cargarImagenBase64 = (url) => {
     return new Promise((resolve, reject) => {
@@ -409,6 +440,7 @@ export function Reportes() {
         periodo: grupo.titulo || grupo.fecha,
         monto: grupo.total,
       }));
+      const resumen = calcularResumenPagos(operacionesFiltradas);
 
       // 2. Crear un contenedor invisible para renderizar el gráfico
       const chartContainer = document.createElement('div');
@@ -422,15 +454,28 @@ export function Reportes() {
       // 3. Renderizar Recharts en el contenedor
       const root = ReactDOM.createRoot(chartContainer);
       root.render(
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="periodo" />
-            <YAxis />
-            <Tooltip formatter={(value) => `S/ ${Number(value).toFixed(2)}`} />
-            <Bar dataKey="monto" fill="#1E3A8A" name="Ventas (S/)" />
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ textAlign: 'center', fontWeight: 'bold', padding: '8px 0 2px', color: '#0f172a' }}>
+            Ingresos por periodo
+          </div>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 28, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="periodo" />
+                <YAxis />
+                <Tooltip formatter={(value) => `S/ ${Number(value).toFixed(2)}`} />
+                <Bar dataKey="monto" fill="#1E3A8A" name="Ventas (S/)">
+                  <LabelList
+                    dataKey="monto"
+                    position="top"
+                    formatter={(value) => `S/ ${Number(value).toFixed(2)}`}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       );
 
       // 4. Esperar a que Recharts se renderice
@@ -499,6 +544,25 @@ export function Reportes() {
         }
       });
 
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      const filaResumen = worksheet.addRow(['RESUMEN', 'MONTO (S/)']);
+      filaResumen.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      filaResumen.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      filaResumen.alignment = { vertical: 'middle' };
+      [
+        ['Total Ingresos', resumen.totalIngresos],
+        ['Total Efectivo', resumen.totalEfectivo],
+        ['Total No Efectivo', resumen.totalNoEfectivo],
+        ['Total General', resumen.totalGeneral],
+      ].forEach(([etiqueta, monto]) => {
+        const fila = worksheet.addRow([etiqueta, monto]);
+        fila.font = { bold: true };
+        fila.getCell(2).numFmt = '"S/" #,##0.00';
+        fila.getCell(2).alignment = { horizontal: 'right' };
+      });
+
       // Insertar la imagen del gráfico en el Excel (Columna H, Fila 2)
       const imageId = workbook.addImage({
         base64: imagenBase64,
@@ -528,7 +592,8 @@ export function Reportes() {
   // --- EXPORTACIÓN PDF VISUAL ---
   const exportarPDFVisual = async () => {
     try {
-      const { grupos: gruposProcesados } = obtenerDatosProcesados();
+      const { operacionesFiltradas, grupos: gruposProcesados } = obtenerDatosProcesados();
+      const resumen = calcularResumenPagos(operacionesFiltradas);
       const esOperacionRelevante = (op) => {
         const pagos = Array.isArray(op.pagos) ? op.pagos : [];
         const tienePagoNoEfectivo = pagos.some((p) => {
@@ -605,11 +670,13 @@ export function Reportes() {
       const GAP = 3;
       const MARGIN_TOP_BLOCKS = 32;
       const MARGIN_BOTTOM = 12;
+      const GROUP_HEADER_HEIGHT = 8;
 
       const usableWidth = pageWidth - 2 * MARGIN_X - (COLS - 1) * GAP;
       const blockWidth = usableWidth / COLS;
 
-      const usableHeight = pageHeight - MARGIN_TOP_BLOCKS - MARGIN_BOTTOM - (FILAS - 1) * GAP;
+      const gridStartY = MARGIN_TOP_BLOCKS + GROUP_HEADER_HEIGHT;
+      const usableHeight = pageHeight - gridStartY - MARGIN_BOTTOM - (FILAS - 1) * GAP;
       const blockHeight = usableHeight / FILAS;
 
       const obtenerImagenBase64 = async (evidencia) => {
@@ -816,13 +883,52 @@ export function Reportes() {
         }
       }
 
-      const pageCount = doc.internal.getNumberOfPages();
-      for (let p = 1; p <= pageCount; p++) {
+      doc.addPage();
+      dibujarCabecera();
+
+      const summaryX = 25;
+      const summaryY = 48;
+      const summaryWidth = pageWidth - 50;
+      const summaryRowHeight = 12;
+      const summaryRows = [
+        ['Total Ingresos', resumen.totalIngresos],
+        ['Total Efectivo', resumen.totalEfectivo],
+        ['Total No Efectivo', resumen.totalNoEfectivo],
+        ['Total General', resumen.totalGeneral],
+      ];
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text('RESUMEN DE INGRESOS Y PAGOS', pageWidth / 2, summaryY - 10, { align: 'center' });
+
+      doc.setFillColor(30, 58, 138);
+      doc.roundedRect(summaryX, summaryY, summaryWidth, summaryRowHeight, 1.5, 1.5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text('Concepto', summaryX + 6, summaryY + 8);
+      doc.text('Monto', summaryX + summaryWidth - 6, summaryY + 8, { align: 'right' });
+
+      summaryRows.forEach(([label, amount], index) => {
+        const rowY = summaryY + summaryRowHeight + index * summaryRowHeight;
+        doc.setFillColor(index % 2 === 0 ? 248 : 255, index % 2 === 0 ? 250 : 255, index % 2 === 0 ? 252 : 255);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(summaryX, rowY, summaryWidth, summaryRowHeight, 1, 1, 'FD');
+        doc.setFont('helvetica', label === 'Total General' ? 'bold' : 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text(label, summaryX + 6, rowY + 8);
+        doc.text(`S/ ${Number(amount).toFixed(2)}`, summaryX + summaryWidth - 6, rowY + 8, { align: 'right' });
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
         doc.setPage(p);
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(148, 163, 184);
-        doc.text(`Página ${p} de ${pageCount} | Sistema de Cuadre de Caja - FINITO`, pageWidth / 2, pageHeight - 6, { align: 'center' });
+        doc.text(`Página ${p} de ${totalPages} | Sistema de Cuadre de Caja - FINITO`, pageWidth / 2, pageHeight - 6, { align: 'center' });
       }
 
       doc.save(`REPORTE_CONCILIACION_VISUAL_${new Date().toLocaleDateString('en-CA')}.pdf`);

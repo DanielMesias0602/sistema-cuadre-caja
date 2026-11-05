@@ -164,7 +164,15 @@ function ModalConfirmarCambio({ open, onCancel, onConfirm }) {
   );
 }
 
-export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar, puedeEliminar }) {
+export default function PagoCard({
+  index,
+  pago,
+  medios,
+  onPagoChange,
+  onDepositosDetectados,
+  onEliminar,
+  puedeEliminar,
+}) {
   const [loadingOCR, setLoadingOCR] = useState(false);
   const [preview, setPreview] = useState(pago.evidencia?.imagenBase64 || null);
   const [error, setError] = useState(null);
@@ -201,6 +209,8 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
       monto: '',
       monto_efectivo: '',
       monto_virtual: '',
+      id_medio_virtual: null,
+      cantidad_depositos: 1,
       referencia: '',
       fecha_operacion: '',
       evidencia: null
@@ -228,23 +238,49 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
     setError(null);
 
     try {
-      const response = await ocrService.procesar(file, 'TRANSFERENCIA');
+      const cantidadDepositos = esDeposito
+        ? Math.max(1, Number.parseInt(pago.cantidad_depositos, 10) || 1)
+        : 1;
+      const response = await ocrService.procesar(file, 'TRANSFERENCIA', {
+        cantidadDepositos,
+      });
       const rawData = response.data?.data || response.data;
       const datosExtraidos = rawData?.datos_extraidos || rawData;
+      const depositosDetectados = datosExtraidos?.depositos_detectados;
+      const evidenciaOCR = {
+        ...pago.evidencia,
+        imagenBase64: reader.result,
+        datosOCR: datosExtraidos,
+        confirmada: false,
+        origen: 'CLIENTE',
+        tipo: 'CLIENTE'
+      };
+
+      if (
+        esDeposito &&
+        cantidadDepositos > 1 &&
+        Array.isArray(depositosDetectados) &&
+        depositosDetectados.length === cantidadDepositos &&
+        depositosDetectados.every((deposito) => (
+          Number.isFinite(Number(deposito?.monto)) && Number(deposito.monto) > 0
+        )) &&
+        onDepositosDetectados
+      ) {
+        onDepositosDetectados({
+          index,
+          depositos: depositosDetectados,
+          datosOCR: datosExtraidos,
+          evidencia: evidenciaOCR,
+        });
+        return;
+      }
 
       onPagoChange({
         ...pago,
         monto: '',
         referencia: '',
         fecha_operacion: '',
-        evidencia: {
-          ...pago.evidencia,
-          imagenBase64: reader.result,
-          datosOCR: datosExtraidos,
-          confirmada: false,
-          origen: 'CLIENTE',
-          tipo: 'CLIENTE'
-        }
+        evidencia: evidenciaOCR
       });
     } catch (err) {
       console.error('Error OCR:', err);
@@ -381,6 +417,30 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
                 />
               </div>
               <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Medio virtual *</label>
+                <select
+                  value={pago.id_medio_virtual || ''}
+                  onChange={(e) => handleChange(
+                    'id_medio_virtual',
+                    e.target.value ? Number(e.target.value) : null,
+                  )}
+                  disabled={loadingOCR}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-orange outline-none"
+                >
+                  <option value="">Seleccione un medio virtual</option>
+                  {medios
+                    .filter((medio) => (
+                      !medio.es_efectivo &&
+                      String(medio.nombre || '').trim().toLowerCase() !== 'vale'
+                    ))
+                    .map((medio) => (
+                      <option key={medio.id_medio_pago} value={medio.id_medio_pago}>
+                        {medio.nombre}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto virtual (S/) *</label>
                 <input
                   type="number"
@@ -427,6 +487,23 @@ export default function PagoCard({ index, pago, medios, onPagoChange, onEliminar
             </>
           )}
         </div>
+
+        {esDeposito && (
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+              ¿Cuántos depósitos hay en esta imagen?
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={pago.cantidad_depositos ?? 1}
+              onChange={(e) => handleChange('cantidad_depositos', e.target.value)}
+              disabled={loadingOCR}
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-orange outline-none"
+            />
+          </div>
+        )}
 
         {/* CAMPOS DINÁMICOS */}
         {!esEfectivo && (
