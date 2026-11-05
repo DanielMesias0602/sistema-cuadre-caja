@@ -1341,6 +1341,37 @@ def extraer_datos_comprobante(textos):
 
     resultado["productos"] = []
 
+    lineas = [str(linea) for linea in textos if linea]
+    texto_fallback = " ".join(lineas)
+
+    if not resultado["fecha"]:
+        coincidencia_fecha = re.search(
+            r"(\d{2}[/-]\d{2}[/-]\d{4})",
+            texto_fallback,
+        )
+        if coincidencia_fecha:
+            resultado["fecha"] = coincidencia_fecha.group(1).strip()
+            print(f"FALLBACK FECHA APLICADO: {resultado['fecha']}")
+        else:
+            coincidencia_fecha = re.search(
+                r"(\d{2})[/-](\d{2})[/-](\d{2,4})",
+                texto_fallback,
+            )
+            if coincidencia_fecha:
+                dia, mes, anio = coincidencia_fecha.groups()
+                if len(anio) == 2:
+                    anio = f"20{anio}"
+                resultado["fecha"] = f"{dia}/{mes}/{anio}".strip()
+                print(f"FALLBACK FECHA APLICADO: {resultado['fecha']}")
+
+    if not resultado["hora"]:
+        coincidencia_hora = re.search(
+            r"(\d{2}:\d{2}(?::\d{2})?)",
+            texto_fallback,
+        )
+        if coincidencia_hora:
+            resultado["hora"] = coincidencia_hora.group(1).strip()
+
     return resultado
 
 

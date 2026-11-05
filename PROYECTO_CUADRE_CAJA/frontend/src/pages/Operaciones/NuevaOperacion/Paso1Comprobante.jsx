@@ -21,6 +21,32 @@ const normalizarHoraOCR = (hora) => {
   return `${String(horas + 12).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
 };
 
+const parseFecha = (fechaStr) => {
+  if (!fechaStr) return null;
+  if (fechaStr instanceof Date) {
+    return Number.isNaN(fechaStr.getTime()) ? null : fechaStr;
+  }
+
+  const texto = String(fechaStr).trim();
+  const fechaISO = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+  const fechaLatina = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!fechaISO && !fechaLatina) return null;
+
+  const [anio, mes, dia] = fechaISO
+    ? fechaISO.slice(1).map(Number)
+    : [fechaLatina[3], fechaLatina[2], fechaLatina[1]].map(Number);
+  const fecha = new Date(anio, mes - 1, dia);
+
+  if (
+    fecha.getFullYear() !== anio
+    || fecha.getMonth() !== mes - 1
+    || fecha.getDate() !== dia
+  ) {
+    return null;
+  }
+  return fecha;
+};
+
 export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -685,7 +711,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 Fecha *
               </label>
               <SingleDatePicker
-                value={formData.fecha}
+                value={parseFecha(formData.fecha)}
                 onChange={(nuevaFecha) => handleChange('fecha', nuevaFecha)}
                 placeholder="Seleccionar fecha"
               />
