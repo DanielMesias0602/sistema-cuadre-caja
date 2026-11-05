@@ -1367,6 +1367,18 @@ def extraer_datos_comprobante(textos):
                 resultado["fecha"] = f"{dia}/{mes}/{anio}".strip()
                 print(f"FALLBACK FECHA APLICADO: {resultado['fecha']}")
 
+    if resultado["fecha"] is None:
+        for linea_fecha in textos:
+            coincidencia_fecha = re.search(
+                r"\b(\d{2})[/\-](\d{2})[/\-](20\d{2})\b",
+                str(linea_fecha),
+            )
+            if coincidencia_fecha:
+                dia, mes, anio = coincidencia_fecha.groups()
+                if 1 <= int(dia) <= 31 and 1 <= int(mes) <= 12:
+                    resultado["fecha"] = coincidencia_fecha.group(0)
+                    break
+
     if not resultado["hora"]:
         coincidencia_hora = re.search(
             r"(\d{2}:\d{2}(?::\d{2})?)",
