@@ -62,6 +62,7 @@ export const findOperacionById = async (idOperacion) => {
        c.numero,
        c.cliente,
        c.vendedor,
+       TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha_comprobante,
        c.hora,
        c.moneda,
        c.igv,

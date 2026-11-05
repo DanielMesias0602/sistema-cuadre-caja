@@ -67,7 +67,11 @@ def _process_file(image_path, tipo_evidencia, cantidad_depositos=1):
     if _engine is None or _receipt_extractor is None or _transfer_extractor is None:
         raise RuntimeError("El worker OCR no terminó de inicializarse")
 
-    textos, puntajes = _extraer_texto(_engine, image_path)
+    textos, puntajes = _extraer_texto(
+        _engine,
+        image_path,
+        tipo_evidencia,
+    )
     es_transferencia = tipo_evidencia in _allowed_types
 
     if es_transferencia:

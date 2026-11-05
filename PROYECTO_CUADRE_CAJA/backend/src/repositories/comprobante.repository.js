@@ -45,6 +45,31 @@ export const updateComprobanteMonto = async (idComprobante, monto, client = null
   return result.rows[0] ?? null;
 };
 
+export const updateComprobante = async (
+  idComprobante,
+  { tipo_comprobante, serie, numero, fecha, hora, cliente, vendedor }
+) => {
+  const result = await query(
+    `UPDATE comprobante
+     SET tipo_comprobante = $1,
+         serie = $2,
+         numero = $3,
+         fecha = $4,
+         hora = $5,
+         cliente = $6,
+         vendedor = $7
+     WHERE id_comprobante = $8
+     RETURNING id_comprobante, tipo_comprobante, serie, numero,
+       TO_CHAR(fecha, 'YYYY-MM-DD') AS fecha,
+       monto, cliente, vendedor,
+       TO_CHAR(hora, 'HH24:MI:SS') AS hora,
+       moneda, igv, op_gravada, items`,
+    [tipo_comprobante, serie, numero, fecha, hora, cliente, vendedor, idComprobante]
+  );
+
+  return result.rows[0] ?? null;
+};
+
 export const findComprobanteById = async (idComprobante) => {
   const result = await query(
     `SELECT

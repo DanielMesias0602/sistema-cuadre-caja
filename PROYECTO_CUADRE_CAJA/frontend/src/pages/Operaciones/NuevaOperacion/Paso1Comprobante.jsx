@@ -701,6 +701,8 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
               <input
                 type="time"
                 name="hora"
+                step="1"
+                lang="es-ES"
                 value={formData.hora}
                 onChange={(e) => {
                   horaEditadaManualmenteRef.current = true;

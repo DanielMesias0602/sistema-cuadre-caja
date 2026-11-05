@@ -1,9 +1,24 @@
 import {
   registerComprobante,
+  actualizarComprobante,
   getComprobanteById,
   getComprobantes,
   checkComprobanteExistente // <-- NUEVO IMPORT
 } from '../services/comprobante.service.js';
+
+export const update = async (req, res, next) => {
+  try {
+    const comprobante = await actualizarComprobante(req.params.id, req.body);
+
+    res.json({
+      status: 'ok',
+      message: 'Comprobante actualizado correctamente',
+      data: comprobante
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const create = async (req, res, next) => {
   try {

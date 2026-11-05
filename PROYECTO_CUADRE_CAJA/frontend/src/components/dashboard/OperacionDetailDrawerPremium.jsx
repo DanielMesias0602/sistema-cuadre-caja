@@ -17,6 +17,7 @@ import {
   Save,
   LoaderCircle,
   FileText,
+  FilePenLine,
   Banknote,
   Hash,
   Landmark,
@@ -380,6 +381,18 @@ export function OperacionDetailDrawerPremium({
   const [modalEdicionAbierto, setModalEdicionAbierto] = useState(false);
   const [guardandoRegistro, setGuardandoRegistro] = useState(false);
   const [errorEdicionRegistro, setErrorEdicionRegistro] = useState(null);
+  const [modalComprobanteAbierto, setModalComprobanteAbierto] = useState(false);
+  const [guardandoComprobante, setGuardandoComprobante] = useState(false);
+  const [errorEdicionComprobante, setErrorEdicionComprobante] = useState(null);
+  const [formularioComprobante, setFormularioComprobante] = useState({
+    tipo_comprobante: '',
+    serie: '',
+    numero: '',
+    fecha: '',
+    hora: '',
+    cliente: '',
+    vendedor: '',
+  });
   const [mediosPagoDisponibles, setMediosPagoDisponibles] = useState([]);
   const [pagosEdicion, setPagosEdicion] = useState([]);
   const [formularioEdicionRegistro, setFormularioEdicionRegistro] = useState({
@@ -485,6 +498,10 @@ export function OperacionDetailDrawerPremium({
           setVisorEsPreview(false);
           setArchivoVisorPreview(null);
           setZoom(false);
+        } else if (modalComprobanteAbierto && !guardandoComprobante) {
+          setModalComprobanteAbierto(false);
+        } else if (modalEdicionAbierto && !guardandoRegistro) {
+          setModalEdicionAbierto(false);
         } else {
           onClose();
         }
@@ -501,7 +518,15 @@ export function OperacionDetailDrawerPremium({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKey);
     };
-  }, [open, onClose, isImageOpen]);
+  }, [
+    open,
+    onClose,
+    isImageOpen,
+    modalComprobanteAbierto,
+    guardandoComprobante,
+    modalEdicionAbierto,
+    guardandoRegistro,
+  ]);
 
   if (!opData) return null;
 
@@ -566,6 +591,9 @@ export function OperacionDetailDrawerPremium({
     dataComprobante.tipo_comprobante || opData.tipo_comprobante || 'DOC';
   const serieComp = dataComprobante.serie || opData.serie || '';
   const numComp = dataComprobante.numero || opData.numero || '';
+  const idComprobante = Number(
+    dataComprobante.id_comprobante ?? opData.id_comprobante
+  );
 
   const comprobante = `${tipoComp} ${serieComp ? `${serieComp}-` : ''}${numComp}`;
 
@@ -576,7 +604,11 @@ export function OperacionDetailDrawerPremium({
 
   const cliente = dataComprobante.cliente || opData.cliente || 'No registrado';
   const vendedor = dataComprobante.vendedor || opData.vendedor || '-';
-  const fecha = dataComprobante.fecha || opData.fecha || '';
+  const fecha = dataComprobante.fecha_comprobante ||
+    dataComprobante.fecha ||
+    opData.fecha_comprobante ||
+    opData.fecha ||
+    '';
   const hora = dataComprobante.hora || opData.hora || '';
 
   const opGravada = dataComprobante.op_gravada ?? opData.op_gravada;
@@ -902,6 +934,66 @@ export function OperacionDetailDrawerPremium({
     }
   };
 
+  const abrirEdicionComprobante = () => {
+    setErrorEdicionComprobante(null);
+    setFormularioComprobante({
+      tipo_comprobante: String(dataComprobante.tipo_comprobante || opData.tipo_comprobante || ''),
+      serie: String(dataComprobante.serie || opData.serie || ''),
+      numero: String(dataComprobante.numero || opData.numero || ''),
+      fecha: String(
+        dataComprobante.fecha_comprobante ||
+        dataComprobante.fecha ||
+        opData.fecha_comprobante ||
+        opData.fecha ||
+        ''
+      ).slice(0, 10),
+      hora: String(dataComprobante.hora || opData.hora || '').slice(0, 5),
+      cliente: String(dataComprobante.cliente ?? opData.cliente ?? ''),
+      vendedor: String(dataComprobante.vendedor ?? opData.vendedor ?? ''),
+    });
+    setModalComprobanteAbierto(true);
+  };
+
+  const guardarEdicionComprobante = async (event) => {
+    event.preventDefault();
+    setErrorEdicionComprobante(null);
+    if (!Number.isSafeInteger(idComprobante) || idComprobante <= 0) {
+      setErrorEdicionComprobante('No se encontró un identificador válido para el comprobante.');
+      return;
+    }
+
+    setGuardandoComprobante(true);
+    try {
+      const response = await api.put(`/comprobantes/${idComprobante}`, {
+        tipo_comprobante: formularioComprobante.tipo_comprobante.trim(),
+        serie: formularioComprobante.serie.trim(),
+        numero: formularioComprobante.numero.trim(),
+        fecha: formularioComprobante.fecha,
+        hora: formularioComprobante.hora || null,
+        cliente: formularioComprobante.cliente.trim() || null,
+        vendedor: formularioComprobante.vendedor.trim() || null,
+      });
+      if (!response.data?.data?.id_comprobante) {
+        throw new Error('El servidor no devolvió el comprobante actualizado.');
+      }
+
+      const operacionRefrescada = await cargarOperacionActualizada();
+      setFreshOperation({ id: idOperacion, data: operacionRefrescada });
+
+      const refrescoCorrecto = await onRegistroActualizado?.(idOperacion);
+      if (refrescoCorrecto === false) {
+        throw new Error('El comprobante se guardó, pero no se pudo actualizar la operación en la tabla.');
+      }
+      setModalComprobanteAbierto(false);
+    } catch (error) {
+      setErrorEdicionComprobante(
+        error.response?.data?.message || error.message || 'No se pudieron guardar los cambios del comprobante.'
+      );
+    } finally {
+      setGuardandoComprobante(false);
+    }
+  };
+
   const cambiarPagoEdicion = (idPago) => {
     const pagoSeleccionado = pagosEdicion.find((pago) => String(pago.id_pago) === String(idPago));
     setFormularioEdicionRegistro((actual) => ({
@@ -1011,14 +1103,24 @@ export function OperacionDetailDrawerPremium({
             {formatPEN(montoFinal)}
           </p>
           {esAdmin && (
-            <button
-              type="button"
-              onClick={abrirEdicionRegistro}
-              className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-brand-orange/30 bg-orange-50 px-4 py-2 text-sm font-bold text-brand-orange transition hover:bg-orange-100 dark:border-orange-800/60 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-950/60"
-            >
-              <Pencil className="h-4 w-4" />
-              Editar Registro
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={abrirEdicionRegistro}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-brand-orange/30 bg-orange-50 px-4 py-2 text-sm font-bold text-brand-orange transition hover:bg-orange-100 dark:border-orange-800/60 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-950/60"
+              >
+                <Pencil className="h-4 w-4" />
+                Editar Registro
+              </button>
+              <button
+                type="button"
+                onClick={abrirEdicionComprobante}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60"
+              >
+                <FilePenLine className="h-4 w-4" />
+                Editar Comprobante
+              </button>
+            </div>
           )}
         </header>
 
@@ -1644,6 +1746,191 @@ export function OperacionDetailDrawerPremium({
                   ? <LoaderCircle className="h-4 w-4 animate-spin" />
                   : <Save className="h-4 w-4" />}
                 Guardar cambios
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {modalComprobanteAbierto && (
+        <div
+          className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm sm:items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !guardandoComprobante) {
+              setModalComprobanteAbierto(false);
+            }
+          }}
+        >
+          <form
+            onSubmit={guardarEdicionComprobante}
+            className="my-auto max-h-[90vh] max-h-[90dvh] w-[95%] max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-7"
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+                  Editar comprobante
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Corrige los datos del documento cuando el OCR no los haya reconocido correctamente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalComprobanteAbierto(false)}
+                disabled={guardandoComprobante}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700"
+                aria-label="Cerrar edición de comprobante"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {errorEdicionComprobante && (
+              <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300">
+                {errorEdicionComprobante}
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Tipo de comprobante
+                </span>
+                <select
+                  required
+                  value={formularioComprobante.tipo_comprobante}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    tipo_comprobante: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  {!['BOLETA', 'FACTURA'].includes(formularioComprobante.tipo_comprobante) && (
+                    <option value={formularioComprobante.tipo_comprobante}>
+                      {formularioComprobante.tipo_comprobante || 'Selecciona un tipo'}
+                    </option>
+                  )}
+                  <option value="BOLETA">Boleta</option>
+                  <option value="FACTURA">Factura</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Serie
+                </span>
+                <input
+                  type="text"
+                  required
+                  maxLength={10}
+                  value={formularioComprobante.serie}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    serie: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Número
+                </span>
+                <input
+                  type="text"
+                  required
+                  maxLength={20}
+                  value={formularioComprobante.numero}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    numero: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Fecha
+                </span>
+                <input
+                  type="date"
+                  required
+                  value={formularioComprobante.fecha}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    fecha: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Hora
+                </span>
+                <input
+                  type="time"
+                  value={formularioComprobante.hora}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    hora: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Vendedor
+                </span>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={formularioComprobante.vendedor}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    vendedor: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Cliente
+                </span>
+                <input
+                  type="text"
+                  maxLength={255}
+                  value={formularioComprobante.cliente}
+                  onChange={(event) => setFormularioComprobante((actual) => ({
+                    ...actual,
+                    cliente: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setModalComprobanteAbierto(false)}
+                disabled={guardandoComprobante}
+                className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoComprobante}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-orange px-4 py-2 text-sm font-bold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardandoComprobante
+                  ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                  : <Save className="h-4 w-4" />}
+                Guardar comprobante
               </button>
             </div>
           </form>
