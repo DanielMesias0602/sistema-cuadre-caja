@@ -1321,6 +1321,14 @@ def extraer_datos_comprobante(textos):
             resultado["total"],
         ) = totales_matematicos
 
+    op_gravada_final = resultado["op_gravada"]
+    igv_final = resultado["igv"]
+    total_final = resultado["total"]
+    if op_gravada_final is not None and igv_final is not None:
+        total_calculado = round(op_gravada_final + igv_final, 2)
+        if total_final is None or total_final < total_calculado:
+            resultado["total"] = total_calculado
+
     # ========================================================
     # VALIDACION MATEMATICA DE TOTALES
     # ========================================================
