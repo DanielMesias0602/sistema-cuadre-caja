@@ -61,6 +61,8 @@ const obtenerReferenciaOCR = (datosOcr) => {
     datosOcr.referencia_bancaria,
     datosOcr.numero_operacion,
     datosOcr.nro_operacion,
+    datosOcr.referencia,
+    datosOcr.operacion,
   ]) {
     if (referencia == null) continue;
     const referenciaNormalizada = String(referencia).trim();
@@ -68,6 +70,27 @@ const obtenerReferenciaOCR = (datosOcr) => {
   }
   return null;
 };
+
+const obtenerDatosOCR = (evidencia) => {
+  const datos = evidencia?.datos_ocr;
+  if (typeof datos === 'string') {
+    try {
+      const datosParseados = JSON.parse(datos);
+      return datosParseados && typeof datosParseados === 'object' && !Array.isArray(datosParseados)
+        ? datosParseados
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  return datos && typeof datos === 'object' && !Array.isArray(datos) ? datos : {};
+};
+
+const obtenerDepositoOCR = (datosOCR, indicePago) => (
+  Array.isArray(datosOCR?.depositos_detectados)
+    ? datosOCR.depositos_detectados[indicePago] || null
+    : null
+);
 
 const compararMontos = (montoPago, montoEvidencia) => {
   const p = Number(montoPago);
@@ -78,7 +101,7 @@ const compararMontos = (montoPago, montoEvidencia) => {
   return pagoEnCentimos === evidenciaEnCentimos;
 };
 
-const evaluarPago = (pago, evidenciaEmpresa) => {
+const evaluarPago = (pago, evidenciaEmpresa, depositoOCR = null) => {
   const medio = String(pago?.medio_pago || pago?.nombre_medio || '').trim();
   const medioLower = medio.toLowerCase();
 
@@ -90,24 +113,26 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
   const pagoVerificadoManualmente =
     ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(String(pago?.estado || '').toUpperCase()) &&
     String(pago?.observacion || '').includes('Validación manual: referencias distintas, monto coincide');
-  if (pagoVerificadoManualmente) {
-    return {
-      estado: 'VERIFICADO',
-      color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60',
-      icono: 'check',
-      mensaje: 'Validación manual aprobada por el administrador',
-    };
-  }
 
   // Sin evidencia empresa
-  if (!evidenciaEmpresa) {
+  if (!evidenciaEmpresa && !depositoOCR) {
+    if (pagoVerificadoManualmente) {
+      return {
+        estado: 'VERIFICADO',
+        color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60',
+        icono: 'check',
+        mensaje: 'Validación manual aprobada por el administrador',
+      };
+    }
     return { estado: 'SIN_EVIDENCIA', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Sin evidencia de empresa registrada' };
   }
 
   // Extraer datos del OCR de la evidencia empresa
-  const datosOcr = evidenciaEmpresa.datos_ocr || {};
-  const refEmpresa = datosOcr.referencia_bancaria || datosOcr.numero_operacion || null;
-  const montoEmpresa = datosOcr.monto ?? null;
+  const datosOcr = obtenerDatosOCR(evidenciaEmpresa);
+  const refEmpresa = depositoOCR
+    ? obtenerReferenciaOCR(depositoOCR)
+    : obtenerReferenciaOCR(datosOcr);
+  const montoEmpresa = depositoOCR ? depositoOCR.monto ?? null : datosOcr.monto ?? null;
 
   const refPago = pago?.referencia || null;
 
@@ -118,6 +143,15 @@ const evaluarPago = (pago, evidenciaEmpresa) => {
 
   if (refCoincide && montoCoincide) {
     return { estado: 'COINCIDE', color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60', icono: 'check', mensaje: 'Monto y referencia coinciden' };
+  }
+
+  if (pagoVerificadoManualmente) {
+    return {
+      estado: 'VERIFICADO',
+      color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60',
+      icono: 'check',
+      mensaje: 'Validación manual aprobada por el administrador',
+    };
   }
 
   if (montoCoincide && !refCoincide) {
@@ -1304,26 +1338,43 @@ export function OperacionDetailDrawerPremium({
                   {pagos.map((pago, idx) => {
                     const evidenciaEmpresaPago = buscarEvidenciaDePago(pago, 'EMPRESA');
                     const evidenciaClientePago = buscarEvidenciaDePago(pago, 'CLIENTE');
-                    const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
-                    const referenciaClienteOCR = obtenerReferenciaOCR(datosOcrCliente);
+                    const datosOcrCliente = obtenerDatosOCR(evidenciaClientePago);
+                    const depositoOCR = obtenerDepositoOCR(datosOcrCliente, idx);
+                    const referenciaDepositoOCR = obtenerReferenciaOCR(depositoOCR);
+                    const referenciaClienteOCR = depositoOCR
+                      ? referenciaDepositoOCR
+                      : obtenerReferenciaOCR(datosOcrCliente);
                     const pagoParaEvaluacion = {
                       ...pago,
                       referencia: referenciaClienteOCR || pago?.referencia || null,
                     };
-                    const evaluacion = evaluarPago(pagoParaEvaluacion, evidenciaEmpresaPago);
-                    const datosOcr = evidenciaEmpresaPago?.datos_ocr || {};
-                    const refEmpresa = datosOcr.referencia_bancaria || datosOcr.numero_operacion || null;
-                    const montoEmpresa = datosOcr.monto ?? null;
-                    const datosOcrClientePago = evidenciaClientePago?.datos_ocr || {};
-                    const montosOcr = [
-                      { tipo: 'empresa', etiqueta: 'Evidencia de empresa', monto: montoEmpresa },
-                      { tipo: 'cliente', etiqueta: 'Evidencia del cliente', monto: datosOcrClientePago.monto },
-                    ].filter(({ monto }) => (
-                      monto !== null &&
-                      monto !== undefined &&
-                      String(monto).trim() !== '' &&
-                      Number.isFinite(Number(monto))
-                    ));
+                    const evaluacion = evaluarPago(
+                      pagoParaEvaluacion,
+                      evidenciaEmpresaPago,
+                      depositoOCR
+                    );
+                    const datosOcr = obtenerDatosOCR(evidenciaEmpresaPago);
+                    const refEmpresa = depositoOCR
+                      ? referenciaDepositoOCR
+                      : obtenerReferenciaOCR(datosOcr);
+                    const montoEmpresa = depositoOCR
+                      ? depositoOCR.monto ?? null
+                      : datosOcr.monto ?? null;
+                    const montosOcr = (depositoOCR
+                      ? [{
+                        tipo: 'deposito',
+                        etiqueta: `Depósito #${idx + 1} del voucher`,
+                        monto: depositoOCR.monto,
+                      }]
+                      : [
+                        { tipo: 'empresa', etiqueta: 'Evidencia de empresa', monto: montoEmpresa },
+                        { tipo: 'cliente', etiqueta: 'Evidencia del cliente', monto: datosOcrCliente.monto },
+                      ]).filter(({ monto }) => (
+                        monto !== null &&
+                        monto !== undefined &&
+                        String(monto).trim() !== '' &&
+                        Number.isFinite(Number(monto))
+                      ));
                     const refPago = pagoParaEvaluacion.referencia;
 
                     return (
@@ -1365,7 +1416,9 @@ export function OperacionDetailDrawerPremium({
 
                         {evaluacion.estado !== 'EFECTIVO' && montoEmpresa != null && (
                           <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-600 flex items-center justify-between">
-                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Monto evidencia empresa</p>
+                            <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">
+                              {depositoOCR ? 'Monto del depósito' : 'Monto evidencia empresa'}
+                            </p>
                             <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
                               {formatPEN(montoEmpresa)}
                             </p>
@@ -1461,9 +1514,11 @@ export function OperacionDetailDrawerPremium({
                     const esEfectivo = medio.includes('efectivo');
                     const evidenciaClientePago = buscarEvidenciaDePago(p, 'CLIENTE');
                     const evidenciaClientePagoUrl = getEvidenciaUrl(evidenciaClientePago);
-                    const datosOcrCliente = evidenciaClientePago?.datos_ocr || {};
-                    const referenciaCliente =
-                      p.referencia || obtenerReferenciaOCR(datosOcrCliente);
+                    const datosOcrCliente = obtenerDatosOCR(evidenciaClientePago);
+                    const depositoOCR = obtenerDepositoOCR(datosOcrCliente, idx);
+                    const referenciaCliente = depositoOCR
+                      ? obtenerReferenciaOCR(depositoOCR) || p.referencia
+                      : p.referencia || obtenerReferenciaOCR(datosOcrCliente);
                     const puedeVerCliente = !esEfectivo && evidenciaClientePagoUrl;
                     const estadoPago = String(p.estado || 'REGISTRADO').toUpperCase();
                     const pagoVerificado = ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(estadoPago);

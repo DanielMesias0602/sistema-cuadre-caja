@@ -129,7 +129,7 @@ export const findAllOperaciones = async () => {
              'monto', p.monto,
              'referencia', p.referencia_bancaria,
              'estado', p.estado
-           )
+           ) ORDER BY p.id_pago
          ) FROM pago p
          LEFT JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
          WHERE p.id_operacion = o.id_operacion),
