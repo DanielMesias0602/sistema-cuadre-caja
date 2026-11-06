@@ -168,15 +168,37 @@ export const crearEvidenciasOperacion = async ({
       throw error;
     }
 
-    const { index_pago: indexPagoPayload, ...datosEvidencia } = evidencia;
-    let indexPago = null;
-    if (indexPagoPayload !== undefined && indexPagoPayload !== null && indexPagoPayload !== '') {
-      indexPago = Number(indexPagoPayload);
-      if (!Number.isSafeInteger(indexPago) || indexPago < 0 || indexPago >= cantidadPagos) {
-        const error = new Error('Índice de pago asociado a evidencia no válido');
-        error.statusCode = 400;
-        throw error;
-      }
+    const {
+      index_pago: indexPagoPayload,
+      index_pagos: indicesPagoPayload,
+      ...datosEvidencia
+    } = evidencia;
+    const indicesPago = indicesPagoPayload !== undefined
+      ? indicesPagoPayload
+      : indexPagoPayload !== undefined && indexPagoPayload !== null && indexPagoPayload !== ''
+        ? [indexPagoPayload]
+        : [];
+    if (!Array.isArray(indicesPago)) {
+      const error = new Error('Los índices de pago asociados a evidencia no son válidos');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (indicesPago.some(
+      (indexPago) => indexPago === null || indexPago === undefined || indexPago === ''
+    )) {
+      const error = new Error('Índice de pago asociado a evidencia no válido');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const indicesPagoNormalizados = [...new Set(indicesPago.map(Number))];
+    if (indicesPagoNormalizados.some(
+      (indexPago) => !Number.isSafeInteger(indexPago) || indexPago < 0 || indexPago >= cantidadPagos
+    )) {
+      const error = new Error('Índice de pago asociado a evidencia no válido');
+      error.statusCode = 400;
+      throw error;
     }
 
     const evidenciaCreada = await createEvidencia({
@@ -191,17 +213,19 @@ export const crearEvidenciasOperacion = async ({
     }, client);
     createdEvidencias.push(evidenciaCreada);
 
-    if (indexPago !== null) {
+    if (indicesPagoNormalizados.length > 0) {
       const tipo = String(datosEvidencia.tipo_evidencia || '').toUpperCase();
-      const evidenciasDelPago = evidenciasPorPago.get(indexPago) || {};
-      if ((tipo === 'CLIENTE' || tipo === 'EMPRESA') && evidenciasDelPago[tipo]) {
-        const error = new Error(`Solo se permite una evidencia ${tipo.toLowerCase()} por pago`);
-        error.statusCode = 400;
-        throw error;
-      }
       if (tipo === 'CLIENTE' || tipo === 'EMPRESA') {
-        evidenciasDelPago[tipo] = evidenciaCreada.id_evidencia;
-        evidenciasPorPago.set(indexPago, evidenciasDelPago);
+        for (const indexPago of indicesPagoNormalizados) {
+          const evidenciasDelPago = evidenciasPorPago.get(indexPago) || {};
+          if (evidenciasDelPago[tipo]) {
+            const error = new Error(`Solo se permite una evidencia ${tipo.toLowerCase()} por pago`);
+            error.statusCode = 400;
+            throw error;
+          }
+          evidenciasDelPago[tipo] = evidenciaCreada.id_evidencia;
+          evidenciasPorPago.set(indexPago, evidenciasDelPago);
+        }
       }
     }
   }
@@ -727,7 +751,7 @@ export const registerOperacionUnificada = async (data) => {
       throw error;
     }
 
-    // index_pago solo se usa para vincular en memoria; no existe en evidencia.
+    // Los índices de asociación solo se usan en memoria; no existen en evidencia.
     const { createdEvidencias, evidenciasPorPago } = await crearEvidenciasOperacion({
       listaEvidencias,
       id_operacion: newOperacion.id_operacion,

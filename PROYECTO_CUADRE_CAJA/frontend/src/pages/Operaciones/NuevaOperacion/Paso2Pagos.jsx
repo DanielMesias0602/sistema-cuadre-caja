@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, ArrowLeft, ArrowRight, AlertCircle, CheckCircle, Receipt } from 'lucide-react';
 import PagoCard from './components/PagoCard';
 import api from '../../../lib/api';
+import { normalizarFechaISO } from '../../../utils/fecha';
 
 export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPagosChange }) {
   // FIX: si pagosIniciales es [] (array vacío), inicializar con un pago vacío
@@ -143,10 +144,12 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
             || datosOCR?.referencia_bancaria
             || pagoExistente.referencia
             || '',
-          fecha_operacion: deposito?.fecha_operacion
-            || datosOCR?.fecha_operacion
-            || pagoExistente.fecha_operacion
-            || '',
+          fecha_operacion: normalizarFechaISO(
+            deposito?.fecha_operacion
+              || datosOCR?.fecha_operacion
+              || pagoExistente.fecha_operacion
+              || ''
+          ),
           beneficiario: pagoExistente.beneficiario || datosOCR?.destinatario || '',
           cuenta_destino: pagoExistente.cuenta_destino || datosOCR?.cuenta_destino || '',
           cantidad_depositos: cantidad,

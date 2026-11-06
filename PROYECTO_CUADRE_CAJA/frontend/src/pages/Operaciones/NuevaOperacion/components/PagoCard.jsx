@@ -5,6 +5,7 @@ import {
   Clock, FileText, RefreshCw, AlertTriangle, Sparkles,
 } from 'lucide-react';
 import ocrService from '../../../../services/ocr.service';
+import { normalizarFechaISO } from '../../../../utils/fecha';
 
 const ICONOS = {
   banknote: Banknote,
@@ -340,7 +341,7 @@ export default function PagoCard({
       evidencia: { ...pago.evidencia, confirmada: true },
       monto: montoActual,
       referencia: pago.referencia || referenciaDetectada || '',
-      fecha_operacion: pago.fecha_operacion || fechaDetectada || '',
+      fecha_operacion: normalizarFechaISO(pago.fecha_operacion || fechaDetectada || ''),
       beneficiario: pago.beneficiario || beneficiarioDetectado,
       cuenta_destino: pago.cuenta_destino || cuentaDestinoDetectada,
       observacion: pago.observacion || ''
@@ -599,10 +600,9 @@ export default function PagoCard({
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Fecha de Operación</label>
                 <input
-                  type="text"
-                  value={pago.fecha_operacion || ''}
+                  type="date"
+                  value={normalizarFechaISO(pago.fecha_operacion)}
                   onChange={(e) => handleChange('fecha_operacion', e.target.value)}
-                  placeholder="DD/MM/AAAA"
                   disabled={loadingOCR}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />

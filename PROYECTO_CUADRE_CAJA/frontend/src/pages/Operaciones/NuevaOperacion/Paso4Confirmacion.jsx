@@ -18,6 +18,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import api from '../../../lib/api';
+import { normalizarFechaISO } from '../../../utils/fecha';
 
 const ICONOS = {
   banknote: Banknote,
@@ -48,7 +49,12 @@ const getCamposOCR = (datosOCR, medioPago) => {
   const campos = [];
 
   if (datosOCR.monto != null) campos.push({ icon: 'banknote', label: 'Monto', value: `S/ ${Number(datosOCR.monto).toFixed(2)}`, color: 'emerald' });
-  if (datosOCR.fecha_operacion) campos.push({ icon: 'calendar', label: 'Fecha', value: datosOCR.fecha_operacion, color: 'blue' });
+  if (datosOCR.fecha_operacion) campos.push({
+    icon: 'calendar',
+    label: 'Fecha',
+    value: normalizarFechaISO(datosOCR.fecha_operacion) || datosOCR.fecha_operacion,
+    color: 'blue',
+  });
   if (datosOCR.hora_operacion) campos.push({ icon: 'clock', label: 'Hora', value: datosOCR.hora_operacion, color: 'teal' });
 
   if (medio.includes('tarjeta') || datosOCR.aplicacion_banco === 'CULQI') {
@@ -265,6 +271,16 @@ export function Paso4Confirmacion({
         return;
       }
 
+      const pagoConFechaInvalida = listaPagos.find((pago) => {
+        const fecha = pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion;
+        return fecha && !normalizarFechaISO(fecha);
+      });
+      if (pagoConFechaInvalida) {
+        const index = listaPagos.indexOf(pagoConFechaInvalida) + 1;
+        setError(`La fecha de operación del pago #${index} no es válida. Revísala e ingrésala nuevamente.`);
+        return;
+      }
+
       const montoComprobante = Number(comprobante?.monto) || 0;
       const pendienteCalculado = montoComprobante - totalPagado;
       const estadoFinal = pendienteCalculado <= 0 ? 'PAGADA' : 'PENDIENTE';
@@ -309,8 +325,19 @@ export function Paso4Confirmacion({
         }
       }
 
+      const gruposEvidenciaClienteProcesados = new Set();
       for (const { pago, index } of pagosTransferencia) {
         if (pago?.evidencia?.imagenBase64) {
+          const grupoId = pago.grupo_depositos_id;
+          const grupoKey = grupoId ? `grupo:${grupoId}` : `pago:${index}`;
+          if (gruposEvidenciaClienteProcesados.has(grupoKey)) continue;
+          gruposEvidenciaClienteProcesados.add(grupoKey);
+
+          const indicesPago = grupoId
+            ? pagosTransferencia
+              .filter(({ pago: pagoGrupo }) => pagoGrupo.grupo_depositos_id === grupoId)
+              .map(({ index: indexPago }) => indexPago)
+            : [index];
           const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
           const file = new File([blob], `evidencia-cliente-${index + 1}.jpg`, { type: 'image/jpeg' });
           const formDataCliente = new FormData();
@@ -321,9 +348,11 @@ export function Paso4Confirmacion({
             evidenciasParaPayload.push({
               tipo_evidencia: 'CLIENTE',
               storage_key: keyCliente,
-              index_pago: index,
+              index_pagos: indicesPago,
               fecha_evidencia: fechaISO,
-              observacion: `Evidencia de pago del cliente: ${pago.nombre_medio || pago.medio_pago || 'No especificado'}`,
+              observacion: grupoId
+                ? `Evidencia compartida del cliente para ${indicesPago.length} depósitos`
+                : `Evidencia de pago del cliente: ${pago.nombre_medio || pago.medio_pago || 'No especificado'}`,
               datos_ocr: pago.evidencia.datosOCR ? JSON.stringify(pago.evidencia.datosOCR) : null,
               texto_ocr: pago.evidencia.textoOcr || null,
             });
@@ -352,7 +381,10 @@ export function Paso4Confirmacion({
           let extras = [];
           if (pago.beneficiario) extras.push(`Benef: ${pago.beneficiario}`);
           if (pago.cuenta_destino) extras.push(`Cta Destino: ${pago.cuenta_destino}`);
-          if (pago.fecha_operacion) extras.push(`Fecha Op: ${pago.fecha_operacion}`);
+          const fechaPago = normalizarFechaISO(
+            pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion
+          );
+          if (fechaPago) extras.push(`Fecha Op: ${fechaPago}`);
           
           if (extras.length > 0) {
             const extrasStr = extras.join(' | ');
@@ -371,7 +403,7 @@ export function Paso4Confirmacion({
             id_medio_virtual: pago.id_medio_virtual || null,
             referencia_bancaria: pago.referencia || null,
             observacion: obsFinal || null,
-            fecha_operacion: pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion || null,
+            fecha_operacion: fechaPago || null,
           };
         }),
         evidencias: evidenciasParaPayload,
