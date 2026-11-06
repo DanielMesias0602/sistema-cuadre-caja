@@ -1277,6 +1277,36 @@ def extract_deposit_amounts(lines, cantidad_depositos=1):
     ):
         return []
 
+    patron_monto_recibido = re.compile(
+        r'MONTO\s*RECIBIDO\s*:?\s*S\s*/\s*\.*\s*'
+        r'(?P<monto>[\d,]+\.\d{2})',
+        re.IGNORECASE
+    )
+    montos_recibidos = []
+    for indice, linea in enumerate(lineas_limpias):
+        for match in patron_monto_recibido.finditer(linea):
+            monto = parse_money(match.group('monto'))
+            if monto is not None and monto > 0:
+                montos_recibidos.append((indice, monto))
+
+    if montos_recibidos:
+        depositos = []
+        montos_seleccionados = montos_recibidos[:cantidad]
+        for posicion, (indice, monto) in enumerate(montos_seleccionados):
+            siguiente_indice = (
+                montos_recibidos[posicion + 1][0]
+                if posicion + 1 < len(montos_recibidos)
+                else len(lines)
+            )
+            fin = min(siguiente_indice, indice + 5)
+            datos_referencia = extract_reference(lines[indice:fin])
+            depositos.append({
+                'monto': monto,
+                'operacion': datos_referencia,
+                'referencia': datos_referencia,
+            })
+        return depositos
+
     patron_monto = re.compile(
         r'(?<![\d/.,])'
         r'(?P<monto>\d{1,3}(?:[.,]\d{3})+[.,]\d{2}|'
@@ -1366,6 +1396,7 @@ def extract_deposit_amounts(lines, cantidad_depositos=1):
         depositos.append({
             'monto': encontrado['monto'],
             'operacion': operacion,
+            'referencia': operacion,
         })
 
     return depositos
@@ -1410,6 +1441,9 @@ def extract_transfer_data(lines, cantidad_depositos=1):
     depositos_detectados = extract_deposit_amounts(lines, cantidad_depositos)
     if es_voucher_deposito:
         data['depositos_detectados'] = depositos_detectados
+        data['montos_detectados'] = [
+            deposito['monto'] for deposito in depositos_detectados
+        ]
 
     fecha_cliente, hora_cliente = extract_client_datetime(lines)
     if fecha_cliente: data['fecha_operacion'] = fecha_cliente

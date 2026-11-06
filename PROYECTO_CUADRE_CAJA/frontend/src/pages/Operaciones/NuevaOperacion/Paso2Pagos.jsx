@@ -36,27 +36,135 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
     setPagos(prev => prev.map((p, i) => i === index ? updatedPago : p));
   };
 
+  const handlePrepararOcr = (index) => {
+    setPagos((prev) => {
+      const pagoActual = prev[index];
+      if (!pagoActual) return prev;
+
+      return prev.map((pago, pagoIndex) => (
+        pagoIndex === index
+        || (
+          pagoActual.grupo_depositos_id
+          && pago.grupo_depositos_id === pagoActual.grupo_depositos_id
+        )
+          ? {
+            ...pago,
+            monto: '',
+            referencia: '',
+            fecha_operacion: '',
+            evidencia: null,
+          }
+          : pago
+      ));
+    });
+  };
+
+  const handleCantidadDepositosChange = (index, cantidadSeleccionada) => {
+    const cantidad = Number(cantidadSeleccionada);
+    if (!Number.isInteger(cantidad) || cantidad < 1) return;
+
+    setPagos((prev) => {
+      const pagoActual = prev[index];
+      if (!pagoActual) return prev;
+
+      const grupoId = pagoActual.grupo_depositos_id || `depositos-${pagoActual.id}`;
+      const indicesGrupo = prev.reduce((indices, pago, pagoIndex) => {
+        if (
+          pagoIndex === index
+          || pago.grupo_depositos_id === grupoId
+        ) {
+          indices.push(pagoIndex);
+        }
+        return indices;
+      }, []);
+      const inicioGrupo = Math.min(...indicesGrupo);
+      const grupoExistente = indicesGrupo.map((pagoIndex) => prev[pagoIndex]);
+      const pagoBase = grupoExistente[0] || pagoActual;
+      const nuevosPagos = Array.from({ length: cantidad }, (_, depositoIndex) => ({
+        ...(
+          grupoExistente[depositoIndex]
+          || {
+            ...pagoBase,
+            id: Date.now() + Math.random(),
+            monto: '',
+            referencia: '',
+            fecha_operacion: '',
+          }
+        ),
+        cantidad_depositos: cantidad,
+        grupo_depositos_id: grupoId,
+        grupo_depositos_index: depositoIndex,
+      }));
+      const indicesSet = new Set(indicesGrupo);
+      const pagosRestantes = prev.filter((_, pagoIndex) => !indicesSet.has(pagoIndex));
+
+      return [
+        ...pagosRestantes.slice(0, inicioGrupo),
+        ...nuevosPagos,
+        ...pagosRestantes.slice(inicioGrupo),
+      ];
+    });
+  };
+
   const handleDepositosDetectados = ({ index, depositos, datosOCR, evidencia }) => {
     setPagos((prev) => {
       const pagoBase = prev[index];
       if (!pagoBase) return prev;
 
-      const nuevosPagos = depositos.map((deposito, depositoIndex) => ({
-        ...pagoBase,
-        id: depositoIndex === 0 ? pagoBase.id : Date.now() + Math.random(),
-        monto: Number(deposito.monto).toFixed(2),
-        referencia: deposito.operacion || pagoBase.referencia || '',
-        cantidad_depositos: depositos.length,
-        evidencia: {
-          ...evidencia,
-          datosOCR: datosOCR || {},
-        },
-      }));
+      const grupoId = pagoBase.grupo_depositos_id || `depositos-${pagoBase.id}`;
+      const indicesGrupo = prev.reduce((indices, pago, pagoIndex) => {
+        if (
+          pagoIndex === index
+          || pago.grupo_depositos_id === grupoId
+        ) {
+          indices.push(pagoIndex);
+        }
+        return indices;
+      }, []);
+      const inicioGrupo = Math.min(...indicesGrupo);
+      const grupoExistente = indicesGrupo.map((pagoIndex) => prev[pagoIndex]);
+      const cantidad = Math.max(
+        1,
+        Number.parseInt(pagoBase.cantidad_depositos, 10) || depositos.length
+      );
+      const nuevosPagos = Array.from({ length: cantidad }, (_, depositoIndex) => {
+        const pagoExistente = grupoExistente[depositoIndex] || pagoBase;
+        const deposito = depositos[depositoIndex];
+        const monto = Number(deposito?.monto);
+
+        return {
+          ...pagoExistente,
+          id: pagoExistente.id || Date.now() + Math.random(),
+          monto: Number.isFinite(monto) && monto > 0
+            ? monto.toFixed(2)
+            : pagoExistente.monto || '',
+          referencia: deposito?.referencia
+            || deposito?.operacion
+            || datosOCR?.referencia_bancaria
+            || pagoExistente.referencia
+            || '',
+          fecha_operacion: deposito?.fecha_operacion
+            || datosOCR?.fecha_operacion
+            || pagoExistente.fecha_operacion
+            || '',
+          beneficiario: pagoExistente.beneficiario || datosOCR?.destinatario || '',
+          cuenta_destino: pagoExistente.cuenta_destino || datosOCR?.cuenta_destino || '',
+          cantidad_depositos: cantidad,
+          grupo_depositos_id: grupoId,
+          grupo_depositos_index: depositoIndex,
+          evidencia: {
+            ...evidencia,
+            datosOCR: datosOCR || {},
+          },
+        };
+      });
+      const indicesSet = new Set(indicesGrupo);
+      const pagosRestantes = prev.filter((_, pagoIndex) => !indicesSet.has(pagoIndex));
 
       return [
-        ...prev.slice(0, index),
+        ...pagosRestantes.slice(0, inicioGrupo),
         ...nuevosPagos,
-        ...prev.slice(index + 1),
+        ...pagosRestantes.slice(inicioGrupo),
       ];
     });
   };
@@ -67,7 +175,27 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
 
   const handleEliminarPago = (index) => {
     if (pagos.length <= 1) return;
-    setPagos(prev => prev.filter((_, i) => i !== index));
+    setPagos((prev) => {
+      const pagoEliminado = prev[index];
+      const pagosRestantes = prev.filter((_, pagoIndex) => pagoIndex !== index);
+      if (!pagoEliminado?.grupo_depositos_id) return pagosRestantes;
+
+      const indicesGrupo = pagosRestantes.reduce((indices, pago, pagoIndex) => {
+        if (pago.grupo_depositos_id === pagoEliminado.grupo_depositos_id) {
+          indices.push(pagoIndex);
+        }
+        return indices;
+      }, []);
+      return pagosRestantes.map((pago, pagoIndex) => (
+        pago.grupo_depositos_id === pagoEliminado.grupo_depositos_id
+          ? {
+            ...pago,
+            cantidad_depositos: indicesGrupo.length,
+            grupo_depositos_index: indicesGrupo.indexOf(pagoIndex),
+          }
+          : pago
+      ));
+    });
   };
 
   // Totales
@@ -75,6 +203,8 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
   const montoComprobante = Number(comprobante?.monto) || 0;
   const pendiente = montoComprobante - totalPagado;
   const excede = totalPagado > montoComprobante;
+  const hayDiferencia = totalPagado > 0
+    && Math.round(totalPagado * 100) !== Math.round(montoComprobante * 100);
 
   const todosCompletos = pagos.length > 0 && pagos.every((p) => {
     const monto = Number(p.monto);
@@ -92,10 +222,12 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
   const pagosIncompletos = pagos.length > 0 && !todosCompletos;
   const hayExceso = excede;
 
-  const hayError = intentoAvanzar && (sinPagos || pagosIncompletos || hayExceso);
+  const hayError = intentoAvanzar && (
+    sinPagos || pagosIncompletos || hayExceso || hayDiferencia
+  );
 
   const handleContinuar = () => {
-    if (sinPagos || pagosIncompletos || hayExceso) {
+    if (sinPagos || pagosIncompletos || hayExceso || hayDiferencia) {
       setIntentoAvanzar(true);
       return;
     }
@@ -133,6 +265,15 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
                   </p>
                   <p className="text-xs sm:text-sm text-red-800 dark:text-red-300 mt-1">
                     Diferencia: S/ {(totalPagado - montoComprobante).toFixed(2)}. Ajusta el monto de los pagos.
+                  </p>
+                </>
+              ) : hayDiferencia ? (
+                <>
+                  <p className="font-bold text-sm sm:text-base">
+                    El total de pagos debe coincidir con el monto del comprobante
+                  </p>
+                  <p className="text-xs sm:text-sm text-red-800 dark:text-red-300 mt-1">
+                    Diferencia: S/ {Math.abs(pendiente).toFixed(2)}. Ajusta los montos antes de continuar.
                   </p>
                 </>
               ) : (
@@ -221,6 +362,10 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
               pagos={pagos}
               comprobante={comprobante}
               onPagoChange={(updated) => handlePagoChange(index, updated)}
+              onPrepararOcr={() => handlePrepararOcr(index)}
+              onCantidadDepositosChange={(cantidad) => (
+                handleCantidadDepositosChange(index, cantidad)
+              )}
               onDepositosDetectados={handleDepositosDetectados}
               onEliminar={() => handleEliminarPago(index)}
               puedeEliminar={pagos.length > 1}

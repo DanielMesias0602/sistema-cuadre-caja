@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Trash2, UploadCloud, X, Loader2, CheckCircle,
   Info, Banknote, Calendar, Hash, User, Building2, CreditCard, Check, AlertCircle,
-  Clock, FileText, RefreshCw, AlertTriangle,
+  Clock, FileText, RefreshCw, AlertTriangle, Sparkles,
 } from 'lucide-react';
 import ocrService from '../../../../services/ocr.service';
 
@@ -169,6 +169,8 @@ export default function PagoCard({
   pago,
   medios,
   onPagoChange,
+  onPrepararOcr,
+  onCantidadDepositosChange,
   onDepositosDetectados,
   onEliminar,
   puedeEliminar,
@@ -188,6 +190,27 @@ export default function PagoCard({
   const esTarjeta = medioLower.includes('tarjeta') || medioLower.includes('pos');
   const esTransferencia = medioLower.includes('transferencia') || esDeposito;
   const esTransferenciaBCP = esTransferencia && medioLower.includes('bcp');
+  const esDepositoAgrupado = Boolean(pago.grupo_depositos_id);
+  const esDepositoSecundario = esDepositoAgrupado && pago.grupo_depositos_index > 0;
+  const cantidadDepositos = Math.max(1, Number(pago.cantidad_depositos) || 1);
+  const depositoOCR = pago.evidencia?.datosOCR?.depositos_detectados?.[
+    pago.grupo_depositos_index || 0
+  ];
+  const referenciaOCR = depositoOCR?.referencia || depositoOCR?.operacion;
+  const depositoMontosOCR = pago.evidencia?.datosOCR?.montos_detectados;
+  const montoOCR = depositoOCR?.monto
+    ?? (Array.isArray(depositoMontosOCR)
+      ? depositoMontosOCR[pago.grupo_depositos_index || 0]
+      : null);
+  const mensajeOCR = esDepositoAgrupado && pago.evidencia?.datosOCR
+    ? montoOCR != null && referenciaOCR
+      ? 'El OCR detectó el monto y la referencia. Verifica los campos; si difieren del voucher, corrígelos.'
+      : montoOCR != null
+        ? 'El OCR detectó el monto, pero no la referencia. Revisa el voucher y completa la referencia si aparece.'
+        : referenciaOCR
+          ? 'El OCR detectó la referencia, pero no el monto. Completa el monto según el voucher.'
+          : 'El OCR no pudo leer los datos de este depósito. Completa monto y referencia revisando el voucher.'
+    : null;
 
   const mostrarRef = true;
   const mostrarFecha = true;
@@ -223,13 +246,17 @@ export default function PagoCard({
     const file = e.target.files[0];
     if (!file) return;
 
-    onPagoChange({
-      ...pago,
-      monto: '',
-      referencia: '',
-      fecha_operacion: '',
-      evidencia: null
-    });
+    if (onPrepararOcr) {
+      onPrepararOcr();
+    } else {
+      onPagoChange({
+        ...pago,
+        monto: '',
+        referencia: '',
+        fecha_operacion: '',
+        evidencia: null
+      });
+    }
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result);
     reader.readAsDataURL(file);
@@ -246,7 +273,18 @@ export default function PagoCard({
       });
       const rawData = response.data?.data || response.data;
       const datosExtraidos = rawData?.datos_extraidos || rawData;
-      const depositosDetectados = datosExtraidos?.depositos_detectados;
+      const depositosDetectados = Array.isArray(datosExtraidos?.depositos_detectados)
+        ? datosExtraidos.depositos_detectados
+        : [];
+      const montosDetectados = Array.isArray(datosExtraidos?.montos_detectados)
+        ? datosExtraidos.montos_detectados
+        : depositosDetectados.map((deposito) => deposito?.monto);
+      const depositosParaFormulario = montosDetectados
+        .map((monto, montoIndex) => ({
+          ...depositosDetectados[montoIndex],
+          monto,
+        }))
+        .filter((deposito) => Number.isFinite(Number(deposito.monto)) && Number(deposito.monto) > 0);
       const evidenciaOCR = {
         ...pago.evidencia,
         imagenBase64: reader.result,
@@ -258,17 +296,12 @@ export default function PagoCard({
 
       if (
         esDeposito &&
-        cantidadDepositos > 1 &&
-        Array.isArray(depositosDetectados) &&
-        depositosDetectados.length === cantidadDepositos &&
-        depositosDetectados.every((deposito) => (
-          Number.isFinite(Number(deposito?.monto)) && Number(deposito.monto) > 0
-        )) &&
+        depositosParaFormulario.length > 0 &&
         onDepositosDetectados
       ) {
         onDepositosDetectados({
           index,
-          depositos: depositosDetectados,
+          depositos: depositosParaFormulario,
           datosOCR: datosExtraidos,
           evidencia: evidenciaOCR,
         });
@@ -355,13 +388,31 @@ export default function PagoCard({
     <div className="bg-white dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-600 p-4 sm:p-6 shadow-sm dark:shadow-none mb-4">
       {/* Cabecera del Pago */}
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">Pago #{index + 1}</h3>
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">
+          {esDepositoAgrupado
+            ? `Depósito ${(pago.grupo_depositos_index || 0) + 1} de ${cantidadDepositos}`
+            : `Pago #${index + 1}`}
+        </h3>
         {puedeEliminar && (
           <button onClick={onEliminar} className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors" title="Eliminar este pago">
             <Trash2 className="w-5 h-5" />
           </button>
         )}
       </div>
+
+      {esDepositoAgrupado && pago.evidencia?.datosOCR && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-violet-50 p-3 dark:border-indigo-800/60 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600 dark:text-indigo-300" />
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-indigo-950 dark:text-indigo-200">
+              Revisa los datos del depósito
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-indigo-800 dark:text-indigo-300">
+              {mensajeOCR}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* AVISO PREMIUM PARA TARJETA */}
       {esTarjeta && (
@@ -489,20 +540,40 @@ export default function PagoCard({
         </div>
 
         {esDeposito && (
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-              ¿Cuántos depósitos hay en esta imagen?
-            </label>
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={pago.cantidad_depositos ?? 1}
-              onChange={(e) => handleChange('cantidad_depositos', e.target.value)}
-              disabled={loadingOCR}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-orange outline-none"
-            />
-          </div>
+          <>
+            {!esDepositoSecundario && (
+              <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2 sm:items-stretch">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                    ¿Cuántos depósitos hay en el comprobante?
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={pago.cantidad_depositos ?? 1}
+                    onChange={(e) => {
+                      handleChange('cantidad_depositos', e.target.value);
+                      onCantidadDepositosChange?.(e.target.value);
+                    }}
+                    disabled={loadingOCR}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-orange outline-none"
+                  />
+                </div>
+                <div className="flex items-start gap-3 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-3 dark:border-violet-800/60 dark:from-violet-950/40 dark:via-slate-900 dark:to-indigo-950/30">
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" />
+                  <div className="text-xs leading-relaxed text-violet-950 dark:text-violet-200">
+                    <p className="font-bold">Primero define la cantidad; luego carga el voucher.</p>
+                    <p className="mt-1 text-violet-800 dark:text-violet-300">
+                      Aparecerán {cantidadDepositos} bloque{cantidadDepositos === 1 ? '' : 's'}.
+                      Sube una sola imagen desde el primer bloque. El OCR intentará asociar monto y referencia a cada depósito.
+                      Revisa y completa cualquier dato que falte.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* CAMPOS DINÁMICOS */}
@@ -589,7 +660,7 @@ export default function PagoCard({
       </div>
 
       {/* SECCIÓN DE EVIDENCIA */}
-      {hayMedio && !esEfectivo && (
+      {hayMedio && !esEfectivo && !esDepositoSecundario && (
         <div className="mt-6 border-t border-slate-100 dark:border-slate-700 pt-6">
           {error && (
             <div className="mb-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-lg p-3 flex items-center gap-2 text-red-700 dark:text-red-300 text-sm">
@@ -615,10 +686,22 @@ export default function PagoCard({
                 <>
                   <UploadCloud className="w-8 h-8 text-slate-400 mb-2" />
                   <p className="text-sm text-slate-600 dark:text-slate-400 font-medium text-center">
-                    {esTarjeta ? 'Haz clic para subir la foto del voucher (Culqi/POS)' : 'Haz clic para subir la evidencia del cliente'}
+                    {esDepositoSecundario
+                      ? 'Los datos se leen desde la imagen cargada en el primer depósito'
+                      : esDepositoAgrupado
+                        ? 'Sube aquí una sola imagen con los depósitos para leer todos los bloques'
+                        : esTarjeta
+                          ? 'Haz clic para subir la foto del voucher (Culqi/POS)'
+                          : 'Haz clic para subir la evidencia del cliente'}
                   </p>
                 </>
               )}
+            </div>
+          )}
+
+          {esDepositoSecundario && !pago.evidencia?.imagenBase64 && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/30 dark:text-sky-200">
+              El OCR procesa la imagen una sola vez desde el primer bloque y distribuye lo detectado en estos campos.
             </div>
           )}
 
