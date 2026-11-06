@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator, ChevronDown, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, ArrowRight, RefreshCw, Calculator, ChevronDown, X, Loader2 } from 'lucide-react';
 import ocrService from '../../../services/ocr.service';
 import api from '../../../lib/api';
 import { SingleDatePicker } from '../../../components/ui/SingleDatePicker';
@@ -49,6 +49,7 @@ const parseFecha = (fechaStr) => {
 
 export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack }) {
   const [loading, setLoading] = useState(false);
+  const [verificandoComprobante, setVerificandoComprobante] = useState(false);
   const [error, setError] = useState(null);
   const [ocrData, setOcrData] = useState(null);
   const [modo, setModo] = useState(datosIniciales?.evidencia ? 'ocr' : null);
@@ -319,7 +320,8 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
   const handleNext = async () => {
     if (!validarFormulario()) return;
 
-    setLoading(true);
+    if (verificandoComprobante) return;
+    setVerificandoComprobante(true);
     setWarningDuplicado(null);
 
     try {
@@ -334,7 +336,6 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
       if (res.data?.exists) {
         // ENCONTRAMOS UN POSIBLE DUPLICADO: Mostramos advertencia y DETENEMOS
         setWarningDuplicado(res.data.data);
-        setLoading(false);
         return; 
       }
 
@@ -345,7 +346,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
       console.error('Error verificando comprobante:', err);
       onNext({ comprobante: formData });
     } finally {
-      setLoading(false);
+      setVerificandoComprobante(false);
     }
   };
 
@@ -854,10 +855,20 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
           <button
             type="button"
             onClick={handleNext}
-            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl font-semibold text-sm transition shadow-md dark:shadow-none disabled:opacity-50"
+            disabled={verificandoComprobante}
+            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-hover text-white rounded-xl font-semibold text-sm transition shadow-md dark:shadow-none disabled:cursor-wait disabled:opacity-70"
           >
-            Continuar con los pagos
-            <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+            {verificandoComprobante ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Verificando comprobante...
+              </>
+            ) : (
+              <>
+                Continuar con los pagos
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              </>
+            )}
           </button>
         </div>
       </div>

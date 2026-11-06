@@ -1277,48 +1277,61 @@ def extract_deposit_amounts(lines, cantidad_depositos=1):
     ):
         return []
 
-    patron_monto_recibido = re.compile(
-        r'MONTO\s*RECIBIDO\s*:?\s*S\s*/\s*\.*\s*'
-        r'(?P<monto>[\d,]+\.\d{2})',
+    texto_completo = '\n'.join(lineas_limpias).replace('、', ',').replace('，', ',')
+    patron_etiqueta_monto = re.compile(
+        r'\bM?ONTO\s*RECIBIDO\b',
         re.IGNORECASE
     )
-    texto_completo = '\n'.join(lineas_limpias)
-    montos_recibidos = list(patron_monto_recibido.finditer(texto_completo))
-
-    if montos_recibidos:
-        patron_referencia = re.compile(
-            r'NO\.\s*OPE\s*:?\s*(\d+)',
+    etiquetas_monto = list(patron_etiqueta_monto.finditer(texto_completo))
+    montos_recibidos = []
+    for indice, etiqueta in enumerate(etiquetas_monto):
+        fin_segmento = (
+            etiquetas_monto[indice + 1].start()
+            if indice + 1 < len(etiquetas_monto)
+            else len(texto_completo)
+        )
+        segmento = texto_completo[etiqueta.end():fin_segmento]
+        coincidencia_monto = re.search(
+            r'S\s*/\s*[,\.\s]*'
+            r'(?P<monto>\d[\d.,]*\d)',
+            segmento,
             re.IGNORECASE
         )
-        patron_fecha_hora = re.compile(
+        if not coincidencia_monto:
+            continue
+
+        texto_monto = re.sub(
+            r'(?<=\d)[.,](?=\d{3}(?:[.,]|$))',
+            '',
+            coincidencia_monto.group('monto'),
+        )
+        monto = parse_money(texto_monto)
+        if monto is not None and monto > 0:
+            montos_recibidos.append(monto)
+
+    if montos_recibidos:
+        referencias = re.findall(
+            r'NO\.?\s*OPE\s*:?\s*(\d+)',
+            texto_completo,
+            re.IGNORECASE
+        )
+        fechas_horas = re.findall(
             r'FECHA\s*:?\s*(\d{2}/\d{2}/\d{2,4})\s*'
             r'HORA\s*:?\s*(\d{2}:\d{2}(?::\d{2})?)',
+            texto_completo,
             re.IGNORECASE
         )
         depositos = []
-        inicio_transaccion = 0
-        for match_monto in montos_recibidos:
-            monto = parse_money(match_monto.group('monto'))
-            if monto is None or monto <= 0:
-                continue
-
-            texto_transaccion = texto_completo[inicio_transaccion:match_monto.end()]
-            coincidencia_referencia = patron_referencia.search(texto_transaccion)
-            coincidencia_fecha_hora = patron_fecha_hora.search(texto_transaccion)
+        for indice, monto in enumerate(montos_recibidos[:cantidad]):
             referencia = (
-                coincidencia_referencia.group(1)
-                if coincidencia_referencia
-                else extract_reference(texto_transaccion.splitlines())
-            )
-            fecha_operacion = (
-                coincidencia_fecha_hora.group(1)
-                if coincidencia_fecha_hora
+                referencias[indice]
+                if indice < len(referencias)
                 else None
             )
-            hora_operacion = (
-                coincidencia_fecha_hora.group(2)
-                if coincidencia_fecha_hora
-                else None
+            fecha_operacion, hora_operacion = (
+                fechas_horas[indice]
+                if indice < len(fechas_horas)
+                else (None, None)
             )
             depositos.append({
                 'monto': monto,
@@ -1328,7 +1341,6 @@ def extract_deposit_amounts(lines, cantidad_depositos=1):
                 'fecha_operacion': fecha_operacion,
                 'hora_operacion': hora_operacion,
             })
-            inicio_transaccion = match_monto.end()
         return depositos
 
     patron_monto = re.compile(
