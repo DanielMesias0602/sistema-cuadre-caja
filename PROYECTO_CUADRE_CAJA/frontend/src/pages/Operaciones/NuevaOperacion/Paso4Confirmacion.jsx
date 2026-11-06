@@ -301,72 +301,74 @@ export function Paso4Confirmacion({
 
       const evidenciasParaPayload = [];
 
-      if (evidenciaComprobante) {
-        const formDataComprobante = new FormData();
-        adjuntarArchivo(formDataComprobante, evidenciaComprobante, 'evidencia-comprobante.jpg');
-        const resUploadComprobante = await api.post('/evidencias/upload', formDataComprobante);
-        const keyComprobante = resUploadComprobante.data?.data?.storage_key;
-        if (keyComprobante) {
-          evidenciasParaPayload.push({
-            tipo_evidencia: 'COMPROBANTE',
-            storage_key: keyComprobante,
-            fecha_evidencia: fechaISO,
-            observacion: 'Comprobante de operación',
-          });
-        }
-      }
-
-      for (const [indexStr, evidenciaPago] of Object.entries(evidenciasEmpresaPorPago)) {
-        const indexPago = Number(indexStr);
-        if (!Number.isSafeInteger(indexPago) || indexPago < 0 || !evidenciaPago?.evidencia) continue;
-        const formDataEmpresa = new FormData();
-        adjuntarArchivo(formDataEmpresa, evidenciaPago.evidencia, `evidencia-empresa-${indexPago + 1}`);
-        const resUploadEmpresa = await api.post('/evidencias/upload', formDataEmpresa);
-        const keyEmpresa = resUploadEmpresa.data?.data?.storage_key;
-        if (keyEmpresa) {
-          evidenciasParaPayload.push({
-            tipo_evidencia: 'EMPRESA',
-            storage_key: keyEmpresa,
-            index_pago: indexPago,
-            fecha_evidencia: fechaISO,
-            observacion: `Comprobante de ingreso a la cuenta de la empresa para el pago #${indexPago + 1}`,
-            datos_ocr: evidenciaPago.ocrData ? JSON.stringify(evidenciaPago.ocrData) : null,
-            texto_ocr: null,
-          });
-        }
-      }
-
-      const gruposEvidenciaClienteProcesados = new Set();
-      for (const { pago, index } of pagosTransferencia) {
-        if (pago?.evidencia?.imagenBase64) {
-          const grupoId = pago.grupo_depositos_id;
-          const grupoKey = grupoId ? `grupo:${grupoId}` : `pago:${index}`;
-          if (gruposEvidenciaClienteProcesados.has(grupoKey)) continue;
-          gruposEvidenciaClienteProcesados.add(grupoKey);
-
-          const indicesPago = grupoId
-            ? pagosTransferencia
-              .filter(({ pago: pagoGrupo }) => pagoGrupo.grupo_depositos_id === grupoId)
-              .map(({ index: indexPago }) => indexPago)
-            : [index];
-          const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
-          const file = new File([blob], `evidencia-cliente-${index + 1}.jpg`, { type: 'image/jpeg' });
-          const formDataCliente = new FormData();
-          adjuntarArchivo(formDataCliente, file, `evidencia-cliente-${index + 1}.jpg`);
-          const resUploadCliente = await api.post('/evidencias/upload', formDataCliente);
-          const keyCliente = resUploadCliente.data?.data?.storage_key;
-          if (keyCliente) {
+      if (!esTodoEfectivo) {
+        if (evidenciaComprobante) {
+          const formDataComprobante = new FormData();
+          adjuntarArchivo(formDataComprobante, evidenciaComprobante, 'evidencia-comprobante.jpg');
+          const resUploadComprobante = await api.post('/evidencias/upload', formDataComprobante);
+          const keyComprobante = resUploadComprobante.data?.data?.storage_key;
+          if (keyComprobante) {
             evidenciasParaPayload.push({
-              tipo_evidencia: 'CLIENTE',
-              storage_key: keyCliente,
-              index_pagos: indicesPago,
+              tipo_evidencia: 'COMPROBANTE',
+              storage_key: keyComprobante,
               fecha_evidencia: fechaISO,
-              observacion: grupoId
-                ? `Evidencia compartida del cliente para ${indicesPago.length} depósitos`
-                : `Evidencia de pago del cliente: ${pago.nombre_medio || pago.medio_pago || 'No especificado'}`,
-              datos_ocr: pago.evidencia.datosOCR ? JSON.stringify(pago.evidencia.datosOCR) : null,
-              texto_ocr: pago.evidencia.textoOcr || null,
+              observacion: 'Comprobante de operación',
             });
+          }
+        }
+
+        for (const [indexStr, evidenciaPago] of Object.entries(evidenciasEmpresaPorPago)) {
+          const indexPago = Number(indexStr);
+          if (!Number.isSafeInteger(indexPago) || indexPago < 0 || !evidenciaPago?.evidencia) continue;
+          const formDataEmpresa = new FormData();
+          adjuntarArchivo(formDataEmpresa, evidenciaPago.evidencia, `evidencia-empresa-${indexPago + 1}`);
+          const resUploadEmpresa = await api.post('/evidencias/upload', formDataEmpresa);
+          const keyEmpresa = resUploadEmpresa.data?.data?.storage_key;
+          if (keyEmpresa) {
+            evidenciasParaPayload.push({
+              tipo_evidencia: 'EMPRESA',
+              storage_key: keyEmpresa,
+              index_pago: indexPago,
+              fecha_evidencia: fechaISO,
+              observacion: `Comprobante de ingreso a la cuenta de la empresa para el pago #${indexPago + 1}`,
+              datos_ocr: evidenciaPago.ocrData ? JSON.stringify(evidenciaPago.ocrData) : null,
+              texto_ocr: null,
+            });
+          }
+        }
+
+        const gruposEvidenciaClienteProcesados = new Set();
+        for (const { pago, index } of pagosTransferencia) {
+          if (pago?.evidencia?.imagenBase64) {
+            const grupoId = pago.grupo_depositos_id;
+            const grupoKey = grupoId ? `grupo:${grupoId}` : `pago:${index}`;
+            if (gruposEvidenciaClienteProcesados.has(grupoKey)) continue;
+            gruposEvidenciaClienteProcesados.add(grupoKey);
+
+            const indicesPago = grupoId
+              ? pagosTransferencia
+                .filter(({ pago: pagoGrupo }) => pagoGrupo.grupo_depositos_id === grupoId)
+                .map(({ index: indexPago }) => indexPago)
+              : [index];
+            const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
+            const file = new File([blob], `evidencia-cliente-${index + 1}.jpg`, { type: 'image/jpeg' });
+            const formDataCliente = new FormData();
+            adjuntarArchivo(formDataCliente, file, `evidencia-cliente-${index + 1}.jpg`);
+            const resUploadCliente = await api.post('/evidencias/upload', formDataCliente);
+            const keyCliente = resUploadCliente.data?.data?.storage_key;
+            if (keyCliente) {
+              evidenciasParaPayload.push({
+                tipo_evidencia: 'CLIENTE',
+                storage_key: keyCliente,
+                index_pagos: indicesPago,
+                fecha_evidencia: fechaISO,
+                observacion: grupoId
+                  ? `Evidencia compartida del cliente para ${indicesPago.length} depósitos`
+                  : `Evidencia de pago del cliente: ${pago.nombre_medio || pago.medio_pago || 'No especificado'}`,
+                datos_ocr: pago.evidencia.datosOCR ? JSON.stringify(pago.evidencia.datosOCR) : null,
+                texto_ocr: pago.evidencia.textoOcr || null,
+              });
+            }
           }
         }
       }

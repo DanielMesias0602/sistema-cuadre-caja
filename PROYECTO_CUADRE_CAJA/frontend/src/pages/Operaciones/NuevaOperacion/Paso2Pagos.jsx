@@ -4,6 +4,27 @@ import PagoCard from './components/PagoCard';
 import api from '../../../lib/api';
 import { normalizarFechaISO } from '../../../utils/fecha';
 
+const valeTotalNoCuadra = (pago) => {
+  const monto = Number(pago.monto);
+  const montoEfectivo = Number(pago.monto_efectivo);
+  const montoVirtual = Number(pago.monto_virtual);
+  if (
+    !Number.isFinite(monto) ||
+    !Number.isFinite(montoEfectivo) ||
+    !Number.isFinite(montoVirtual) ||
+    monto <= 0 ||
+    montoEfectivo <= 0 ||
+    montoVirtual <= 0
+  ) {
+    return false;
+  }
+
+  const totalCentimos = Math.round((monto + Number.EPSILON) * 100);
+  const partesCentimos = Math.round((montoEfectivo + Number.EPSILON) * 100)
+    + Math.round((montoVirtual + Number.EPSILON) * 100);
+  return totalCentimos !== partesCentimos;
+};
+
 export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPagosChange }) {
   // FIX: si pagosIniciales es [] (array vacío), inicializar con un pago vacío
   const [pagos, setPagos] = useState(
@@ -217,7 +238,8 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
     const montoVirtual = Number(p.monto_virtual);
     return Number.isFinite(montoEfectivo) && montoEfectivo > 0 &&
       Number.isFinite(montoVirtual) && montoVirtual > 0 &&
-      Number(p.id_medio_virtual) > 0;
+      Number(p.id_medio_virtual) > 0 &&
+      !valeTotalNoCuadra(p);
   });
 
   // FIX: detectar los 3 tipos de error por separado
@@ -378,6 +400,10 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
                 (String(pago.nombre_medio || '').trim().toLowerCase() === 'vale' &&
                   (!Number(pago.monto_efectivo) || !Number(pago.monto_virtual) ||
                     !Number(pago.id_medio_virtual)))
+              )}
+              errorMontoVale={intentoAvanzar && (
+                String(pago.nombre_medio || '').trim().toLowerCase() === 'vale' &&
+                valeTotalNoCuadra(pago)
               )}
             />
           ))}

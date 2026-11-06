@@ -175,6 +175,7 @@ export default function PagoCard({
   onDepositosDetectados,
   onEliminar,
   puedeEliminar,
+  errorMontoVale = false,
 }) {
   const [loadingOCR, setLoadingOCR] = useState(false);
   const [preview, setPreview] = useState(pago.evidencia?.imagenBase64 || null);
@@ -191,6 +192,7 @@ export default function PagoCard({
   const esTarjeta = medioLower.includes('tarjeta') || medioLower.includes('pos');
   const esTransferencia = medioLower.includes('transferencia') || esDeposito;
   const esTransferenciaBCP = esTransferencia && medioLower.includes('bcp');
+  const mostrarFecha = !esVale;
   const esDepositoAgrupado = Boolean(pago.grupo_depositos_id);
   const esDepositoSecundario = esDepositoAgrupado && pago.grupo_depositos_index > 0;
   const cantidadDepositos = Math.max(1, Number(pago.cantidad_depositos) || 1);
@@ -214,7 +216,6 @@ export default function PagoCard({
     : null;
 
   const mostrarRef = true;
-  const mostrarFecha = true;
   const mostrarBeneficiario = hayMedio && !esEfectivo && !esTarjeta;
   const mostrarCuentaDestino = hayMedio && esTransferenciaBCP;
 
@@ -543,11 +544,24 @@ export default function PagoCard({
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Monto total del pago (S/)</label>
                 <input
                   type="number"
+                  min="0.01"
+                  step="0.01"
                   value={pago.monto || ''}
-                  readOnly
+                  onChange={(e) => handleChange('monto', e.target.value)}
+                  disabled={loadingOCR}
+                  aria-invalid={errorMontoVale}
                   aria-label="Monto total del pago"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-orange dark:bg-slate-900 dark:text-slate-200 ${
+                    errorMontoVale
+                      ? 'border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-950/30'
+                      : 'border-slate-200 bg-slate-50 dark:border-slate-700'
+                  }`}
                 />
+                {errorMontoVale && (
+                  <p role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                    El total debe coincidir con la suma del monto efectivo y el monto virtual.
+                  </p>
+                )}
               </div>
             </div>
           ) : (
