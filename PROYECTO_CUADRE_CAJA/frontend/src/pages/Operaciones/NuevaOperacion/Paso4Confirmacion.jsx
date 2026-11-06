@@ -220,7 +220,11 @@ export function Paso4Confirmacion({
     .map((pago, index) => ({ pago, index }))
     .filter(({ pago }) => pago?.es_efectivo === false);
   const totalTransferenciasCliente = pagosTransferencia.reduce(
-    (sum, { pago }) => sum + (Number.parseFloat(pago?.monto) || 0),
+    (sum, { pago }) => {
+      const esVale = obtenerMedioPago(pago) === 'vale';
+      const montoComparado = esVale ? pago?.monto_virtual : pago?.monto;
+      return sum + (Number.parseFloat(montoComparado) || 0);
+    },
     0
   );
   const evidenciasEmpresaPorPago = Object.keys(evidenciasEmpresa || {}).length > 0
