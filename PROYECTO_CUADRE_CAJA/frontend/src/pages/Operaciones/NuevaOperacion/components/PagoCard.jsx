@@ -258,67 +258,93 @@ export default function PagoCard({
         evidencia: null
       });
     }
-    const reader = new FileReader();
-    reader.onloadend = () => setPreview(reader.result);
-    reader.readAsDataURL(file);
-
     setLoadingOCR(true);
     setError(null);
 
     try {
+      const imagenBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            reject(new Error('No se pudo leer el archivo seleccionado.'));
+          }
+        };
+        reader.onerror = () => reject(reader.error || new Error('No se pudo leer el archivo seleccionado.'));
+        reader.readAsDataURL(file);
+      });
+      setPreview(imagenBase64);
+
+      const evidenciaBase = {
+        ...pago.evidencia,
+        imagenBase64,
+        datosOCR: {},
+        confirmada: false,
+        origen: 'CLIENTE',
+        tipo: 'CLIENTE',
+      };
       const cantidadDepositos = esDeposito
         ? Math.max(1, Number.parseInt(pago.cantidad_depositos, 10) || 1)
         : 1;
-      const response = await ocrService.procesar(file, 'TRANSFERENCIA', {
-        cantidadDepositos,
-      });
-      const rawData = response.data?.data || response.data;
-      const datosExtraidos = rawData?.datos_extraidos || rawData;
-      const depositosDetectados = Array.isArray(datosExtraidos?.depositos_detectados)
-        ? datosExtraidos.depositos_detectados
-        : [];
-      const montosDetectados = Array.isArray(datosExtraidos?.montos_detectados)
-        ? datosExtraidos.montos_detectados
-        : depositosDetectados.map((deposito) => deposito?.monto);
-      const depositosParaFormulario = montosDetectados
-        .map((monto, montoIndex) => ({
-          ...depositosDetectados[montoIndex],
-          monto,
-        }))
-        .filter((deposito) => Number.isFinite(Number(deposito.monto)) && Number(deposito.monto) > 0);
-      const evidenciaOCR = {
-        ...pago.evidencia,
-        imagenBase64: reader.result,
-        datosOCR: datosExtraidos,
-        confirmada: false,
-        origen: 'CLIENTE',
-        tipo: 'CLIENTE'
-      };
-
-      if (
-        esDeposito &&
-        depositosParaFormulario.length > 0 &&
-        onDepositosDetectados
-      ) {
-        onDepositosDetectados({
-          index,
-          depositos: depositosParaFormulario,
-          datosOCR: datosExtraidos,
-          evidencia: evidenciaOCR,
+      try {
+        const response = await ocrService.procesar(file, 'TRANSFERENCIA', {
+          cantidadDepositos,
         });
-        return;
-      }
+        const rawData = response.data?.data || response.data;
+        const datosExtraidos = rawData?.datos_extraidos || rawData;
+        const depositosDetectados = Array.isArray(datosExtraidos?.depositos_detectados)
+          ? datosExtraidos.depositos_detectados
+          : [];
+        const montosDetectados = Array.isArray(datosExtraidos?.montos_detectados)
+          ? datosExtraidos.montos_detectados
+          : depositosDetectados.map((deposito) => deposito?.monto);
+        const depositosParaFormulario = montosDetectados
+          .map((monto, montoIndex) => ({
+            ...depositosDetectados[montoIndex],
+            monto,
+          }))
+          .filter((deposito) => Number.isFinite(Number(deposito.monto)) && Number(deposito.monto) > 0);
+        const evidenciaOCR = {
+          ...evidenciaBase,
+          datosOCR: datosExtraidos,
+        };
 
-      onPagoChange({
-        ...pago,
-        monto: '',
-        referencia: '',
-        fecha_operacion: '',
-        evidencia: evidenciaOCR
-      });
-    } catch (err) {
-      console.error('Error OCR:', err);
-      setError('No se pudo leer la imagen. Intenta de nuevo.');
+        if (
+          esDeposito &&
+          depositosParaFormulario.length > 0 &&
+          onDepositosDetectados
+        ) {
+          onDepositosDetectados({
+            index,
+            depositos: depositosParaFormulario,
+            datosOCR: datosExtraidos,
+            evidencia: evidenciaOCR,
+          });
+          return;
+        }
+
+        onPagoChange({
+          ...pago,
+          monto: '',
+          referencia: '',
+          fecha_operacion: '',
+          evidencia: evidenciaOCR
+        });
+      } catch (ocrError) {
+        console.error('Error OCR:', ocrError);
+        onPagoChange({
+          ...pago,
+          monto: '',
+          referencia: '',
+          fecha_operacion: '',
+          evidencia: evidenciaBase,
+        });
+        setError('No se pudo procesar la imagen con OCR. Puedes completar los datos manualmente.');
+      }
+    } catch (readError) {
+      console.error('Error lectura:', readError);
+      setError('No se pudo leer la imagen. Intenta seleccionarla nuevamente.');
     } finally {
       setLoadingOCR(false);
     }

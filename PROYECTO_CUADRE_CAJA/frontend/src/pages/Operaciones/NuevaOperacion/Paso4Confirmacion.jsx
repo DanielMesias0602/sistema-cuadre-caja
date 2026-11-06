@@ -147,6 +147,17 @@ const base64ToBlob = (base64, contentType = 'image/jpeg') => {
   return new Blob(byteArrays, { type: contentType });
 };
 
+const adjuntarArchivo = (formData, archivo, nombreAlternativo) => {
+  if (!(archivo instanceof Blob) || archivo.size === 0) {
+    throw new Error('La evidencia seleccionada está vacía o no es válida. Vuelve a adjuntarla.');
+  }
+
+  const nombre = archivo instanceof File && archivo.name
+    ? archivo.name
+    : nombreAlternativo;
+  formData.append('archivo', archivo, nombre);
+};
+
 const normalizarTexto = (valor) =>
   String(valor || '')
     .normalize('NFD')
@@ -292,8 +303,8 @@ export function Paso4Confirmacion({
 
       if (evidenciaComprobante) {
         const formDataComprobante = new FormData();
-        formDataComprobante.append('archivo', evidenciaComprobante);
-        const resUploadComprobante = await api.post('/evidencias/upload', formDataComprobante, { headers: { 'Content-Type': 'multipart/form-data' } });
+        adjuntarArchivo(formDataComprobante, evidenciaComprobante, 'evidencia-comprobante.jpg');
+        const resUploadComprobante = await api.post('/evidencias/upload', formDataComprobante);
         const keyComprobante = resUploadComprobante.data?.data?.storage_key;
         if (keyComprobante) {
           evidenciasParaPayload.push({
@@ -309,8 +320,8 @@ export function Paso4Confirmacion({
         const indexPago = Number(indexStr);
         if (!Number.isSafeInteger(indexPago) || indexPago < 0 || !evidenciaPago?.evidencia) continue;
         const formDataEmpresa = new FormData();
-        formDataEmpresa.append('archivo', evidenciaPago.evidencia);
-        const resUploadEmpresa = await api.post('/evidencias/upload', formDataEmpresa, { headers: { 'Content-Type': 'multipart/form-data' } });
+        adjuntarArchivo(formDataEmpresa, evidenciaPago.evidencia, `evidencia-empresa-${indexPago + 1}`);
+        const resUploadEmpresa = await api.post('/evidencias/upload', formDataEmpresa);
         const keyEmpresa = resUploadEmpresa.data?.data?.storage_key;
         if (keyEmpresa) {
           evidenciasParaPayload.push({
@@ -341,8 +352,8 @@ export function Paso4Confirmacion({
           const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
           const file = new File([blob], `evidencia-cliente-${index + 1}.jpg`, { type: 'image/jpeg' });
           const formDataCliente = new FormData();
-          formDataCliente.append('archivo', file);
-          const resUploadCliente = await api.post('/evidencias/upload', formDataCliente, { headers: { 'Content-Type': 'multipart/form-data' } });
+          adjuntarArchivo(formDataCliente, file, `evidencia-cliente-${index + 1}.jpg`);
+          const resUploadCliente = await api.post('/evidencias/upload', formDataCliente);
           const keyCliente = resUploadCliente.data?.data?.storage_key;
           if (keyCliente) {
             evidenciasParaPayload.push({
