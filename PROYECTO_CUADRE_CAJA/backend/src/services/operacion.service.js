@@ -633,6 +633,11 @@ export const registerOperacionUnificada = async (data) => {
       }
 
       const esVale = String(medioPago.nombre || '').trim().toLowerCase() === 'vale';
+      const observacionVale = esVale
+        ? (/\[VALE\]/i.test(String(pago.observacion || ''))
+          ? pago.observacion
+          : [pago.observacion, '[VALE]'].filter(Boolean).join(' '))
+        : pago.observacion;
       const mediosParaRegistrar = [];
       if (esVale) {
         const montoEfectivo = Number(pago.monto_efectivo);
@@ -736,6 +741,7 @@ export const registerOperacionUnificada = async (data) => {
           id_medio_pago: medio.id_medio_pago,
           monto: medio.monto,
           referencia_bancaria: medio.referencia_bancaria,
+          observacion: esVale ? observacionVale : pago.observacion,
           estado: estadoInicial
         }, client);
 

@@ -135,8 +135,9 @@ export function Indicadores() {
       icono: Wallet,
       color: 'emerald',
       items: [
-        { titulo: 'Total Efectivo', valor: formatCurrency(data.monto_efectivo), icono: Banknote },
-        { titulo: 'Total Virtual', valor: formatCurrency(data.monto_virtual), icono: Wallet },
+        { titulo: 'Total Efectivo (sin Vale)', valor: formatCurrency(data.monto_efectivo), icono: Banknote },
+        { titulo: 'Total Virtual (sin Vale)', valor: formatCurrency(data.monto_virtual), icono: Wallet },
+        { titulo: 'Total Vale', valor: formatCurrency(data.monto_vale), icono: Wallet },
         { titulo: 'Total Tarjeta', valor: formatCurrency(data.monto_tarjeta), icono: CreditCard },
         { titulo: 'Yape / Transferencia', valor: formatCurrency(data.monto_yape_transf), icono: Smartphone },
       ]

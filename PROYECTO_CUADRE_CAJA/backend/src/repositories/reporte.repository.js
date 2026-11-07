@@ -110,7 +110,8 @@ export const findOperacionesReport = async (filters) => {
              END,
              'monto', p.monto,
              'estado', p.estado,
-             'referencia_bancaria', p.referencia_bancaria
+             'referencia_bancaria', p.referencia_bancaria,
+             'observacion', p.observacion
            )
          ) FILTER (WHERE p.id_pago IS NOT NULL),
          '[]'::jsonb
@@ -199,10 +200,19 @@ export const findPagosPorMedioReport = async (filters) => {
 
   const result = await query(
     `SELECT
-       mp.id_medio_pago,
-       mp.nombre AS medio_pago,
        CASE
-         WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+        WHEN p.observacion ILIKE '%[VALE]%'
+          OR LOWER(TRIM(mp.nombre)) = 'vale' THEN NULL
+        ELSE mp.id_medio_pago
+       END AS id_medio_pago,
+       CASE
+        WHEN p.observacion ILIKE '%[VALE]%'
+          OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
+        ELSE mp.nombre
+       END AS medio_pago,
+       CASE
+        WHEN p.observacion ILIKE '%[VALE]%'
+          OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
          ELSE mp.es_efectivo
        END AS es_efectivo,
        COUNT(p.id_pago)::INTEGER AS cantidad_pagos,
@@ -214,8 +224,23 @@ export const findPagosPorMedioReport = async (filters) => {
      INNER JOIN medio_pago mp
        ON mp.id_medio_pago = p.id_medio_pago
      ${whereCondition}
-     GROUP BY mp.id_medio_pago, mp.nombre, mp.es_efectivo
-     ORDER BY mp.nombre`,
+     GROUP BY
+       CASE
+         WHEN p.observacion ILIKE '%[VALE]%'
+           OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
+         ELSE mp.nombre
+       END,
+       CASE
+         WHEN p.observacion ILIKE '%[VALE]%'
+           OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
+         ELSE mp.es_efectivo
+       END,
+       CASE
+         WHEN p.observacion ILIKE '%[VALE]%'
+           OR LOWER(TRIM(mp.nombre)) = 'vale' THEN NULL
+         ELSE mp.id_medio_pago
+       END
+     ORDER BY medio_pago`,
     filter.params
   );
 
@@ -613,6 +638,10 @@ export const findIndicadoresCompletos = async (filters) => {
      ),
      pagos AS (
        SELECT p.*, mp.nombre AS medio_pago,
+              (
+                COALESCE(p.observacion, '') ILIKE '%[VALE]%'
+                OR LOWER(TRIM(mp.nombre)) = 'vale'
+              ) AS es_vale,
               CASE
                 WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
                 ELSE mp.es_efectivo
@@ -635,10 +664,11 @@ export const findIndicadoresCompletos = async (filters) => {
        (SELECT COUNT(*)::INT FROM ops WHERE estado != 'ANULADA') AS operaciones_registradas,
        (SELECT COUNT(*)::INT FROM ops WHERE estado = 'ANULADA') AS operaciones_anuladas,
        (SELECT COALESCE(AVG(monto), 0) FROM ops WHERE estado != 'ANULADA') AS ticket_promedio,
-       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = TRUE AND estado_op != 'ANULADA') AS monto_efectivo,
-       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = FALSE AND estado_op != 'ANULADA') AS monto_virtual,
-       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE medio_pago ILIKE '%tarjeta%' AND estado_op != 'ANULADA') AS monto_tarjeta,
-       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE (medio_pago ILIKE '%yape%' OR medio_pago ILIKE '%transfer%' OR medio_pago ILIKE '%deposit%' OR medio_pago ILIKE '%depósito%') AND estado_op != 'ANULADA') AS monto_yape_transf,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = TRUE AND es_vale = FALSE AND estado_op != 'ANULADA') AS monto_efectivo,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_efectivo = FALSE AND es_vale = FALSE AND estado_op != 'ANULADA') AS monto_virtual,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE medio_pago ILIKE '%tarjeta%' AND es_vale = FALSE AND estado_op != 'ANULADA') AS monto_tarjeta,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE (medio_pago ILIKE '%yape%' OR medio_pago ILIKE '%transfer%' OR medio_pago ILIKE '%deposit%' OR medio_pago ILIKE '%depósito%') AND es_vale = FALSE AND estado_op != 'ANULADA') AS monto_yape_transf,
+       (SELECT COALESCE(SUM(monto), 0) FROM pagos WHERE es_vale = TRUE AND estado_op != 'ANULADA') AS monto_vale,
        (SELECT COALESCE(SUM(diferencia), 0) FROM cierres) AS diferencia_acumulada,
        (SELECT COUNT(*)::INT FROM cierres WHERE diferencia <> 0) AS cierres_con_diferencia,
        (SELECT COUNT(*)::INT FROM cierres) AS total_cierres,

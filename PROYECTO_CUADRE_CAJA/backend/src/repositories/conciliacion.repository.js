@@ -228,10 +228,16 @@ export const findTodasOperacionesPorFecha = async (fecha) => {
      FROM operacion o
      JOIN comprobante c ON c.id_comprobante = o.id_comprobante
      LEFT JOIN LATERAL (
-       SELECT STRING_AGG(DISTINCT mp.nombre, ', ' ORDER BY mp.nombre) AS medio_pago
-       FROM pago p
-       JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
-       WHERE p.id_operacion = o.id_operacion
+         SELECT CASE
+           WHEN BOOL_OR(
+             COALESCE(p.observacion, '') ILIKE '%[VALE]%'
+             OR LOWER(TRIM(mp.nombre)) = 'vale'
+           ) THEN 'Vale'
+           ELSE STRING_AGG(DISTINCT mp.nombre, ', ' ORDER BY mp.nombre)
+         END AS medio_pago
+         FROM pago p
+         JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+         WHERE p.id_operacion = o.id_operacion
      ) medios_pago ON TRUE
      WHERE o.fecha = $1
      ORDER BY o.id_operacion`,

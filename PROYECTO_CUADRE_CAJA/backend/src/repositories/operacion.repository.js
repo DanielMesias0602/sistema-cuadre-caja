@@ -128,6 +128,7 @@ export const findAllOperaciones = async () => {
              'medio_pago', mp.nombre,
              'monto', p.monto,
              'referencia', p.referencia_bancaria,
+             'observacion', p.observacion,
              'estado', p.estado
            ) ORDER BY p.id_pago
          ) FROM pago p

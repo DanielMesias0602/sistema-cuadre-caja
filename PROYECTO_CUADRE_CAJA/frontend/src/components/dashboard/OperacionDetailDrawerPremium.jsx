@@ -1529,6 +1529,7 @@ export function OperacionDetailDrawerPremium({
                       p.medio_pago || p.nombre_medio || ''
                     ).toLowerCase();
                     const esEfectivo = medio.includes('efectivo');
+                    const esVale = /\[VALE\]/i.test(String(p.observacion || '')) || medio.trim() === 'vale';
                     const evidenciaClientePago = buscarEvidenciaDePago(p, 'CLIENTE');
                     const evidenciaClientePagoUrl = getEvidenciaUrl(evidenciaClientePago);
                     const datosOcrCliente = obtenerDatosOCR(evidenciaClientePago);
@@ -1552,6 +1553,11 @@ export function OperacionDetailDrawerPremium({
                               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                                 {p.medio_pago || p.nombre_medio || 'Efectivo'}
                               </p>
+                              {esVale && (
+                                <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-800 dark:bg-violet-950/50 dark:text-violet-300">
+                                  VALE
+                                </span>
+                              )}
 
                               {referenciaCliente && referenciaCliente !== 'None' && (
                                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">

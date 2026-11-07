@@ -242,12 +242,15 @@ export const registerPago = async (data) => {
         idMedioVirtual = medioVirtual.id_medio_pago;
       }
 
+      const observacionVale = String(observacion || '').includes('[VALE]')
+        ? observacion
+        : `${observacion ? `${observacion} ` : ''}[VALE]`;
       const pagoEfectivo = await createPago({
         id_operacion,
         id_medio_pago: idMedioEfectivo,
         monto: montoEfectivo,
         referencia_bancaria: null,
-        observacion,
+        observacion: observacionVale,
         estado: 'VERIFICADO'
       }, client);
       const pagoVale = await createPago({
@@ -255,7 +258,7 @@ export const registerPago = async (data) => {
         id_medio_pago: idMedioVirtual,
         monto: montoVirtual,
         referencia_bancaria,
-        observacion,
+        observacion: observacionVale,
         estado: 'REGISTRADO'
       }, client);
       pagosRegistrados = [pagoEfectivo, pagoVale];

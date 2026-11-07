@@ -470,6 +470,8 @@ export function Evidencias() {
                   <div className="space-y-2">
                     {(Array.isArray(selectedOp.pagos) ? selectedOp.pagos : []).map((pago, idx) => {
                       const verificado = estaVerificado(pago);
+                      const esVale = /\[VALE\]/i.test(String(pago.observacion || '')) ||
+                        String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale';
                       return (
                         <div
                           key={idx}
@@ -482,7 +484,14 @@ export function Evidencias() {
                               {renderMedioIcon(pago.medio_pago)}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{pago.medio_pago}</p>
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {pago.medio_pago || pago.nombre_medio || 'Efectivo'}
+                                {esVale && (
+                                  <span className="ml-2 inline-flex rounded-full bg-violet-100 px-2 py-0.5 align-middle text-[10px] font-bold text-violet-800 dark:bg-violet-950/50 dark:text-violet-300">
+                                    VALE
+                                  </span>
+                                )}
+                              </p>
                               {pago.referencia && (
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Ref: {pago.referencia}</p>
                               )}

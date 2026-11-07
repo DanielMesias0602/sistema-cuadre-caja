@@ -30,6 +30,10 @@ export function EvidenceCard({ operacion, onImageClick, onClick }) {
     const est = String(p.estado || '').toUpperCase();
     return est === 'VERIFICADO' || est === 'VERIFICADA' || est === 'COMPLETADO';
   });
+  const esVale = pagos.some((pago) =>
+    /\[VALE\]/i.test(String(pago.observacion || '')) ||
+    String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale'
+  );
 
   const obtenerUrl = (img) => {
     if (!img) return null;
@@ -49,9 +53,16 @@ export function EvidenceCard({ operacion, onImageClick, onClick }) {
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${styles.pill}`}>
-            {docType}
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${styles.pill}`}>
+              {docType}
+            </span>
+            {esVale && (
+              <span className="inline-flex items-center rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800">
+                VALE
+              </span>
+            )}
+          </div>
           <h3 className="mt-1 truncate text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
             {operacion.serie}-{operacion.numero}
           </h3>

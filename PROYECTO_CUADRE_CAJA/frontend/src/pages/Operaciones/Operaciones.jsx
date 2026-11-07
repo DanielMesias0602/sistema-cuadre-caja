@@ -13,6 +13,30 @@ import {
 
 const REGISTROS_POR_PAGINA = 30;
 
+const esPagoVale = (pago) =>
+  /\[VALE\]/i.test(String(pago.observacion || '')) ||
+  String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale';
+
+const obtenerMediosPagoOperacion = (pagos = []) => {
+  const pagosVale = pagos.filter(esPagoVale);
+  const pagosRegulares = pagos.filter((pago) => !esPagoVale(pago));
+  const medios = pagosRegulares.map((pago) => ({
+    medio: pago.medio_pago || pago.nombre_medio || 'Efectivo',
+    monto: Number(pago.monto || 0),
+    esVale: false,
+  }));
+
+  if (pagosVale.length > 0) {
+    medios.push({
+      medio: 'VALE',
+      monto: pagosVale.reduce((total, pago) => total + Number(pago.monto || 0), 0),
+      esVale: true,
+    });
+  }
+
+  return medios;
+};
+
 export function Operaciones() {
   const navigate = useNavigate();
 
@@ -330,12 +354,16 @@ export function Operaciones() {
 
                 {op.pagos && op.pagos.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {op.pagos.map((pago, i) => (
+                    {obtenerMediosPagoOperacion(op.pagos).map((pago, i) => (
                       <span
                         key={i}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-medium ${esAnulada ? 'line-through text-slate-400' : ''}`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          pago.esVale
+                            ? 'bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        } ${esAnulada ? 'line-through text-slate-400' : ''}`}
                       >
-                        {pago.medio_pago || pago.nombre_medio || 'Efectivo'}: S/ {parseFloat(pago.monto).toFixed(2)}
+                        {pago.medio}: S/ {pago.monto.toFixed(2)}
                       </span>
                     ))}
                   </div>
@@ -445,11 +473,11 @@ export function Operaciones() {
 
                     <td className="p-4">
                       <div className="flex flex-col gap-1">
-                        {op.pagos && op.pagos.length > 0 ? op.pagos.map((pago, i) => (
+                        {op.pagos && op.pagos.length > 0 ? obtenerMediosPagoOperacion(op.pagos).map((pago, i) => (
                           <div key={i} className="flex items-center gap-1.5">
-                            <CreditCard className={`w-4 h-4 flex-shrink-0 ${esAnulada ? 'text-slate-300 dark:text-slate-600' : 'text-blue-600 dark:text-blue-400'}`} />
-                            <span className={`text-xs font-semibold ${esAnulada ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>{pago.medio_pago || pago.nombre_medio || 'Efectivo'}:</span>
-                            <span className={`text-xs font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>S/ {parseFloat(pago.monto).toFixed(2)}</span>
+                            <CreditCard className={`w-4 h-4 flex-shrink-0 ${pago.esVale ? 'text-violet-600 dark:text-violet-400' : esAnulada ? 'text-slate-300 dark:text-slate-600' : 'text-blue-600 dark:text-blue-400'}`} />
+                            <span className={`text-xs font-semibold ${pago.esVale ? 'text-violet-700 dark:text-violet-300' : esAnulada ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>{pago.medio}:</span>
+                            <span className={`text-xs font-bold ${esAnulada ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'}`}>S/ {pago.monto.toFixed(2)}</span>
                           </div>
                         )) : <span className="text-xs text-slate-400 dark:text-slate-500">-</span>}
 

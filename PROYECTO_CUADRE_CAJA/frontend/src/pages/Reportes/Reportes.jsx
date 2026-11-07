@@ -65,6 +65,27 @@ export function Reportes() {
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const esPagoVale = (pago) =>
+    /\[VALE\]/i.test(String(pago.observacion || '')) ||
+    String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale';
+
+  const obtenerPagosAgrupados = (pagos) => {
+    const pagosVale = pagos.filter(esPagoVale);
+    const pagosRegulares = pagos.filter((pago) => !esPagoVale(pago));
+    return [
+      ...pagosRegulares.map((pago) => ({
+        medio: pago.medio_pago || pago.nombre_medio || 'Efectivo',
+        monto: Number(pago.monto || 0),
+      })),
+      ...(pagosVale.length > 0
+        ? [{
+            medio: 'Vale',
+            monto: pagosVale.reduce((total, pago) => total + Number(pago.monto || 0), 0),
+          }]
+        : []),
+    ];
+  };
+
   const formatearFechaISO = (fecha) => {
     const anio = fecha.getFullYear();
     const mes = String(fecha.getMonth() + 1).padStart(2, '0');
@@ -202,6 +223,10 @@ export function Reportes() {
         if (String(pago.estado || '').trim().toUpperCase() === 'ANULADO') return;
 
         const monto = Number(pago.monto || 0);
+        if (esPagoVale(pago)) {
+          totales.totalVale += monto;
+          return;
+        }
         const medio = String(pago.medio_pago || pago.nombre_medio || '')
           .trim()
           .toLowerCase();
@@ -212,12 +237,12 @@ export function Reportes() {
         }
       });
       return totales;
-    }, { totalEfectivo: 0, totalNoEfectivo: 0 });
+    }, { totalEfectivo: 0, totalNoEfectivo: 0, totalVale: 0 });
 
     return {
       totalIngresos,
       ...resumen,
-      totalGeneral: resumen.totalEfectivo + resumen.totalNoEfectivo,
+      totalGeneral: resumen.totalEfectivo + resumen.totalNoEfectivo + resumen.totalVale,
     };
   };
 
@@ -310,7 +335,8 @@ export function Reportes() {
         }
 
         const op = item.data;
-        const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+        const pagosOriginales = Array.isArray(op.pagos) ? op.pagos : [];
+        const pagos = obtenerPagosAgrupados(pagosOriginales);
         const alturaFila = 15 + (pagos.length > 1 ? (pagos.length - 1) * 6.5 : 0);
 
         if (y + alturaFila > 190) {
@@ -358,14 +384,13 @@ export function Reportes() {
 
         let pagoY = y + 9.5;
         if (pagos.length > 0) {
-          pagos.forEach(p => {
+          pagos.forEach((p) => {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(8);
             doc.setTextColor(30, 41, 59);
-            const medio = p.medio_pago || p.nombre_medio || 'Efectivo';
-            doc.text(`${medio}:`, X_MEDIOS, pagoY);
+            doc.text(`${p.medio}:`, X_MEDIOS, pagoY);
             doc.setFont('helvetica', 'normal');
-            doc.text(`S/ ${Number(p.monto || 0).toFixed(2)}`, X_MEDIOS + 35, pagoY);
+            doc.text(`S/ ${p.monto.toFixed(2)}`, X_MEDIOS + 35, pagoY);
             pagoY += 6;
           });
         } else {
@@ -379,11 +404,18 @@ export function Reportes() {
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
         doc.text('REFERENCIA', X_REFERENCIA, y + 5);
-        const refGeneral = pagos.find(p => p.referencia && p.referencia !== 'None')?.referencia;
+        const refGeneral = pagosOriginales.find(
+          (pago) => (pago.referencia_bancaria || pago.referencia) &&
+            (pago.referencia_bancaria || pago.referencia) !== 'None'
+        );
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(refGeneral || '-', X_REFERENCIA, y + 9.5);
+        doc.text(
+          refGeneral ? refGeneral.referencia_bancaria || refGeneral.referencia : '-',
+          X_REFERENCIA,
+          y + 9.5
+        );
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
@@ -515,11 +547,12 @@ export function Reportes() {
       worksheet.autoFilter = { from: 'A1', to: 'G1' };
 
       operacionesFiltradas.forEach((op, index) => {
-        const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+        const pagosOriginales = Array.isArray(op.pagos) ? op.pagos : [];
+        const pagos = obtenerPagosAgrupados(pagosOriginales);
         const medios = [...new Set(pagos
-          .map((pago) => pago.medio_pago || pago.nombre_medio || 'Efectivo')
+          .map((pago) => pago.medio)
           .filter(Boolean))];
-        const referencias = pagos
+        const referencias = pagosOriginales
           .map((pago) => pago.referencia_bancaria || pago.referencia)
           .filter((referencia) => referencia != null && String(referencia).trim() !== '');
         const fechaISO = normalizarFechaISO(op.fecha);
@@ -555,6 +588,7 @@ export function Reportes() {
         ['Total Ingresos', resumen.totalIngresos],
         ['Total Efectivo', resumen.totalEfectivo],
         ['Total No Efectivo', resumen.totalNoEfectivo],
+        ['Total Vale', resumen.totalVale],
         ['Total General', resumen.totalGeneral],
       ].forEach(([etiqueta, monto]) => {
         const fila = worksheet.addRow([etiqueta, monto]);
@@ -809,9 +843,14 @@ export function Reportes() {
             ).values(),
           ];
           const pagos = Array.isArray(op.pagos) ? op.pagos : [];
+          const pagosVale = pagos.filter(esPagoVale);
           const pagoEvidencia = pagos.find((p) => !String(p.medio_pago || p.nombre_medio || '').toLowerCase().includes('efectivo'));
-          const medioEvidencia = pagoEvidencia?.medio_pago || pagoEvidencia?.nombre_medio || 'Transferencia';
-          const montoEvidencia = pagoEvidencia ? `S/ ${Number(pagoEvidencia.monto).toFixed(2)}` : '';
+          const medioEvidencia = pagosVale.length > 0
+            ? 'Vale'
+            : pagoEvidencia?.medio_pago || pagoEvidencia?.nombre_medio || 'Transferencia';
+          const montoEvidencia = pagosVale.length > 0
+            ? `S/ ${pagosVale.reduce((total, pago) => total + Number(pago.monto || 0), 0).toFixed(2)}`
+            : pagoEvidencia ? `S/ ${Number(pagoEvidencia.monto).toFixed(2)}` : '';
 
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(4.5);
@@ -894,6 +933,7 @@ export function Reportes() {
         ['Total Ingresos', resumen.totalIngresos],
         ['Total Efectivo', resumen.totalEfectivo],
         ['Total No Efectivo', resumen.totalNoEfectivo],
+        ['Total Vale', resumen.totalVale],
         ['Total General', resumen.totalGeneral],
       ];
 
