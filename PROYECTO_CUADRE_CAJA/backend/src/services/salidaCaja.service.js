@@ -348,7 +348,7 @@ export const registrarSalidaCaja = async ({
         id_tipo_salida,
         id_usuario,
         id_comprobante,
-        fecha,
+        fecha: fechaCierre,
         monto: montoNumerico,
         motivo: motivo.trim(),
         observacion,

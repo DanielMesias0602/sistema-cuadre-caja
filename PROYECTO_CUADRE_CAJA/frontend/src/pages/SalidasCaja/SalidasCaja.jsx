@@ -520,7 +520,7 @@ export function SalidasCaja() {
                           : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60'
                       }`}>
                         {esManana ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
-                        {salida.turno}
+                        {formatearFecha(salida.fecha_cierre)} - Turno {salida.turno}
                       </span>
                     )}
                   </div>
@@ -596,7 +596,7 @@ export function SalidasCaja() {
                             }`}
                           >
                             {esManana ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                            Turno {salida.turno}
+                            {formatearFecha(salida.fecha_cierre)} - Turno {salida.turno}
                           </span>
                         ) : (
                           <span className="text-xs text-slate-400 dark:text-slate-500">

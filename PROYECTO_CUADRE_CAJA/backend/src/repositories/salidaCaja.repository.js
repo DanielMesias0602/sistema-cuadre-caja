@@ -107,6 +107,7 @@ export const findSalidasCaja = async () => {
        TO_CHAR(sc.fecha, 'YYYY-MM-DD') AS fecha,
        sc.id_cierre,
        cc.turno,
+       TO_CHAR(cc.fecha, 'YYYY-MM-DD') AS fecha_cierre,
        sc.id_tipo_salida,
        ts.nombre AS tipo,
        sc.id_usuario,
