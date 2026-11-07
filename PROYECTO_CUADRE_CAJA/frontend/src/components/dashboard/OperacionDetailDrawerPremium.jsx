@@ -101,6 +101,13 @@ const compararMontos = (montoPago, montoEvidencia) => {
   return pagoEnCentimos === evidenciaEnCentimos;
 };
 
+const esPagoVerificadoManualmente = (pago) => {
+  const estado = String(pago?.estado || '').toUpperCase();
+  const observacion = String(pago?.observacion || '').toLowerCase();
+  return ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(estado) ||
+    observacion.includes('validación manual');
+};
+
 const evaluarPago = (pago, evidenciaEmpresa, depositoOCR = null) => {
   const medio = String(pago?.medio_pago || pago?.nombre_medio || '').trim();
   const medioLower = medio.toLowerCase();
@@ -110,9 +117,7 @@ const evaluarPago = (pago, evidenciaEmpresa, depositoOCR = null) => {
     return { estado: 'EFECTIVO', color: 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700', icono: 'info', mensaje: 'Se verifica en el cierre de caja' };
   }
 
-  const pagoVerificadoManualmente =
-    ['VERIFICADO', 'VERIFICADA', 'COMPLETADO'].includes(String(pago?.estado || '').toUpperCase()) &&
-    String(pago?.observacion || '').includes('Validación manual: referencias distintas, monto coincide');
+  const pagoVerificadoManualmente = esPagoVerificadoManualmente(pago);
 
   // Sin evidencia empresa
   if (!evidenciaEmpresa && !depositoOCR) {
@@ -1353,6 +1358,12 @@ export function OperacionDetailDrawerPremium({
                       evidenciaEmpresaPago,
                       depositoOCR
                     );
+                    const esVale = String(pago?.medio_pago || pago?.nombre_medio || '')
+                      .trim()
+                      .toLowerCase() === 'vale';
+                    const pagoVerificado = evaluacion.estado === 'VERIFICADO' ||
+                      esPagoVerificadoManualmente(pago);
+                    const omitirAlertaDiscrepancia = pagoVerificado || esVale;
                     const datosOcr = obtenerDatosOCR(evidenciaEmpresaPago);
                     const refEmpresa = depositoOCR
                       ? referenciaDepositoOCR
@@ -1427,18 +1438,20 @@ export function OperacionDetailDrawerPremium({
 
                         {evaluacion.estado !== 'EFECTIVO' && montosOcr.map(({ tipo, etiqueta, monto }) => {
                           const montoCoincide = compararMontos(pago.monto, monto);
+                          const mostrarComoCorregido = !montoCoincide && omitirAlertaDiscrepancia;
+                          const esDiscrepancia = !montoCoincide && !omitirAlertaDiscrepancia;
                           return (
                             <div
                               key={`${tipo}-${pago.id_pago}`}
-                              role={montoCoincide ? 'status' : 'alert'}
+                              role={esDiscrepancia ? 'alert' : 'status'}
                               className={`mt-2 rounded-lg border p-3 ${
-                                montoCoincide
+                                montoCoincide || mostrarComoCorregido
                                   ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/40 dark:text-emerald-300'
                                   : 'border-red-300 bg-red-50 text-red-800 dark:border-red-800/70 dark:bg-red-950/40 dark:text-red-300'
                               }`}
                             >
                               <div className="flex items-start gap-2">
-                                {montoCoincide ? (
+                                {!esDiscrepancia ? (
                                   <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
                                 ) : (
                                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1447,7 +1460,9 @@ export function OperacionDetailDrawerPremium({
                                   <p className="text-xs font-bold">
                                     {montoCoincide
                                       ? 'Monto coincide'
-                                      : `ALERTA: Discrepancia de monto. El pago registrado es ${formatPEN(pago.monto)} pero la evidencia muestra ${formatPEN(monto)}.`}
+                                      : mostrarComoCorregido
+                                        ? `Monto corregido manualmente (OCR original: ${formatPEN(monto)})`
+                                        : `ALERTA: Discrepancia de monto. El pago registrado es ${formatPEN(pago.monto)} pero la evidencia muestra ${formatPEN(monto)}.`}
                                   </p>
                                   <p className="mt-1 text-[11px] opacity-80">{etiqueta}</p>
                                 </div>
@@ -1460,7 +1475,9 @@ export function OperacionDetailDrawerPremium({
                           {evaluacion.mensaje}
                         </p>
 
-                        {esAdmin && evaluacion.estado === 'REVISION_MANUAL' && (
+                        {esAdmin &&
+                          evaluacion.estado === 'REVISION_MANUAL' &&
+                          !pagoVerificado && (
                           <button
                             type="button"
                             onClick={() => handleForzarValidacion(pago)}

@@ -484,7 +484,7 @@ export function Conciliacion() {
           aria-modal="true"
           aria-labelledby="modal-detalle-conciliacion-titulo"
         >
-          <div className="my-auto flex max-h-[92vh] max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="my-auto flex max-h-[90vh] w-[95%] max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:w-full">
             <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 px-5 py-5 text-white sm:px-8 sm:py-7">
               <div className="absolute -right-10 -top-20 h-56 w-56 rounded-full bg-blue-400/20 blur-3xl" />
               <div className="relative flex items-start justify-between gap-4">
@@ -508,7 +508,7 @@ export function Conciliacion() {
               </div>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 p-4 sm:p-7 dark:bg-slate-950">
+            <div className="flex-1 space-y-6 overflow-y-auto bg-slate-50 p-4 sm:p-6 dark:bg-slate-950">
               {cargandoDetalle ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-500 dark:text-slate-400">
                   <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -521,7 +521,7 @@ export function Conciliacion() {
                 </div>
               ) : detallePreCalculo ? (
                 <>
-                  <section aria-label="Totales consolidados" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <section aria-label="Totales consolidados" className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
                     {[
                       {
                         label: 'Total Facturado',
@@ -544,9 +544,9 @@ export function Conciliacion() {
                         style: 'border-emerald-100 bg-white text-emerald-800 dark:border-emerald-900/60 dark:bg-slate-900 dark:text-emerald-300'
                       }
                     ].map((total) => (
-                      <div key={total.label} className={`rounded-2xl border p-4 shadow-sm ${total.style}`}>
-                        <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">{total.label}</p>
-                        <p className="mt-2 text-lg font-black tabular-nums sm:text-xl">
+                      <div key={total.label} className={`min-w-0 rounded-2xl border p-3 shadow-sm sm:p-4 ${total.style}`}>
+                        <p className="truncate text-[10px] font-bold uppercase tracking-wider opacity-70">{total.label}</p>
+                        <p className="mt-2 break-words text-base font-black tabular-nums sm:text-xl">
                           {formatCurrency(total.value)}
                         </p>
                       </div>
@@ -565,31 +565,29 @@ export function Conciliacion() {
                         {detallePreCalculo.todas_las_operaciones?.length || 0}
                       </span>
                     </div>
-                    <div className="max-h-80 overflow-auto">
+                    <div className="hidden max-h-80 overflow-x-auto overflow-y-auto md:block">
                       <table className="w-full min-w-[700px] text-left text-sm">
                         <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                           <tr>
-                            <th className="px-4 py-3 font-bold">Comprobante</th>
-                            <th className="px-4 py-3 font-bold">Cliente</th>
-                            <th className="px-4 py-3 font-bold">Medio de Pago</th>
-                            <th className="px-4 py-3 text-right font-bold">Monto</th>
-                            <th className="px-4 py-3 font-bold">Estado</th>
+                            <th className="p-4 font-bold">Comprobante</th>
+                            <th className="p-4 font-bold">Cliente</th>
+                            <th className="p-4 font-bold">Medio de Pago</th>
+                            <th className="p-4 text-right font-bold">Monto</th>
+                            <th className="p-4 font-bold">Estado</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {detallePreCalculo.todas_las_operaciones?.length > 0 ? (
                             detallePreCalculo.todas_las_operaciones.map((op) => (
                               <tr key={op.id_operacion} className="text-slate-700 dark:text-slate-300">
-                                <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
+                                <td className="p-4 font-semibold text-slate-900 dark:text-slate-100">
                                   <span>{op.comprobante || `${op.tipo_comprobante || ''} ${op.serie || ''}-${op.numero || ''}`}</span>
-                                  <span className="mt-0.5 block text-[10px] font-normal text-slate-400">
-                                    Operación #{op.id_operacion}
-                                  </span>
+                                  <span className="mt-0.5 block text-[10px] font-normal text-slate-400">Operación #{op.id_operacion}</span>
                                 </td>
-                                <td className="px-4 py-3">{op.cliente || 'Sin cliente'}</td>
-                                <td className="px-4 py-3">{op.medio_pago || 'Sin medio de pago'}</td>
-                                <td className="px-4 py-3 text-right font-bold tabular-nums">{formatCurrency(op.monto)}</td>
-                                <td className="px-4 py-3">
+                                <td className="p-4">{op.cliente || 'Sin cliente'}</td>
+                                <td className="p-4">{op.medio_pago || 'Sin medio de pago'}</td>
+                                <td className="p-4 text-right font-bold tabular-nums">{formatCurrency(op.monto)}</td>
+                                <td className="p-4">
                                   <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
                                     String(op.estado || '').toUpperCase() === 'ANULADA'
                                       ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300'
@@ -602,13 +600,46 @@ export function Conciliacion() {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="5" className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                              <td colSpan="5" className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                 No hay operaciones registradas para esta fecha.
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
+                    </div>
+                    <div className="block divide-y divide-slate-100 md:hidden dark:divide-slate-800">
+                      {detallePreCalculo.todas_las_operaciones?.length > 0 ? (
+                        detallePreCalculo.todas_las_operaciones.map((op) => (
+                          <div key={op.id_operacion} className="flex items-start justify-between gap-3 p-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-sm font-bold text-slate-900 dark:text-slate-100">
+                                {op.comprobante || `${op.tipo_comprobante || ''} ${op.serie || ''}-${op.numero || ''}`}
+                              </p>
+                              <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">
+                                {op.cliente || 'Sin cliente'}
+                              </p>
+                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                {op.medio_pago || 'Sin medio de pago'}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-col items-end gap-2">
+                              <p className="text-sm font-black tabular-nums text-slate-900 dark:text-slate-100">{formatCurrency(op.monto)}</p>
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                String(op.estado || '').toUpperCase() === 'ANULADA'
+                                  ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300'
+                                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+                              }`}>
+                                {op.estado || 'Sin estado'}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                          No hay operaciones registradas para esta fecha.
+                        </p>
+                      )}
                     </div>
                   </section>
 
@@ -622,23 +653,69 @@ export function Conciliacion() {
                         {detallePreCalculo.operaciones_con_numeros?.length || 0}
                       </span>
                     </div>
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <div className="hidden overflow-x-auto md:block">
+                      <table className="w-full min-w-[700px] table-fixed text-left text-sm">
+                        <thead className="bg-violet-50/50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          <tr>
+                            <th className="w-[28%] p-4 font-bold">Comprobante / Medio</th>
+                            <th className="w-[25%] p-4 font-bold">Cliente</th>
+                            <th className="w-[25%] p-4 font-bold">Empresa</th>
+                            <th className="p-4 text-center font-bold">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {detallePreCalculo.operaciones_con_numeros?.length > 0 ? (
+                            detallePreCalculo.operaciones_con_numeros.map((op) => {
+                              const nroEmpresa = op.num_operacion_empresa || op.num_op_empresa_alt;
+                              const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa);
+
+                              return (
+                                <tr key={`${op.id_operacion}-${op.id_pago ?? ''}`} className="text-slate-700 dark:text-slate-300">
+                                  <td className="p-4">
+                                    <p className="break-words font-bold text-slate-900 dark:text-slate-100">{op.tipo_comprobante} {op.serie}-{op.numero}</p>
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{op.medio_pago || 'Medio de pago no indicado'}</p>
+                                  </td>
+                                  <td className="break-all p-4 font-mono">{op.num_operacion_pago || '-'}</td>
+                                  <td className="break-all p-4 font-mono">{nroEmpresa || '-'}</td>
+                                  <td className="p-4 text-center">
+                                    <span className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold ${evaluacion.color}`}>
+                                      {evaluacion.icono === 'check' && <CheckCircle className="h-3 w-3" />}
+                                      {evaluacion.icono === 'alert' && <AlertTriangle className="h-3 w-3" />}
+                                      {evaluacion.icono === 'eye' && <Eye className="h-3 w-3" />}
+                                      {evaluacion.icono === 'info' && <Info className="h-3 w-3" />}
+                                      {evaluacion.estado}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan="4" className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                                No hay pagos que requieran validación de números para esta fecha.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="block divide-y divide-slate-100 md:hidden dark:divide-slate-800">
                       {detallePreCalculo.operaciones_con_numeros?.length > 0 ? (
                         detallePreCalculo.operaciones_con_numeros.map((op) => {
                           const nroEmpresa = op.num_operacion_empresa || op.num_op_empresa_alt;
                           const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa);
 
                           return (
-                            <div key={`${op.id_operacion}-${op.id_pago ?? ''}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div key={`${op.id_operacion}-${op.id_pago ?? ''}`} className="space-y-3 p-4">
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                                <p className="break-words text-sm font-bold text-slate-900 dark:text-slate-100">
                                   {op.tipo_comprobante} {op.serie}-{op.numero}
                                 </p>
                                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                                   {op.medio_pago || 'Medio de pago no indicado'}
                                 </p>
                               </div>
-                              <div className="grid grid-cols-2 gap-4 text-xs sm:min-w-64">
+                              <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Cliente</p>
                                   <p className="mt-1 break-all font-mono text-slate-700 dark:text-slate-300">{op.num_operacion_pago || '-'}</p>
@@ -648,13 +725,15 @@ export function Conciliacion() {
                                   <p className="mt-1 break-all font-mono text-slate-700 dark:text-slate-300">{nroEmpresa || '-'}</p>
                                 </div>
                               </div>
-                              <span className={`inline-flex w-fit items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold ${evaluacion.color}`}>
-                                {evaluacion.icono === 'check' && <CheckCircle className="h-3 w-3" />}
-                                {evaluacion.icono === 'alert' && <AlertTriangle className="h-3 w-3" />}
-                                {evaluacion.icono === 'eye' && <Eye className="h-3 w-3" />}
-                                {evaluacion.icono === 'info' && <Info className="h-3 w-3" />}
-                                {evaluacion.estado}
-                              </span>
+                              <div className="flex justify-center">
+                                <span className={`inline-flex max-w-full items-center gap-1 rounded-lg border px-2.5 py-1 text-center text-[10px] font-bold ${evaluacion.color}`}>
+                                  {evaluacion.icono === 'check' && <CheckCircle className="h-3 w-3 shrink-0" />}
+                                  {evaluacion.icono === 'alert' && <AlertTriangle className="h-3 w-3 shrink-0" />}
+                                  {evaluacion.icono === 'eye' && <Eye className="h-3 w-3 shrink-0" />}
+                                  {evaluacion.icono === 'info' && <Info className="h-3 w-3 shrink-0" />}
+                                  {evaluacion.estado}
+                                </span>
+                              </div>
                             </div>
                           );
                         })
