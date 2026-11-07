@@ -48,6 +48,11 @@ export function Conciliacion() {
   const [motivoRevision, setMotivoRevision] = useState('');
   const [conciliacionARevisar, setConciliacionARevisar] = useState(null);
   const [errorMotivoRevision, setErrorMotivoRevision] = useState(null);
+  const [modalDetalleAbierto, setModalDetalleAbierto] = useState(false);
+  const [conciliacionDetalle, setConciliacionDetalle] = useState(null);
+  const [detallePreCalculo, setDetallePreCalculo] = useState(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
   const [fechaFiltro, setFechaFiltro] = useState('');
@@ -71,7 +76,8 @@ export function Conciliacion() {
     total_efectivo_esperado: 0,
     total_salidas: 0,
     operaciones_pendientes_evidencia: 0,
-    operaciones_con_numeros: []
+    operaciones_con_numeros: [],
+    todas_las_operaciones: []
   });
 
   const conciliacionesUnicas = useMemo(() => {
@@ -146,6 +152,34 @@ export function Conciliacion() {
     return cargarDatos();
   };
 
+  const abrirDetalle = async (conciliacion) => {
+    setConciliacionDetalle(conciliacion);
+    setDetallePreCalculo(null);
+    setErrorDetalle(null);
+    setCargandoDetalle(true);
+    setModalDetalleAbierto(true);
+
+    try {
+      const fecha = String(conciliacion.fecha || '').slice(0, 10);
+      const res = await api.get(`/conciliaciones/pre-calculo?fecha=${encodeURIComponent(fecha)}`);
+      setDetallePreCalculo(res.data?.data || res.data);
+    } catch (err) {
+      console.error('Error al cargar el detalle diario de conciliación:', err);
+      setErrorDetalle(
+        err.response?.data?.message || err.message || 'No se pudo cargar el detalle de la conciliación.'
+      );
+    } finally {
+      setCargandoDetalle(false);
+    }
+  };
+
+  const cerrarDetalle = () => {
+    setModalDetalleAbierto(false);
+    setConciliacionDetalle(null);
+    setDetallePreCalculo(null);
+    setErrorDetalle(null);
+  };
+
   useEffect(() => { void Promise.resolve().then(cargarDatos); }, [cargarDatos]);
 
   useDatosActualizados(() => {
@@ -162,7 +196,8 @@ export function Conciliacion() {
       setPreCalculo({
         cierres: [], diferencia_total: 0, total_ingresos: 0,
         total_no_efectivo: 0, total_efectivo_esperado: 0, total_salidas: 0,
-        operaciones_pendientes_evidencia: 0, operaciones_con_numeros: []
+        operaciones_pendientes_evidencia: 0, operaciones_con_numeros: [],
+        todas_las_operaciones: []
       });
     }
   };
@@ -403,60 +438,21 @@ export function Conciliacion() {
                 </p>
               )}
 
-              <div className="p-3 sm:p-4 flex-1">
-                <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
-                  <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
-                    <FileText className="w-3 w-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
-                    <span className="truncate">Operaciones y Nros. de Validación</span>
-                  </p>
-                  <span className="text-[9px] sm:text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full flex-shrink-0 dark:bg-slate-700 dark:text-slate-300">
-                    {c.operaciones_con_numeros?.length || 0}
-                  </span>
-                </div>
-
-                {c.operaciones_con_numeros && c.operaciones_con_numeros.length > 0 ? (
-                  <div className="flex flex-col divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/30 dark:divide-slate-600 dark:border-slate-600 dark:bg-slate-900/60">
-                    {c.operaciones_con_numeros.map((op, idx) => {
-                      const nroEmpresa = op.num_operacion_empresa || op.num_op_empresa_alt;
-                      const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa);
-
-                      return (
-                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 sm:p-3 hover:bg-white transition-colors gap-2 dark:hover:bg-slate-700/60">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs sm:text-sm font-bold text-slate-900 truncate dark:text-slate-100">{op.tipo_comprobante} {op.serie}-{op.numero}</p>
-                            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">{op.medio_pago}</p>
-                          </div>
-
-                          <div className="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-xs sm:justify-center">
-                            <div className="text-center">
-                              <p className="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500">Cliente</p>
-                              <p className="font-mono text-slate-700 font-semibold dark:text-slate-300">{op.num_operacion_pago || '-'}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500">Empresa</p>
-                              <p className="font-mono text-slate-700 font-semibold dark:text-slate-300">{nroEmpresa || '-'}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex sm:justify-end sm:w-32">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-bold border ${evaluacion.color}`}>
-                              {evaluacion.icono === 'check' && <CheckCircle className="w-3 h-3" />}
-                              {evaluacion.icono === 'alert' && <AlertTriangle className="w-3 h-3" />}
-                              {evaluacion.icono === 'eye' && <Eye className="w-3 h-3" />}
-                              {evaluacion.icono === 'info' && <Info className="w-3 h-3" />}
-                              {evaluacion.estado}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded-xl text-center border border-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-600">No hay pagos virtuales registrados para esta fecha.</p>
-                )}
+              <div className="flex-1 px-3 py-3 sm:px-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Consulta el consolidado, todas las operaciones del día y la validación de números.
+                </p>
               </div>
 
-              <div className="bg-slate-50/80 p-3 border-t border-slate-100 flex justify-end gap-2 dark:bg-slate-800 dark:border-slate-600">
+              <div className="bg-slate-50/80 p-3 border-t border-slate-100 flex flex-wrap justify-end gap-2 dark:bg-slate-800 dark:border-slate-600">
+                <button
+                  type="button"
+                  onClick={() => abrirDetalle(c)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 cursor-pointer"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Ver Detalle
+                </button>
                 <button onClick={() => navigate(`/reportes?fecha=${c.fecha}`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-blue-700 hover:bg-blue-50 text-xs font-bold transition shadow-sm cursor-pointer dark:bg-slate-700 dark:border-slate-600 dark:text-blue-400 dark:hover:bg-slate-600 dark:shadow-none">
                   <BarChart2 className="h-3.5 w-3.5" />
                   Ver Reporte
@@ -478,6 +474,201 @@ export function Conciliacion() {
 
             </div>
           ))}
+        </div>
+      )}
+
+      {modalDetalleAbierto && conciliacionDetalle && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm dark:bg-black/70 sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-detalle-conciliacion-titulo"
+        >
+          <div className="my-auto flex max-h-[92vh] max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 px-5 py-5 text-white sm:px-8 sm:py-7">
+              <div className="absolute -right-10 -top-20 h-56 w-56 rounded-full bg-blue-400/20 blur-3xl" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-200">Conciliación diaria</p>
+                  <h2 id="modal-detalle-conciliacion-titulo" className="mt-1 text-xl font-black sm:text-2xl">
+                    Resumen del Día
+                  </h2>
+                  <p className="mt-1 text-xs capitalize text-blue-100 sm:text-sm">
+                    {formatearFecha(conciliacionDetalle.fecha)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cerrarDetalle}
+                  aria-label="Cerrar detalle"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 p-4 sm:p-7 dark:bg-slate-950">
+              {cargandoDetalle ? (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-500 dark:text-slate-400">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <p className="mt-3 text-sm font-semibold">Cargando detalle del día...</p>
+                </div>
+              ) : errorDetalle ? (
+                <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <p>{errorDetalle}</p>
+                </div>
+              ) : detallePreCalculo ? (
+                <>
+                  <section aria-label="Totales consolidados" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {[
+                      {
+                        label: 'Total Facturado',
+                        value: detallePreCalculo.total_ingresos,
+                        style: 'border-blue-100 bg-white text-slate-900 dark:border-blue-900/60 dark:bg-slate-900 dark:text-white'
+                      },
+                      {
+                        label: 'Total No Efectivo',
+                        value: detallePreCalculo.total_no_efectivo,
+                        style: 'border-violet-100 bg-white text-violet-800 dark:border-violet-900/60 dark:bg-slate-900 dark:text-violet-300'
+                      },
+                      {
+                        label: 'Total Salidas',
+                        value: detallePreCalculo.total_salidas,
+                        style: 'border-rose-100 bg-white text-rose-700 dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-300'
+                      },
+                      {
+                        label: 'Efectivo Neto',
+                        value: detallePreCalculo.total_efectivo_esperado,
+                        style: 'border-emerald-100 bg-white text-emerald-800 dark:border-emerald-900/60 dark:bg-slate-900 dark:text-emerald-300'
+                      }
+                    ].map((total) => (
+                      <div key={total.label} className={`rounded-2xl border p-4 shadow-sm ${total.style}`}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">{total.label}</p>
+                        <p className="mt-2 text-lg font-black tabular-nums sm:text-xl">
+                          {formatCurrency(total.value)}
+                        </p>
+                      </div>
+                    ))}
+                  </section>
+
+                  <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-700 sm:px-5">
+                      <div>
+                        <h3 className="font-bold text-slate-900 dark:text-white">Operaciones del día</h3>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                          Incluye operaciones en efectivo y otros medios de pago.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                        {detallePreCalculo.todas_las_operaciones?.length || 0}
+                      </span>
+                    </div>
+                    <div className="max-h-80 overflow-auto">
+                      <table className="w-full min-w-[700px] text-left text-sm">
+                        <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          <tr>
+                            <th className="px-4 py-3 font-bold">Comprobante</th>
+                            <th className="px-4 py-3 font-bold">Cliente</th>
+                            <th className="px-4 py-3 font-bold">Medio de Pago</th>
+                            <th className="px-4 py-3 text-right font-bold">Monto</th>
+                            <th className="px-4 py-3 font-bold">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {detallePreCalculo.todas_las_operaciones?.length > 0 ? (
+                            detallePreCalculo.todas_las_operaciones.map((op) => (
+                              <tr key={op.id_operacion} className="text-slate-700 dark:text-slate-300">
+                                <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
+                                  <span>{op.comprobante || `${op.tipo_comprobante || ''} ${op.serie || ''}-${op.numero || ''}`}</span>
+                                  <span className="mt-0.5 block text-[10px] font-normal text-slate-400">
+                                    Operación #{op.id_operacion}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">{op.cliente || 'Sin cliente'}</td>
+                                <td className="px-4 py-3">{op.medio_pago || 'Sin medio de pago'}</td>
+                                <td className="px-4 py-3 text-right font-bold tabular-nums">{formatCurrency(op.monto)}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                    String(op.estado || '').toUpperCase() === 'ANULADA'
+                                      ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300'
+                                      : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                  }`}>
+                                    {op.estado || 'Sin estado'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="5" className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                                No hay operaciones registradas para esta fecha.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm dark:border-violet-900/60 dark:bg-slate-900">
+                    <div className="flex items-center justify-between gap-3 border-b border-violet-100 bg-violet-50/70 px-4 py-4 dark:border-violet-900/60 dark:bg-violet-950/30 sm:px-5">
+                      <div>
+                        <h3 className="font-bold text-slate-900 dark:text-white">Validación de Nros.</h3>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Comparación de referencias del cliente y la empresa.</p>
+                      </div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-violet-700 dark:bg-slate-800 dark:text-violet-300">
+                        {detallePreCalculo.operaciones_con_numeros?.length || 0}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {detallePreCalculo.operaciones_con_numeros?.length > 0 ? (
+                        detallePreCalculo.operaciones_con_numeros.map((op) => {
+                          const nroEmpresa = op.num_operacion_empresa || op.num_op_empresa_alt;
+                          const evaluacion = evaluarOperacion(op.num_operacion_pago, nroEmpresa);
+
+                          return (
+                            <div key={`${op.id_operacion}-${op.id_pago ?? ''}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                                  {op.tipo_comprobante} {op.serie}-{op.numero}
+                                </p>
+                                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                  {op.medio_pago || 'Medio de pago no indicado'}
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 text-xs sm:min-w-64">
+                                <div>
+                                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Cliente</p>
+                                  <p className="mt-1 break-all font-mono text-slate-700 dark:text-slate-300">{op.num_operacion_pago || '-'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Empresa</p>
+                                  <p className="mt-1 break-all font-mono text-slate-700 dark:text-slate-300">{nroEmpresa || '-'}</p>
+                                </div>
+                              </div>
+                              <span className={`inline-flex w-fit items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold ${evaluacion.color}`}>
+                                {evaluacion.icono === 'check' && <CheckCircle className="h-3 w-3" />}
+                                {evaluacion.icono === 'alert' && <AlertTriangle className="h-3 w-3" />}
+                                {evaluacion.icono === 'eye' && <Eye className="h-3 w-3" />}
+                                {evaluacion.icono === 'info' && <Info className="h-3 w-3" />}
+                                {evaluacion.estado}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="px-4 py-7 text-center text-sm text-slate-500 dark:text-slate-400">
+                          No hay pagos que requieran validación de números para esta fecha.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                </>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
 

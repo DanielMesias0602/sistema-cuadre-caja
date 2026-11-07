@@ -5,6 +5,7 @@ import {
   findCierresByFecha,
   findConciliacionByFecha,
   contarOperacionesSinEvidenciaEmpresaPorFecha,
+  findTodasOperacionesPorFecha,
   findOperacionesConNumeros,
   actualizarConciliacion as actualizarConciliacionRepository,
   ponerConciliacionEnRevision as actualizarConciliacionEnRevision
@@ -31,6 +32,7 @@ export const obtenerPreCalculoConciliacion = async (fecha) => {
 
   const operaciones_pendientes_evidencia = await contarOperacionesSinEvidenciaEmpresaPorFecha(fecha);
   const operaciones_con_numeros = await findOperacionesConNumeros(fecha);
+  const todas_las_operaciones = await findTodasOperacionesPorFecha(fecha);
 
   return {
     cierres,
@@ -40,7 +42,8 @@ export const obtenerPreCalculoConciliacion = async (fecha) => {
     total_efectivo_esperado,
     total_salidas,
     operaciones_pendientes_evidencia,
-    operaciones_con_numeros
+    operaciones_con_numeros,
+    todas_las_operaciones
   };
 };
 

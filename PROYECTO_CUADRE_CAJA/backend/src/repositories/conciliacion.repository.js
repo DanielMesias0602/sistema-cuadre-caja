@@ -213,11 +213,39 @@ export const contarOperacionesSinEvidenciaEmpresaPorFecha = async (fecha) => {
   return result.rows[0]?.total || 0;
 };
 
+export const findTodasOperacionesPorFecha = async (fecha) => {
+  const result = await query(
+    `SELECT
+       o.id_operacion,
+       c.tipo_comprobante,
+       c.serie,
+       c.numero,
+       CONCAT_WS(' ', c.tipo_comprobante, CONCAT_WS('-', c.serie, c.numero)) AS comprobante,
+       c.cliente,
+       o.monto,
+       o.estado,
+       medios_pago.medio_pago
+     FROM operacion o
+     JOIN comprobante c ON c.id_comprobante = o.id_comprobante
+     LEFT JOIN LATERAL (
+       SELECT STRING_AGG(DISTINCT mp.nombre, ', ' ORDER BY mp.nombre) AS medio_pago
+       FROM pago p
+       JOIN medio_pago mp ON mp.id_medio_pago = p.id_medio_pago
+       WHERE p.id_operacion = o.id_operacion
+     ) medios_pago ON TRUE
+     WHERE o.fecha = $1
+     ORDER BY o.id_operacion`,
+    [fecha]
+  );
+  return result.rows;
+};
+
 // CONSULTA BLINDADA CON SUBCONSULTAS PARA EVITAR ERRORES DE JSON
 export const findOperacionesConNumeros = async (fecha) => {
   const result = await query(
     `SELECT
        o.id_operacion,
+       p.id_pago,
        c.tipo_comprobante,
        c.serie,
        c.numero,

@@ -305,6 +305,14 @@ export function SalidasCaja() {
       return;
     }
 
+    if (excedeEfectivoDisponible) {
+      setErrorModal({
+        message: `El monto supera el efectivo disponible (${formatCurrency(efectivoDisponible)}).`,
+        isTurnoError: false
+      });
+      return;
+    }
+
     if (!formSalida.motivo.trim()) {
       setErrorModal({ message: 'El motivo de la salida es obligatorio.', isTurnoError: false });
       return;
@@ -334,12 +342,11 @@ export function SalidasCaja() {
       }, 1000);
     } catch (err) {
       console.error('Error al registrar salida de caja:', err);
-      const status = err.response?.status;
       const msj = err.response?.data?.message || err.message || 'Error al registrar la salida de caja';
       
       setErrorModal({
         message: msj,
-        isTurnoError: status === 409
+        isTurnoError: /\b(turnos?|cierres?)\b/i.test(msj)
       });
       setGuardando(false);
     }
@@ -371,6 +378,17 @@ export function SalidasCaja() {
     setFechaFiltro('');
     setTipoFiltro('');
   };
+
+  const cierreSeleccionado = cierresDisponibles.find(
+    (cierre) => String(cierre.id_cierre) === String(formSalida.id_cierre)
+  );
+  const efectivoDisponible = cierreSeleccionado
+    ? Number(cierreSeleccionado.efectivo_esperado || 0) - Number(cierreSeleccionado.total_salidas || 0)
+    : null;
+  const montoIngresado = Number(formSalida.monto);
+  const excedeEfectivoDisponible = efectivoDisponible !== null &&
+    montoIngresado > 0 &&
+    montoIngresado > efectivoDisponible;
 
   const getStorageUrl = (salida) => {
     if (salida?.url_firmada) return salida.url_firmada;
@@ -664,8 +682,7 @@ export function SalidasCaja() {
                   <div className="flex items-start gap-2 sm:gap-3">
                     <AlertTriangle className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 mt-0.5 ${errorModal.isTurnoError ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold">{errorModal.isTurnoError ? 'Turno Pendiente de Cierre' : 'No se pudo registrar la salida'}</p>
-                      <p className="mt-0.5 text-[11px] sm:text-xs leading-relaxed">{errorModal.message}</p>
+                      <p className="text-[11px] sm:text-xs font-semibold leading-relaxed">{errorModal.message}</p>
                     </div>
                   </div>
                   {errorModal.isTurnoError && (
@@ -745,6 +762,11 @@ export function SalidasCaja() {
                   placeholder="0.00"
                   className="w-full h-10 sm:h-12 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 sm:px-4 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 outline-none transition-all tabular-nums"
                 />
+                {excedeEfectivoDisponible && (
+                  <p className="mt-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">
+                    El monto supera el efectivo disponible ({formatCurrency(efectivoDisponible)})
+                  </p>
+                )}
               </div>
 
               <div>
@@ -785,8 +807,8 @@ export function SalidasCaja() {
                 </button>
                 <button
                   type="submit"
-                  disabled={guardando}
-                  className="h-10 sm:h-11 flex-1 rounded-xl bg-brand-orange text-xs sm:text-sm font-bold text-white shadow-md dark:shadow-none shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={guardando || excedeEfectivoDisponible}
+                  className="h-10 sm:h-11 flex-1 rounded-xl bg-brand-orange text-xs sm:text-sm font-bold text-white shadow-md dark:shadow-none shadow-brand-orange/20 transition hover:bg-brand-orange-hover active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {guardando ? (
                     <>

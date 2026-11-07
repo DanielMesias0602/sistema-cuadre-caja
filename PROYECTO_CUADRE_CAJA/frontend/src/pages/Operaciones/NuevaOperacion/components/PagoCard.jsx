@@ -90,7 +90,7 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
   return campos;
 };
 
-function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, isMoney = false, onValueChange, disabled = false }) {
+function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, isMoney = false, onValueChange, disabled = false, nota }) {
   const Icon = ICONOS[icon] || Info;
   const colorClass = COLORES[color] || 'text-slate-500 dark:text-slate-500';
 
@@ -104,6 +104,7 @@ function CampoOCR({ icon, label, value, color, variant = 'default', editable = f
       <div className="flex items-center gap-1.5 mb-1">
         <Icon className={`w-3.5 h-3.5 ${colorClass}`} />
         <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">{label}</p>
+        {nota && <span className="text-[9px] font-medium normal-case text-slate-400 dark:text-slate-500">{nota}</span>}
       </div>
       {editable ? (
         <div className="flex items-center gap-1">
@@ -221,6 +222,18 @@ export default function PagoCard({
 
   const handleChange = (field, value) => {
     onPagoChange({ ...pago, [field]: value });
+  };
+
+  const handleValeMontoChange = (field, value) => {
+    const montoEfectivo = field === 'monto_efectivo' ? value : pago.monto_efectivo;
+    const montoVirtual = field === 'monto_virtual' ? value : pago.monto_virtual;
+    const montoTotal = Number(montoEfectivo || 0) + Number(montoVirtual || 0);
+
+    onPagoChange({
+      ...pago,
+      [field]: value,
+      monto: montoTotal > 0 ? montoTotal.toFixed(2) : ''
+    });
   };
 
   const handleMedioChange = (e) => {
@@ -411,6 +424,22 @@ export default function PagoCard({
         }
         : campo)
     : [];
+  const camposOCROriginales = pago.evidencia?.imagenBase64
+    ? getCamposOCR(
+      pago.evidencia.datosOCR,
+      pago.nombre_medio || pago.medio_pago,
+      '',
+      '',
+      ''
+    ).map((campo) => ({
+      ...campo,
+      value: campo.field === 'monto'
+        ? String(montoOCR ?? pago.evidencia?.datosOCR?.monto ?? campo.value ?? '')
+        : campo.value,
+      editable: false,
+      ...(campo.field === 'monto' ? { nota: 'Dato original del OCR' } : {})
+    }))
+    : [];
 
   return (
     <div className="bg-white dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-600 p-4 sm:p-6 shadow-sm dark:shadow-none mb-4">
@@ -480,15 +509,7 @@ export default function PagoCard({
                   type="number"
                   min="0.01"
                   value={pago.monto_efectivo || ''}
-                  onChange={(e) => {
-                    const montoEfectivo = e.target.value;
-                    const montoTotal = Number(montoEfectivo || 0) + Number(pago.monto_virtual || 0);
-                    onPagoChange({
-                      ...pago,
-                      monto_efectivo: montoEfectivo,
-                      monto: montoTotal > 0 ? montoTotal.toFixed(2) : ''
-                    });
-                  }}
+                  onChange={(e) => handleValeMontoChange('monto_efectivo', e.target.value)}
                   placeholder="0.00"
                   step="0.01"
                   disabled={loadingOCR}
@@ -525,15 +546,7 @@ export default function PagoCard({
                   type="number"
                   min="0.01"
                   value={pago.monto_virtual || ''}
-                  onChange={(e) => {
-                    const montoVirtual = e.target.value;
-                    const montoTotal = Number(pago.monto_efectivo || 0) + Number(montoVirtual || 0);
-                    onPagoChange({
-                      ...pago,
-                      monto_virtual: montoVirtual,
-                      monto: montoTotal > 0 ? montoTotal.toFixed(2) : ''
-                    });
-                  }}
+                  onChange={(e) => handleValeMontoChange('monto_virtual', e.target.value)}
                   placeholder="0.00"
                   step="0.01"
                   disabled={loadingOCR}
@@ -548,7 +561,6 @@ export default function PagoCard({
                   step="0.01"
                   value={pago.monto || ''}
                   onChange={(e) => handleChange('monto', e.target.value)}
-                  disabled={loadingOCR}
                   aria-invalid={errorMontoVale}
                   aria-label="Monto total del pago"
                   className={`w-full rounded-lg border px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-orange dark:bg-slate-900 dark:text-slate-200 ${
@@ -806,7 +818,7 @@ export default function PagoCard({
               </div>
 
               <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 md:grid-cols-4">
-                {camposOCR.map((campo, i) => (
+                {camposOCROriginales.map((campo, i) => (
                   <CampoOCR key={i} {...campo} variant="onGreen" />
                 ))}
               </div>
