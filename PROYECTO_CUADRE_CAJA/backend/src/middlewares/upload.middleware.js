@@ -41,13 +41,14 @@ export const validateUploadedFile = async (req, res, next) => {
 
   try {
     const detectedType = await fileTypeFromFile(req.file.path);
-    if (!detectedType || !allowedTypes.includes(detectedType.mime) || detectedType.mime !== req.file.mimetype) {
+    if (!detectedType || !allowedTypes.includes(detectedType.mime)) {
       await unlink(req.file.path);
       const error = new Error('El contenido del archivo no coincide con un tipo permitido.');
       error.statusCode = 400;
       return next(error);
     }
 
+    req.file.mimetype = detectedType.mime;
     return next();
   } catch (error) {
     try {

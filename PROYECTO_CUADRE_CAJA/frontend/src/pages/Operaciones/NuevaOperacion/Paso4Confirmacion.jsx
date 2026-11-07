@@ -129,8 +129,10 @@ function CamposConToggle({ campos, storageKey, expandidos, onToggle }) {
   );
 }
 
-const base64ToBlob = (base64, contentType = 'image/jpeg') => {
+const base64ToBlob = (base64) => {
   const partes = base64.split(',');
+  const mimeMatch = partes[0].match(/:(.*?);/);
+  const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
   const contenido = partes.length > 1 ? partes[1] : partes[0];
   const byteCharacters = atob(contenido);
   const byteArrays = [];
@@ -354,10 +356,12 @@ export function Paso4Confirmacion({
                 .filter(({ pago: pagoGrupo }) => pagoGrupo.grupo_depositos_id === grupoId)
                 .map(({ index: indexPago }) => indexPago)
               : [index];
-            const blob = base64ToBlob(pago.evidencia.imagenBase64, 'image/jpeg');
-            const file = new File([blob], `evidencia-cliente-${index + 1}.jpg`, { type: 'image/jpeg' });
+            const blob = base64ToBlob(pago.evidencia.imagenBase64);
+            const extension = blob.type.split('/')[1] || 'jpg';
+            const nombreArchivo = `evidencia-cliente-${index + 1}.${extension}`;
+            const file = new File([blob], nombreArchivo, { type: blob.type });
             const formDataCliente = new FormData();
-            adjuntarArchivo(formDataCliente, file, `evidencia-cliente-${index + 1}.jpg`);
+            adjuntarArchivo(formDataCliente, file, nombreArchivo);
             const resUploadCliente = await api.post('/evidencias/upload', formDataCliente);
             const keyCliente = resUploadCliente.data?.data?.storage_key;
             if (keyCliente) {
