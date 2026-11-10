@@ -163,7 +163,7 @@ export const registrarSalidaCaja = async ({
     );
     
     // Solo validamos si la salida es para el día de HOY
-    if (fecha === hoyStr) {
+    if (fechaCierre === hoyStr) {
       // Si es después de las 2:00 PM (14:00:00)
       if (horaActual > '14:00:00') {
         const cierreMananaResult = await client.query(

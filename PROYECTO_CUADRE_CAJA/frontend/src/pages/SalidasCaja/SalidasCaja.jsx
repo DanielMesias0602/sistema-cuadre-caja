@@ -320,11 +320,18 @@ export function SalidasCaja() {
 
     setGuardando(true);
     try {
+      const cierreSeleccionadoPayload = cierresDisponibles.find(
+        (cierre) => String(cierre.id_cierre) === String(formSalida.id_cierre)
+      );
+      const fechaParaPayload = cierreSeleccionadoPayload
+        ? cierreSeleccionadoPayload.fecha
+        : new Date().toLocaleDateString('en-CA');
+
       const payload = {
         id_cierre: formSalida.id_cierre ? Number(formSalida.id_cierre) : null,
         id_tipo_salida: Number(formSalida.id_tipo_salida),
         id_comprobante: formSalida.id_comprobante ? Number(formSalida.id_comprobante) : null,
-        fecha: new Date().toLocaleDateString('en-CA'),
+        fecha: fechaParaPayload,
         monto: montoNum,
         motivo: formSalida.motivo.trim(),
         observacion: formSalida.observacion.trim() || null,
