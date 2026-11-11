@@ -4,6 +4,7 @@ import api from '../../lib/api';
 import { useDatosActualizados } from '../../hooks/useSocket';
 import { OperacionDetailDrawerPremium } from '../../components/dashboard/OperacionDetailDrawerPremium';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
+import { esPagoEfectivo, esPagoVale } from '../../utils/pago';
 import {
   Plus, Search, Calendar, Receipt,
   CheckCircle, Clock, AlertCircle, FileText,
@@ -13,13 +14,13 @@ import {
 
 const REGISTROS_POR_PAGINA = 30;
 
-const esPagoVale = (pago) =>
-  /\[VALE\]/i.test(String(pago.observacion || '')) ||
-  String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale';
-
 const obtenerMediosPagoOperacion = (pagos = []) => {
   const pagosVale = pagos.filter(esPagoVale);
-  const pagosRegulares = pagos.filter((pago) => !esPagoVale(pago));
+  const hayVale = pagosVale.length > 0;
+  const pagosEfectivoVale = hayVale ? pagos.filter(esPagoEfectivo) : [];
+  const pagosRegulares = pagos.filter(
+    (pago) => !esPagoVale(pago) && !(hayVale && esPagoEfectivo(pago))
+  );
   const medios = pagosRegulares.map((pago) => ({
     medio: pago.medio_pago || pago.nombre_medio || 'Efectivo',
     monto: Number(pago.monto || 0),
@@ -29,7 +30,8 @@ const obtenerMediosPagoOperacion = (pagos = []) => {
   if (pagosVale.length > 0) {
     medios.push({
       medio: 'VALE',
-      monto: pagosVale.reduce((total, pago) => total + Number(pago.monto || 0), 0),
+      monto: [...pagosVale, ...pagosEfectivoVale]
+        .reduce((total, pago) => total + Number(pago.monto || 0), 0),
       esVale: true,
     });
   }
@@ -205,7 +207,19 @@ export function Operaciones() {
       const comp = `${op.tipo_comprobante || ''} ${op.serie || ''}-${op.numero || ''}`.toLowerCase();
       const cliente = (op.cliente || '').toLowerCase();
       const usuario = `${op.nombres || ''} ${op.apellidos || ''}`.toLowerCase();
-      if (!comp.includes(q) && !cliente.includes(q) && !usuario.includes(q)) return false;
+      const coincidePago = (Array.isArray(op.pagos) ? op.pagos : []).some((pago) => {
+        const datosPago = [
+          pago.medio_pago,
+          pago.nombre_medio,
+          pago.id_medio_pago,
+          pago.observacion,
+          esPagoVale(pago) ? 'Vale' : '',
+        ].join(' ').toLowerCase();
+        return datosPago.includes(q) || (
+          ['vale', 'vales'].includes(q) && esPagoVale(pago)
+        );
+      });
+      if (!comp.includes(q) && !cliente.includes(q) && !usuario.includes(q) && !coincidePago) return false;
     }
     if (fechaDesde && op.fecha < fechaDesde) return false;
     if (fechaHasta && op.fecha > fechaHasta) return false;

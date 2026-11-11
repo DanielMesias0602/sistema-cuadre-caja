@@ -1,4 +1,5 @@
 import { Check, Clock, AlertCircle, X, ArrowRight } from 'lucide-react';
+import { esPagoVale } from '../../utils/pago';
 
 export function OperacionesRecientesTable({ operaciones, selectedOpId, onSelectOp }) {
   const formatCurrency = (val) => {
@@ -118,7 +119,7 @@ export function OperacionesRecientesTable({ operaciones, selectedOpId, onSelectO
                         className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-semibold shadow-sm dark:shadow-none"
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${getMedioDotColor(pago.medio_pago)}`}></span>
-                        {pago.medio_pago}: {formatCurrency(pago.monto)}
+                        {esPagoVale(pago) ? 'Vale Virtual' : pago.medio_pago}: {formatCurrency(pago.monto)}
                       </span>
                     ))}
                   </div>

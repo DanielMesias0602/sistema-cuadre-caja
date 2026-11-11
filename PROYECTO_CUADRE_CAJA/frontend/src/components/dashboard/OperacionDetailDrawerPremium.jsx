@@ -35,6 +35,7 @@ import {
   compararReferencias,
   normalizarReferencia,
 } from '../../utils/referenciaPago';
+import { esPagoEfectivo, esPagoVale } from '../../utils/pago';
 
 function DatoOCR({ icon, label, children }) {
   return (
@@ -1358,9 +1359,7 @@ export function OperacionDetailDrawerPremium({
                       evidenciaEmpresaPago,
                       depositoOCR
                     );
-                    const esVale = String(pago?.medio_pago || pago?.nombre_medio || '')
-                      .trim()
-                      .toLowerCase() === 'vale';
+                    const esVale = esPagoVale(pago);
                     const pagoVerificado = evaluacion.estado === 'VERIFICADO' ||
                       esPagoVerificadoManualmente(pago);
                     const omitirAlertaDiscrepancia = pagoVerificado || esVale;
@@ -1393,7 +1392,7 @@ export function OperacionDetailDrawerPremium({
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                              {pago.medio_pago || pago.nombre_medio || 'Efectivo'}
+                              {esVale ? 'Vale Virtual' : pago.medio_pago || pago.nombre_medio || 'Efectivo'}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                               {formatPEN(pago.monto)}
@@ -1525,11 +1524,11 @@ export function OperacionDetailDrawerPremium({
                 )}
                 {pagos.length > 0 ? (
                   pagos.map((p, idx) => {
-                    const medio = String(
-                      p.medio_pago || p.nombre_medio || ''
-                    ).toLowerCase();
-                    const esEfectivo = medio.includes('efectivo');
-                    const esVale = /\[VALE\]/i.test(String(p.observacion || '')) || medio.trim() === 'vale';
+                    const esEfectivo = esPagoEfectivo(p);
+                    const esVale = esPagoVale(p);
+                    const medioVisible = esVale
+                      ? 'Vale Virtual'
+                      : p.medio_pago || p.nombre_medio || 'Efectivo';
                     const evidenciaClientePago = buscarEvidenciaDePago(p, 'CLIENTE');
                     const evidenciaClientePagoUrl = getEvidenciaUrl(evidenciaClientePago);
                     const datosOcrCliente = obtenerDatosOCR(evidenciaClientePago);
@@ -1551,7 +1550,7 @@ export function OperacionDetailDrawerPremium({
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                {p.medio_pago || p.nombre_medio || 'Efectivo'}
+                                {medioVisible}
                               </p>
                               {esVale && (
                                 <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-800 dark:bg-violet-950/50 dark:text-violet-300">

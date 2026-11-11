@@ -17,6 +17,7 @@ import {
   withTransaction
 } from '../repositories/base.repository.js';
 import { emitirEvento } from './socket.service.js';
+import { construirObservacionesVale } from '../utils/vale.js';
 
 export const registerPago = async (data) => {
   const {
@@ -242,15 +243,13 @@ export const registerPago = async (data) => {
         idMedioVirtual = medioVirtual.id_medio_pago;
       }
 
-      const observacionVale = String(observacion || '').includes('[VALE]')
-        ? observacion
-        : `${observacion ? `${observacion} ` : ''}[VALE]`;
+      const observacionesVale = construirObservacionesVale(observacion);
       const pagoEfectivo = await createPago({
         id_operacion,
         id_medio_pago: idMedioEfectivo,
         monto: montoEfectivo,
         referencia_bancaria: null,
-        observacion: observacionVale,
+        observacion: observacionesVale.observacionEfectivo,
         estado: 'VERIFICADO'
       }, client);
       const pagoVale = await createPago({
@@ -258,7 +257,7 @@ export const registerPago = async (data) => {
         id_medio_pago: idMedioVirtual,
         monto: montoVirtual,
         referencia_bancaria,
-        observacion: observacionVale,
+        observacion: observacionesVale.observacionVirtual,
         estado: 'REGISTRADO'
       }, client);
       pagosRegistrados = [pagoEfectivo, pagoVale];

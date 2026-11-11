@@ -103,8 +103,15 @@ export const findOperacionesReport = async (filters) => {
            DISTINCT jsonb_build_object(
              'id_pago', p.id_pago,
              'id_medio_pago', mp.id_medio_pago,
-             'medio_pago', mp.nombre,
+             'medio_pago', CASE
+               WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo'
+                 THEN mp.nombre
+               WHEN p.observacion ILIKE '%[VALE]%'
+                 OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
+               ELSE mp.nombre
+             END,
              'es_efectivo', CASE
+               WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN TRUE
                WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
                ELSE mp.es_efectivo
              END,
@@ -201,16 +208,19 @@ export const findPagosPorMedioReport = async (filters) => {
   const result = await query(
     `SELECT
        CASE
+        WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN mp.id_medio_pago
         WHEN p.observacion ILIKE '%[VALE]%'
           OR LOWER(TRIM(mp.nombre)) = 'vale' THEN NULL
         ELSE mp.id_medio_pago
        END AS id_medio_pago,
        CASE
+        WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN mp.nombre
         WHEN p.observacion ILIKE '%[VALE]%'
           OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
         ELSE mp.nombre
        END AS medio_pago,
        CASE
+        WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN TRUE
         WHEN p.observacion ILIKE '%[VALE]%'
           OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
          ELSE mp.es_efectivo
@@ -226,16 +236,19 @@ export const findPagosPorMedioReport = async (filters) => {
      ${whereCondition}
      GROUP BY
        CASE
+         WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN mp.nombre
          WHEN p.observacion ILIKE '%[VALE]%'
            OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
          ELSE mp.nombre
        END,
        CASE
+         WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN TRUE
          WHEN p.observacion ILIKE '%[VALE]%'
            OR LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
          ELSE mp.es_efectivo
        END,
        CASE
+         WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN mp.id_medio_pago
          WHEN p.observacion ILIKE '%[VALE]%'
            OR LOWER(TRIM(mp.nombre)) = 'vale' THEN NULL
          ELSE mp.id_medio_pago
@@ -384,7 +397,13 @@ export const findEvidenciasVerificacionesReport = async (filters) => {
        c.serie,
        c.numero,
        p.id_pago,
-       mp.nombre AS medio_pago,
+       CASE
+         WHEN COALESCE(mp.es_efectivo, FALSE)
+           OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN mp.nombre
+         WHEN COALESCE(p.observacion, '') ILIKE '%[VALE]%'
+           OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
+         ELSE mp.nombre
+       END AS medio_pago,
        p.monto AS monto_pago,
        p.estado AS estado_pago,
        e.id_evidencia,
@@ -639,12 +658,19 @@ export const findIndicadoresCompletos = async (filters) => {
      pagos AS (
        SELECT p.*, mp.nombre AS medio_pago,
               (
-                COALESCE(p.observacion, '') ILIKE '%[VALE]%'
-                OR LOWER(TRIM(mp.nombre)) = 'vale'
+                NOT (
+                  COALESCE(mp.es_efectivo, FALSE)
+                  OR LOWER(TRIM(mp.nombre)) = 'efectivo'
+                )
+                AND (
+                  COALESCE(p.observacion, '') ILIKE '%[VALE]%'
+                  OR LOWER(TRIM(mp.nombre)) = 'vale'
+                )
               ) AS es_vale,
               CASE
+                WHEN mp.es_efectivo IS TRUE OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN TRUE
                 WHEN LOWER(TRIM(mp.nombre)) IN ('vale', 'deposito', 'depósito') THEN FALSE
-                ELSE mp.es_efectivo
+                ELSE COALESCE(mp.es_efectivo, FALSE)
               END AS es_efectivo,
               o.fecha, o.estado AS estado_op
        FROM pago p

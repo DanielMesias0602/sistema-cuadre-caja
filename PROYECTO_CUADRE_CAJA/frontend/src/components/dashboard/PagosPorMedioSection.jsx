@@ -1,5 +1,6 @@
 import { CreditCard, Banknote, Smartphone, Landmark } from 'lucide-react';
 import { useMemo } from 'react';
+import { esPagoEfectivo, esPagoVale } from '../../utils/pago';
 
 export function PagosPorMedioSection({ filteredOps }) {
   const pagosPorMedio = useMemo(() => {
@@ -12,11 +13,10 @@ export function PagosPorMedioSection({ filteredOps }) {
       const pagos = Array.isArray(op.pagos) ? op.pagos : [];
       pagos.forEach(p => {
         const medioOriginal = String(p.medio_pago || p.nombre_medio || 'Efectivo');
-        const esVale = /\[VALE\]/i.test(String(p.observacion || '')) ||
-          medioOriginal.trim().toLowerCase() === 'vale';
+        const esVale = esPagoVale(p);
         const medio = esVale ? 'Vale' : medioOriginal;
         const monto = Number(p.monto || p.importe || 0);
-        const esEfectivo = !esVale && (medio || '').toLowerCase().includes('efectivo');
+        const esEfectivo = esPagoEfectivo(p);
         
         if (!medios[medio]) {
           medios[medio] = {

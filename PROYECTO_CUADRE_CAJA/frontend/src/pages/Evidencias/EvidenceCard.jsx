@@ -1,4 +1,5 @@
 import { Receipt, ScrollText, CalendarDays, Images, ArrowUpRight, Maximize2, ImageOff, CheckCircle2 } from 'lucide-react';
+import { esPagoVale } from '../../utils/pago';
 
 export function EvidenceCard({ operacion, onImageClick, onClick }) {
   const docType = operacion.tipo_comprobante || 'FACTURA';
@@ -30,10 +31,7 @@ export function EvidenceCard({ operacion, onImageClick, onClick }) {
     const est = String(p.estado || '').toUpperCase();
     return est === 'VERIFICADO' || est === 'VERIFICADA' || est === 'COMPLETADO';
   });
-  const esVale = pagos.some((pago) =>
-    /\[VALE\]/i.test(String(pago.observacion || '')) ||
-    String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale'
-  );
+  const esVale = pagos.some(esPagoVale);
 
   const obtenerUrl = (img) => {
     if (!img) return null;

@@ -125,7 +125,9 @@ export const findAllOperaciones = async () => {
          (SELECT jsonb_agg(
            jsonb_build_object(
              'id_pago', p.id_pago,
+             'id_medio_pago', mp.id_medio_pago,
              'medio_pago', mp.nombre,
+             'es_efectivo', mp.es_efectivo,
              'monto', p.monto,
              'referencia', p.referencia_bancaria,
              'observacion', p.observacion,

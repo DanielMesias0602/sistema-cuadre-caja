@@ -230,8 +230,14 @@ export const findTodasOperacionesPorFecha = async (fecha) => {
      LEFT JOIN LATERAL (
          SELECT CASE
            WHEN BOOL_OR(
-             COALESCE(p.observacion, '') ILIKE '%[VALE]%'
-             OR LOWER(TRIM(mp.nombre)) = 'vale'
+             NOT (
+               COALESCE(mp.es_efectivo, FALSE)
+               OR LOWER(TRIM(mp.nombre)) = 'efectivo'
+             )
+             AND (
+               COALESCE(p.observacion, '') ILIKE '%[VALE]%'
+               OR LOWER(TRIM(mp.nombre)) = 'vale'
+             )
            ) THEN 'Vale'
            ELSE STRING_AGG(DISTINCT mp.nombre, ', ' ORDER BY mp.nombre)
          END AS medio_pago
@@ -269,7 +275,13 @@ export const findOperacionesConNumeros = async (fecha) => {
        ) AS num_operacion_empresa,
        NULLIF(BTRIM(e_empresa.datos_ocr->>'numero_operacion'), '')
          AS num_op_empresa_alt,
-       mp.nombre AS medio_pago
+       CASE
+         WHEN COALESCE(mp.es_efectivo, FALSE)
+           OR LOWER(TRIM(mp.nombre)) = 'efectivo' THEN mp.nombre
+         WHEN COALESCE(p.observacion, '') ILIKE '%[VALE]%'
+           OR LOWER(TRIM(mp.nombre)) = 'vale' THEN 'Vale'
+         ELSE mp.nombre
+       END AS medio_pago
      FROM operacion o
      JOIN comprobante c ON c.id_comprobante = o.id_comprobante
      JOIN pago p ON p.id_operacion = o.id_operacion

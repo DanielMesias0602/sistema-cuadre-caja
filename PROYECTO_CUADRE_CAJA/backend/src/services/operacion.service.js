@@ -1,5 +1,6 @@
 ﻿import { withTransaction } from '../repositories/base.repository.js';
 import { emitirEvento } from './socket.service.js';
+import { construirObservacionesVale } from '../utils/vale.js';
 import {
   createOperacion,
   updateOperacionMonto,
@@ -633,11 +634,9 @@ export const registerOperacionUnificada = async (data) => {
       }
 
       const esVale = String(medioPago.nombre || '').trim().toLowerCase() === 'vale';
-      const observacionVale = esVale
-        ? (/\[VALE\]/i.test(String(pago.observacion || ''))
-          ? pago.observacion
-          : [pago.observacion, '[VALE]'].filter(Boolean).join(' '))
-        : pago.observacion;
+      const observacionesVale = esVale
+        ? construirObservacionesVale(pago.observacion)
+        : null;
       const mediosParaRegistrar = [];
       if (esVale) {
         const montoEfectivo = Number(pago.monto_efectivo);
@@ -706,13 +705,15 @@ export const registerOperacionUnificada = async (data) => {
             id_medio_pago: idMedioEfectivo,
             monto: montoEfectivo,
             referencia_bancaria: null,
-            es_efectivo: true
+            es_efectivo: true,
+            observacion: observacionesVale.observacionEfectivo
           },
           {
             id_medio_pago: idMedioVirtual,
             monto: montoVirtual,
             referencia_bancaria: pago.referencia_bancaria ?? null,
-            es_efectivo: false
+            es_efectivo: false,
+            observacion: observacionesVale.observacionVirtual
           }
         );
       } else {
@@ -727,7 +728,8 @@ export const registerOperacionUnificada = async (data) => {
           id_medio_pago: medioPago.id_medio_pago,
           monto: montoPago,
           referencia_bancaria: medioPago.es_efectivo ? null : pago.referencia_bancaria ?? null,
-          es_efectivo: medioPago.es_efectivo
+          es_efectivo: medioPago.es_efectivo,
+          observacion: pago.observacion
         });
       }
 
@@ -741,7 +743,7 @@ export const registerOperacionUnificada = async (data) => {
           id_medio_pago: medio.id_medio_pago,
           monto: medio.monto,
           referencia_bancaria: medio.referencia_bancaria,
-          observacion: esVale ? observacionVale : pago.observacion,
+          observacion: medio.observacion,
           estado: estadoInicial
         }, client);
 

@@ -26,6 +26,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { notifyToast } from '../../components/ui/toastEvents';
+import { esPagoVale } from '../../utils/pago';
 
 export function Reportes() {
   const [operaciones, setOperaciones] = useState([]);
@@ -64,10 +65,6 @@ export function Reportes() {
     const num = Number(val || 0);
     return `S/ ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-
-  const esPagoVale = (pago) =>
-    /\[VALE\]/i.test(String(pago.observacion || '')) ||
-    String(pago.medio_pago || pago.nombre_medio || '').trim().toLowerCase() === 'vale';
 
   const obtenerPagosAgrupados = (pagos) => {
     const pagosVale = pagos.filter(esPagoVale);
