@@ -74,6 +74,8 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
             monto: '',
             referencia: '',
             fecha_operacion: '',
+            fecha_operacion_editada: false,
+            campos_editados: {},
             evidencia: null,
           }
           : pago
@@ -171,6 +173,7 @@ export function Paso2Pagos({ comprobante, pagosIniciales, onNext, onBack, onPago
               || pagoExistente.fecha_operacion
               || ''
           ),
+          fecha_operacion_editada: false,
           beneficiario: pagoExistente.beneficiario || datosOCR?.destinatario || '',
           cuenta_destino: pagoExistente.cuenta_destino || datosOCR?.cuenta_destino || '',
           cantidad_depositos: cantidad,

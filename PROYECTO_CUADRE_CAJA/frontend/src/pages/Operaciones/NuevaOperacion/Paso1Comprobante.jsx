@@ -98,11 +98,15 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
 
     const texto = String(fecha).trim();
     const fechaISO = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
-    if (fechaISO) return `${fechaISO[1]}-${fechaISO[2]}-${fechaISO[3]}`;
+    if (fechaISO) {
+      const fechaNormalizada = `${fechaISO[1]}-${fechaISO[2]}-${fechaISO[3]}`;
+      return parseFecha(fechaNormalizada) ? fechaNormalizada : '';
+    }
 
     const fechaLatina = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (fechaLatina) {
-      return `${fechaLatina[3]}-${fechaLatina[2]}-${fechaLatina[1]}`;
+      const fechaNormalizada = `${fechaLatina[3]}-${fechaLatina[2]}-${fechaLatina[1]}`;
+      return parseFecha(fechaNormalizada) ? fechaNormalizada : '';
     }
 
     return '';
@@ -715,6 +719,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={parseFecha(formData.fecha)}
                 onChange={(nuevaFecha) => handleChange('fecha', nuevaFecha)}
                 placeholder="Seleccionar fecha"
+                clearable
               />
             </div>
 

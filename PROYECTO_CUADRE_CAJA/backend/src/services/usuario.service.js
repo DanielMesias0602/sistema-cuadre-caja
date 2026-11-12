@@ -130,9 +130,12 @@ export const resetearPassword = async (idUsuario, nuevaPassword, usuarioSolicita
     throw err;
   }
 
+  const esMismoUsuario = usuarioSolicitante?.id_usuario != null
+    && Number(usuarioSolicitante.id_usuario) === Number(idUsuario);
   if (
     Number(usuarioSolicitante?.id_rol) === 1 &&
-    ![3, 4].includes(Number(user.id_rol))
+    Number(user.id_rol) === 1 &&
+    !esMismoUsuario
   ) {
     const err = new Error('No tienes permisos para cambiar la contraseña de otro administrador');
     err.statusCode = 403;

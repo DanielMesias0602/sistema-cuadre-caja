@@ -145,6 +145,7 @@ function NuevaOperacionContent() {
               evidenciaComprobante={datos.evidencia}
               evidenciaEmpresa={datos.evidenciaEmpresa}
               ocrEmpresa={datos.ocrEmpresa}
+              onDataChange={handlePaso2Change}
               onBack={handleBack}
               onCancel={handleVolverAlInicio}
               onSuccess={handleSuccess}

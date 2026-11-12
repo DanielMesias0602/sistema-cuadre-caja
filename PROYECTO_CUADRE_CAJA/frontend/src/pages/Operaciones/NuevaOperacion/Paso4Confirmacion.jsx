@@ -199,6 +199,7 @@ export function Paso4Confirmacion({
   evidenciasEmpresa = {},
   evidenciaEmpresa,
   ocrEmpresa,
+  onDataChange,
   onBack,
   onCancel,
   onSuccess,
@@ -214,6 +215,16 @@ export function Paso4Confirmacion({
   };
 
   const listaPagos = Array.isArray(pagos) ? pagos : [];
+  const handleFechaPagoChange = (index, fecha) => {
+    onDataChange?.({
+      pagos: listaPagos.map((pago, pagoIndex) => (
+        pagoIndex === index
+          ? { ...pago, fecha_operacion: fecha, fecha_operacion_editada: true }
+          : pago
+      )),
+    });
+  };
+
   const montoOperacion = Number.parseFloat(comprobante?.monto) || 0;
   const totalPagado = listaPagos.reduce((sum, pago) => sum + (Number.parseFloat(pago?.monto) || 0), 0);
   const pendiente = Math.max(0, montoOperacion - totalPagado);
@@ -289,7 +300,8 @@ export function Paso4Confirmacion({
       }
 
       const pagoConFechaInvalida = listaPagos.find((pago) => {
-        const fecha = pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion;
+        if (!pago.fecha_operacion_editada) return false;
+        const fecha = pago.fecha_operacion;
         return fecha && !normalizarFechaISO(fecha);
       });
       if (pagoConFechaInvalida) {
@@ -401,9 +413,13 @@ export function Paso4Confirmacion({
           let obsFinal = pago.observacion || '';
           let extras = [];
           if (pago.beneficiario) extras.push(`Benef: ${pago.beneficiario}`);
+          if (pago.banco) extras.push(`Banco: ${pago.banco}`);
+          if (pago.hora_operacion) extras.push(`Hora Op: ${pago.hora_operacion}`);
           if (pago.cuenta_destino) extras.push(`Cta Destino: ${pago.cuenta_destino}`);
           const fechaPago = normalizarFechaISO(
-            pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion
+            pago.fecha_operacion_editada
+              ? pago.fecha_operacion
+              : pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion
           );
           if (fechaPago) extras.push(`Fecha Op: ${fechaPago}`);
           
@@ -656,6 +672,20 @@ export function Paso4Confirmacion({
                     </p>
                     <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums flex-shrink-0">{formatPEN(pago.monto)}</span>
                   </div>
+
+                  <label className="mb-3 block text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    Fecha de operación
+                    <input
+                      type="date"
+                      value={normalizarFechaISO(
+                        pago.fecha_operacion_editada
+                          ? pago.fecha_operacion
+                          : pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion
+                      )}
+                      onChange={(event) => handleFechaPagoChange(index, event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </label>
 
                   <div>
                     <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Evidencia del cliente</p>

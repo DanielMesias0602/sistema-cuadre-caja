@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Trash2, UploadCloud, X, Loader2, CheckCircle,
   Info, Banknote, Calendar, Hash, User, Building2, CreditCard, Check, AlertCircle,
@@ -29,14 +29,16 @@ const COLORES = {
   rose: 'text-rose-500',
 };
 
-const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaActual) => {
+const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaActual, camposEditados = {}) => {
   const datos = datosOCR || {};
   const medio = String(medioPago || '').toLowerCase();
   const campos = [];
 
-  const monto = montoActual !== '' && montoActual != null
+  const monto = camposEditados.monto
     ? montoActual
-    : datos.monto ?? '';
+    : montoActual !== '' && montoActual != null
+      ? montoActual
+      : datos.monto ?? '';
   campos.push({
     icon: 'banknote',
     label: 'Monto',
@@ -49,7 +51,9 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
   campos.push({
     icon: 'calendar',
     label: 'Fecha',
-    value: fechaActual || datos.fecha_operacion || '',
+    value: camposEditados.fecha_operacion
+      ? fechaActual || ''
+      : fechaActual || datos.fecha_operacion || '',
     color: 'blue',
     editable: true,
     field: 'fecha_operacion'
@@ -62,7 +66,9 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
     campos.push({
       icon: 'hash',
       label: 'Venta ID',
-      value: referenciaActual || datos.referencia_bancaria || '',
+      value: camposEditados.referencia
+        ? referenciaActual || ''
+        : referenciaActual || datos.referencia_bancaria || '',
       color: 'purple',
       editable: true,
       field: 'referencia'
@@ -80,7 +86,9 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
     campos.push({
       icon: 'hash',
       label: 'Referencia',
-      value: referenciaActual || datos.referencia_bancaria || '',
+      value: camposEditados.referencia
+        ? referenciaActual || ''
+        : referenciaActual || datos.referencia_bancaria || '',
       color: 'purple',
       editable: true,
       field: 'referencia'
@@ -90,7 +98,7 @@ const getCamposOCR = (datosOCR, medioPago, montoActual, referenciaActual, fechaA
   return campos;
 };
 
-function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, isMoney = false, onValueChange, disabled = false, nota }) {
+function CampoOCR({ icon, label, value, color, variant = 'default', editable = false, isMoney = false, onValueChange, nota }) {
   const Icon = ICONOS[icon] || Info;
   const colorClass = COLORES[color] || 'text-slate-500 dark:text-slate-500';
 
@@ -116,7 +124,6 @@ function CampoOCR({ icon, label, value, color, variant = 'default', editable = f
             value={value}
             onChange={(event) => onValueChange?.(event.target.value)}
             placeholder={isMoney ? '0.00' : ''}
-            disabled={disabled}
             aria-label={label}
             className="w-full min-w-0 bg-transparent font-bold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
@@ -182,6 +189,7 @@ export default function PagoCard({
   const [preview, setPreview] = useState(pago.evidencia?.imagenBase64 || null);
   const [error, setError] = useState(null);
   const [mostrarModalCambio, setMostrarModalCambio] = useState(false);
+  const camposEditadosRef = useRef({});
 
   // LÓGICA DE RENDERIZADO DINÁMICO CORREGIDA
   const hayMedio = Boolean(pago.id_medio_pago); // <-- NUEVA VALIDACIÓN
@@ -221,7 +229,30 @@ export default function PagoCard({
   const mostrarCuentaDestino = hayMedio && esTransferenciaBCP;
 
   const handleChange = (field, value) => {
-    onPagoChange({ ...pago, [field]: value });
+    camposEditadosRef.current = { ...camposEditadosRef.current, [field]: value };
+    onPagoChange({
+      ...pago,
+      [field]: value,
+      campos_editados: {
+        ...pago.campos_editados,
+        [field]: true,
+      },
+      ...(field === 'fecha_operacion' ? { fecha_operacion_editada: true } : {}),
+    });
+  };
+
+  const aplicarEdicionesManuales = (pagoActualizado) => {
+    const camposEditados = camposEditadosRef.current;
+    return {
+      ...pagoActualizado,
+      ...camposEditados,
+      campos_editados: Object.fromEntries(
+        Object.keys(camposEditados).map((field) => [field, true])
+      ),
+      ...(Object.prototype.hasOwnProperty.call(camposEditados, 'fecha_operacion')
+        ? { fecha_operacion_editada: true }
+        : {}),
+    };
   };
 
   const handleValeMontoChange = (field, value) => {
@@ -229,6 +260,11 @@ export default function PagoCard({
     const montoVirtual = field === 'monto_virtual' ? value : pago.monto_virtual;
     const montoTotal = Number(montoEfectivo || 0) + Number(montoVirtual || 0);
 
+    camposEditadosRef.current = {
+      ...camposEditadosRef.current,
+      [field]: value,
+      monto: montoTotal > 0 ? montoTotal.toFixed(2) : '',
+    };
     onPagoChange({
       ...pago,
       [field]: value,
@@ -237,6 +273,7 @@ export default function PagoCard({
   };
 
   const handleMedioChange = (e) => {
+    camposEditadosRef.current = {};
     const idMedio = Number(e.target.value);
     const medioSeleccionado = medios.find(m => m.id_medio_pago === idMedio);
     onPagoChange({
@@ -251,6 +288,8 @@ export default function PagoCard({
       cantidad_depositos: 1,
       referencia: '',
       fecha_operacion: '',
+      fecha_operacion_editada: false,
+      campos_editados: {},
       evidencia: null
     });
     setPreview(null);
@@ -261,16 +300,19 @@ export default function PagoCard({
     const file = e.target.files[0];
     if (!file) return;
 
+    camposEditadosRef.current = {};
     if (onPrepararOcr) {
       onPrepararOcr();
     } else {
-      onPagoChange({
+      onPagoChange(aplicarEdicionesManuales({
         ...pago,
         monto: '',
         referencia: '',
         fecha_operacion: '',
+        fecha_operacion_editada: false,
+        campos_editados: {},
         evidencia: null
-      });
+      }));
     }
     setLoadingOCR(true);
     setError(null);
@@ -338,22 +380,26 @@ export default function PagoCard({
           return;
         }
 
-        onPagoChange({
+        onPagoChange(aplicarEdicionesManuales({
           ...pago,
           monto: '',
           referencia: '',
           fecha_operacion: '',
+          fecha_operacion_editada: false,
+          campos_editados: {},
           evidencia: evidenciaOCR
-        });
+        }));
       } catch (ocrError) {
         console.error('Error OCR:', ocrError);
-        onPagoChange({
+        onPagoChange(aplicarEdicionesManuales({
           ...pago,
           monto: '',
           referencia: '',
           fecha_operacion: '',
+          fecha_operacion_editada: false,
+          campos_editados: {},
           evidencia: evidenciaBase,
-        });
+        }));
         setError('No se pudo procesar la imagen con OCR. Puedes completar los datos manualmente.');
       }
     } catch (readError) {
@@ -372,28 +418,48 @@ export default function PagoCard({
     const fechaDetectada = datos.fecha_operacion || '';
     const beneficiarioDetectado = datos.destinatario || '';
     const cuentaDestinoDetectada = datos.cuenta_destino || '';
-    const montoActual = pago.monto !== '' && pago.monto != null
+    const montoActual = pago.campos_editados?.monto
       ? pago.monto
-      : (esVale ? '' : (montoDetectado ?? ''));
+      : pago.monto !== '' && pago.monto != null
+        ? pago.monto
+        : (esVale ? '' : (montoDetectado ?? ''));
 
     onPagoChange({
       ...pago,
       evidencia: { ...pago.evidencia, confirmada: true },
       monto: montoActual,
-      referencia: pago.referencia || referenciaDetectada || '',
-      fecha_operacion: normalizarFechaISO(pago.fecha_operacion || fechaDetectada || ''),
-      beneficiario: pago.beneficiario || beneficiarioDetectado,
+      referencia: pago.campos_editados?.referencia
+        ? pago.referencia
+        : pago.referencia || referenciaDetectada || '',
+      fecha_operacion: normalizarFechaISO(
+        pago.fecha_operacion_editada
+          ? pago.fecha_operacion
+          : pago.fecha_operacion || fechaDetectada || ''
+      ),
+      fecha_operacion_editada: pago.fecha_operacion_editada || false,
+      beneficiario: pago.campos_editados?.beneficiario
+        ? pago.beneficiario
+        : pago.beneficiario || beneficiarioDetectado,
+      banco: pago.campos_editados?.banco
+        ? pago.banco
+        : pago.banco || datos.aplicacion_banco || datos.banco || '',
+      hora_operacion: pago.campos_editados?.hora_operacion
+        ? pago.hora_operacion
+        : pago.hora_operacion || datos.hora_operacion || '',
       cuenta_destino: pago.cuenta_destino || cuentaDestinoDetectada,
       observacion: pago.observacion || ''
     });
   };
 
   const descartarEvidencia = () => {
+    camposEditadosRef.current = {};
     onPagoChange({
       ...pago,
       monto: '',
       referencia: '',
       fecha_operacion: '',
+      fecha_operacion_editada: false,
+      campos_editados: {},
       evidencia: null
     });
     setPreview(null);
@@ -413,14 +479,14 @@ export default function PagoCard({
       pago.nombre_medio || pago.medio_pago,
       pago.monto,
       pago.referencia,
-      pago.fecha_operacion
+      pago.fecha_operacion,
+      pago.campos_editados
     )
       .map((campo) => campo.editable
         ? {
           ...campo,
           editable: !(esVale && campo.field === 'monto'),
           onValueChange: (value) => handleChange(campo.field, value),
-          disabled: loadingOCR
         }
         : campo)
     : [];
@@ -512,7 +578,6 @@ export default function PagoCard({
                   onChange={(e) => handleValeMontoChange('monto_efectivo', e.target.value)}
                   placeholder="0.00"
                   step="0.01"
-                  disabled={loadingOCR}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
@@ -549,7 +614,6 @@ export default function PagoCard({
                   onChange={(e) => handleValeMontoChange('monto_virtual', e.target.value)}
                   placeholder="0.00"
                   step="0.01"
-                  disabled={loadingOCR}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
@@ -585,7 +649,6 @@ export default function PagoCard({
                 onChange={(e) => handleChange('monto', e.target.value)}
                 placeholder="0.00"
                 step="0.01"
-                disabled={loadingOCR}
                 className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
               />
             </>
@@ -642,7 +705,6 @@ export default function PagoCard({
                   value={pago.referencia || ''}
                   onChange={(e) => handleChange('referencia', e.target.value)}
                   placeholder="Opcional"
-                  disabled={loadingOCR}
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
@@ -653,9 +715,38 @@ export default function PagoCard({
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Fecha de Operación</label>
                 <input
                   type="date"
-                  value={normalizarFechaISO(pago.fecha_operacion)}
+                  value={normalizarFechaISO(
+                    pago.fecha_operacion_editada
+                      ? pago.fecha_operacion
+                      : pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion
+                  )}
                   onChange={(e) => handleChange('fecha_operacion', e.target.value)}
-                  disabled={loadingOCR}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+            )}
+
+            {(pago.banco != null || pago.evidencia?.datosOCR?.aplicacion_banco || pago.evidencia?.datosOCR?.banco) && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Banco</label>
+                <input
+                  type="text"
+                  value={pago.banco ?? pago.evidencia?.datosOCR?.aplicacion_banco ?? pago.evidencia?.datosOCR?.banco ?? ''}
+                  onChange={(e) => handleChange('banco', e.target.value)}
+                  placeholder="Banco o aplicación"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                />
+              </div>
+            )}
+
+            {(pago.hora_operacion != null || pago.evidencia?.datosOCR?.hora_operacion) && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Hora</label>
+                <input
+                  type="text"
+                  value={pago.hora_operacion ?? pago.evidencia?.datosOCR?.hora_operacion ?? ''}
+                  onChange={(e) => handleChange('hora_operacion', e.target.value)}
+                  placeholder="Hora de operación"
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
@@ -666,7 +757,7 @@ export default function PagoCard({
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Beneficiario</label>
                 <input
                   type="text"
-                  value={pago.beneficiario || ''}
+                  value={pago.beneficiario ?? pago.evidencia?.datosOCR?.destinatario ?? ''}
                   onChange={(e) => handleChange('beneficiario', e.target.value)}
                   placeholder="Nombre de la empresa/persona"
                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"

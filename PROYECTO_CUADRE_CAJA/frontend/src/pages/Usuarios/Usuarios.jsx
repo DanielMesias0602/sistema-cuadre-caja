@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { usuariosService, extractData } from '../../services/usuarios.service';
 import { Plus, UserX, UserCheck, Key, X, Trash2, AlertTriangle, Shield, User, Search, Settings, Pencil, Eye, EyeOff, Lock } from 'lucide-react';
 import { notifyToast } from '../../components/ui/toastEvents';
+import { useAuth } from '../../hooks/useAuth';
 
 export function Usuarios() {
+  const { user } = useAuth();
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,6 +45,11 @@ export function Usuarios() {
 
   const [userToDelete, setUserToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const bloquearCambioPassword = (usuario) =>
+    Number(user?.id_rol) === 1 &&
+    Number(usuario?.id_rol) === 1 &&
+    String(user?.id_usuario) !== String(usuario?.id_usuario);
 
   async function cargarUsuarios() {
     try {
@@ -119,6 +126,11 @@ export function Usuarios() {
   };
 
   const abrirModalPassword = (usuario) => {
+    if (bloquearCambioPassword(usuario)) {
+      notifyToast('No tienes permisos para cambiar la contraseña de otro administrador.', 'warning');
+      return;
+    }
+
     setUsuarioPassword(usuario);
     setNuevaPassword('');
     setShowNuevaPassword(false);
@@ -128,6 +140,11 @@ export function Usuarios() {
 
   const handleGuardarPassword = async (e) => {
     e.preventDefault();
+    if (bloquearCambioPassword(usuarioPassword)) {
+      notifyToast('No tienes permisos para cambiar la contraseña de otro administrador.', 'warning');
+      return;
+    }
+
     if (nuevaPassword.length < 8) {
       notifyToast('La contraseña debe tener al menos 8 caracteres.', 'warning');
       return;
@@ -274,7 +291,11 @@ export function Usuarios() {
                         </button>
                         <button
                           onClick={() => abrirModalPassword(u)}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 dark:text-slate-200 dark:hover:bg-slate-700"
+                          disabled={bloquearCambioPassword(u)}
+                          title={bloquearCambioPassword(u)
+                            ? 'No puedes cambiar la contraseña de otro administrador'
+                            : undefined}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                           <Key className="w-4 h-4 text-orange-500" /> Cambiar Contraseña
                         </button>
@@ -356,7 +377,11 @@ export function Usuarios() {
                       </button>
                       <button
                         onClick={() => abrirModalPassword(u)}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 dark:text-slate-200 dark:hover:bg-slate-700"
+                        disabled={bloquearCambioPassword(u)}
+                        title={bloquearCambioPassword(u)
+                          ? 'No puedes cambiar la contraseña de otro administrador'
+                          : undefined}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
                         <Key className="w-4 h-4 text-orange-500" /> Cambiar Contraseña
                       </button>
