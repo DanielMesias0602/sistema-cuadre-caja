@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import ocrService from '../../../../services/ocr.service';
 import { normalizarFechaISO } from '../../../../utils/fecha';
+import { construirPagoConfirmado } from './pagoCard.utils.js';
 
 const ICONOS = {
   banknote: Banknote,
@@ -411,44 +412,7 @@ export default function PagoCard({
   };
 
   const confirmarEvidencia = () => {
-    const datos = pago.evidencia?.datosOCR || {};
-
-    const montoDetectado = datos.monto;
-    const referenciaDetectada = datos.referencia_bancaria || datos.numero_operacion;
-    const fechaDetectada = datos.fecha_operacion || '';
-    const beneficiarioDetectado = datos.destinatario || '';
-    const cuentaDestinoDetectada = datos.cuenta_destino || '';
-    const montoActual = pago.campos_editados?.monto
-      ? pago.monto
-      : pago.monto !== '' && pago.monto != null
-        ? pago.monto
-        : (esVale ? '' : (montoDetectado ?? ''));
-
-    onPagoChange({
-      ...pago,
-      evidencia: { ...pago.evidencia, confirmada: true },
-      monto: montoActual,
-      referencia: pago.campos_editados?.referencia
-        ? pago.referencia
-        : pago.referencia || referenciaDetectada || '',
-      fecha_operacion: normalizarFechaISO(
-        pago.fecha_operacion_editada
-          ? pago.fecha_operacion
-          : pago.fecha_operacion || fechaDetectada || ''
-      ),
-      fecha_operacion_editada: pago.fecha_operacion_editada || false,
-      beneficiario: pago.campos_editados?.beneficiario
-        ? pago.beneficiario
-        : pago.beneficiario || beneficiarioDetectado,
-      banco: pago.campos_editados?.banco
-        ? pago.banco
-        : pago.banco || datos.aplicacion_banco || datos.banco || '',
-      hora_operacion: pago.campos_editados?.hora_operacion
-        ? pago.hora_operacion
-        : pago.hora_operacion || datos.hora_operacion || '',
-      cuenta_destino: pago.cuenta_destino || cuentaDestinoDetectada,
-      observacion: pago.observacion || ''
-    });
+    onPagoChange(construirPagoConfirmado(pago, esVale, camposEditadosRef.current));
   };
 
   const descartarEvidencia = () => {
@@ -649,7 +613,7 @@ export default function PagoCard({
                 onChange={(e) => handleChange('monto', e.target.value)}
                 placeholder="0.00"
                 step="0.01"
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
               />
             </>
           )}
@@ -705,7 +669,7 @@ export default function PagoCard({
                   value={pago.referencia || ''}
                   onChange={(e) => handleChange('referencia', e.target.value)}
                   placeholder="Opcional"
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
             )}
@@ -721,7 +685,7 @@ export default function PagoCard({
                       : pago.fecha_operacion || pago.evidencia?.datosOCR?.fecha_operacion
                   )}
                   onChange={(e) => handleChange('fecha_operacion', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 dark:[color-scheme:dark] focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
             )}
@@ -734,7 +698,7 @@ export default function PagoCard({
                   value={pago.banco ?? pago.evidencia?.datosOCR?.aplicacion_banco ?? pago.evidencia?.datosOCR?.banco ?? ''}
                   onChange={(e) => handleChange('banco', e.target.value)}
                   placeholder="Banco o aplicación"
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
             )}
@@ -747,7 +711,7 @@ export default function PagoCard({
                   value={pago.hora_operacion ?? pago.evidencia?.datosOCR?.hora_operacion ?? ''}
                   onChange={(e) => handleChange('hora_operacion', e.target.value)}
                   placeholder="Hora de operación"
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-orange outline-none"
                 />
               </div>
             )}

@@ -673,7 +673,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 name="tipo_comprobante"
                 value={formData.tipo_comprobante}
                 onChange={(e) => handleChange('tipo_comprobante', e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               >
                 <option value="">Seleccionar...</option>
                 <option value="BOLETA">Boleta</option>
@@ -692,7 +692,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.serie}
                 onChange={(e) => handleChange('serie', e.target.value)}
                 placeholder="Ej: BE02"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -707,7 +707,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.numero}
                 onChange={(e) => handleChange('numero', e.target.value)}
                 placeholder="Ej: 00024034"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -736,7 +736,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -754,7 +754,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                   horaEditadaManualmenteRef.current = true;
                   handleChange('hora', e.target.value);
                 }}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 dark:[color-scheme:dark] focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -769,7 +769,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.cliente || ''}
                 onChange={(e) => handleChange('cliente', e.target.value)}
                 placeholder="Nombre del cliente"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
@@ -784,7 +784,7 @@ export function Paso1Comprobante({ datosIniciales, onDataChange, onNext, onBack 
                 value={formData.vendedor}
                 onChange={(e) => handleChange('vendedor', e.target.value)}
                 placeholder="Nombre del vendedor"
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
               />
             </div>
 
